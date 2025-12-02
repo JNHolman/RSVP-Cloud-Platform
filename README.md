@@ -75,7 +75,7 @@ MFA for admin
 CloudTrail + GuardDuty
 
 Why?
-Cloud security is a first-class requirement — not a “nice to have.”
+Cloud security is a first-class requirement: not a “nice to have.”
 
 5. Monitoring & Observability
 CloudWatch dashboards
