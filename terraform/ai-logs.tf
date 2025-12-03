@@ -1,92 +1,112 @@
-##############################################
-#  AI Log Summarizer – Skeleton
-##############################################
+#########################################
+# AI Log Summarizer Lambda
+#########################################
 
-# CloudWatch log group where app / ALB logs could be sent
-resource "aws_cloudwatch_log_group" "app_logs" {
-  name              = "/aws/rsvp/${var.environment}/app"
-  retention_in_days = 7
+resource "aws_iam_role" "ai_lambda_role" {
+  name = "${var.project_name}-${var.environment}-ai-lambda-role"
 
-  tags = {
-    Project     = var.project_name
-    Environment = var.environment
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [{
+      Effect    = "Allow",
+      Principal = { Service = "lambda.amazonaws.com" },
+      Action    = "sts:AssumeRole"
+    }]
+  })
+}
+
+resource "aws_iam_role_policy" "ai_lambda_policy" {
+  name = "${var.project_name}-${var.environment}-ai-lambda-policy"
+  role = aws_iam_role.ai_lambda_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect   = "Allow",
+        Action   = ["logs:FilterLogEvents"],
+        Resource = "*"
+      },
+      {
+        Effect   = "Allow",
+        Action   = ["s3:PutObject"],
+        Resource = "${aws_s3_bucket.ai_logs_bucket.arn}/*"
+      },
+      {
+        Effect   = "Allow",
+        Action   = ["dynamodb:PutItem"],
+        Resource = aws_dynamodb_table.ai_logs.arn
+      }
+    ]
+  })
+}
+
+#########################################
+# S3 Bucket for summaries
+#########################################
+
+resource "aws_s3_bucket" "ai_logs_bucket" {
+  bucket        = "${var.project_name}-${var.environment}-ai-logs"
+  force_destroy = true
+}
+
+#########################################
+# DynamoDB for history
+#########################################
+
+resource "aws_dynamodb_table" "ai_logs" {
+  name         = "${var.project_name}-${var.environment}-ai-log-history"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "id"
+
+  attribute {
+    name = "id"
+    type = "S"
   }
 }
 
-##############################################
-#  SNS Topic for AI Summaries
-##############################################
-
-resource "aws_sns_topic" "ai_summaries" {
-  name = "${var.project_name}-${var.environment}-ai-log-summaries"
-
-  tags = {
-    Project     = var.project_name
-    Environment = var.environment
-  }
-}
-
-##############################################
-#  Lambda Function Placeholder (AI Summarizer)
-##############################################
-
-# NOTE:
-# - In a real deployment, you’d package lambda_function.py as a ZIP
-# - And configure environment variables for model + SNS topic
-# - For now, we wire the infra side so you can explain the design.
+#########################################
+# Lambda Function
+#########################################
 
 resource "aws_lambda_function" "ai_log_summarizer" {
-  function_name = "${var.project_name}-${var.environment}-ai-log-summarizer"
-  role          = aws_iam_role.ai_logs_lambda_role.arn
-  runtime       = "python3.9"
+  function_name = "${var.project_name}-${var.environment}-ai-summarizer"
   handler       = "lambda_function.lambda_handler"
+  runtime       = "python3.9"
+  role          = aws_iam_role.ai_lambda_role.arn
+  timeout       = 30
 
-  # Placeholder – in a real setup you'd point to an S3 object or local file
-  filename         = "lambda/ai-log-summarizer.zip"
-  source_code_hash = filebase64sha256("lambda/ai-log-summarizer.zip")
-
-  timeout = 60
+  filename         = "${path.module}/ai_lambda_package.zip"
+  source_code_hash = filebase64sha256("${path.module}/ai_lambda_package.zip")
 
   environment {
     variables = {
-      LOG_GROUP_NAME = aws_cloudwatch_log_group.app_logs.name
-      SNS_TOPIC_ARN  = aws_sns_topic.ai_summaries.arn
-      AWS_REGION     = var.aws_region
-      # MODEL_ID     = "bedrock-model-id-here"
+      OPENAI_API_KEY = var.openai_api_key
+      BUCKET_NAME    = aws_s3_bucket.ai_logs_bucket.bucket
+      TABLE_NAME     = aws_dynamodb_table.ai_logs.name
     }
   }
-
-  tags = {
-    Project     = var.project_name
-    Environment = var.environment
-  }
 }
 
-##############################################
-#  EventBridge Rule – Run Summarizer Periodically
-##############################################
+#########################################
+# Schedule (once daily)
+#########################################
 
-resource "aws_cloudwatch_event_rule" "ai_logs_schedule" {
-  name                = "${var.project_name}-${var.environment}-ai-logs-schedule"
-  description         = "Run AI log summarizer on a schedule"
-  schedule_expression = "rate(1 day)"
-
-  tags = {
-    Project     = var.project_name
-    Environment = var.environment
-  }
+resource "aws_cloudwatch_event_rule" "daily_ai_summary" {
+  name                = "${var.project_name}-${var.environment}-ai-summary-schedule"
+  description         = "Daily AI log summary"
+  schedule_expression = "rate(24 hours)"
 }
 
-resource "aws_cloudwatch_event_target" "ai_logs_target" {
-  rule      = aws_cloudwatch_event_rule.ai_logs_schedule.name
-  target_id = "ai-log-summarizer"
+resource "aws_cloudwatch_event_target" "ai_summary_target" {
+  rule      = aws_cloudwatch_event_rule.daily_ai_summary.name
+  target_id = "lambda"
   arn       = aws_lambda_function.ai_log_summarizer.arn
 }
 
-resource "aws_lambda_permission" "allow_eventbridge" {
-  statement_id  = "AllowExecutionFromEventBridge"
+resource "aws_lambda_permission" "allow_events" {
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.ai_log_summarizer.function_name
   principal     = "events.amazonaws.com"
-  source_arn    = aws_cloudwatch_event_rule.ai_logs_schedule.arn
+  source_arn    = aws_cloudwatch_event_rule.daily_ai_summary.arn
 }

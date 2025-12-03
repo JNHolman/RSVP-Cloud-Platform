@@ -1,25 +1,37 @@
 ##############################################
-#  RDS – Database Layer for RSVP App
+#  RDS Subnet Group & Security Group
 ##############################################
 
-# Security group for RDS – only allow app tier
-resource "aws_security_group" "rds_sg" {
-  name        = "${var.project_name}-${var.environment}-rds-sg"
-  description = "Security group for RSVP RDS database"
-  vpc_id      = aws_vpc.main.id
+# Use the private subnets for the DB
+resource "aws_db_subnet_group" "rsvp_db_subnets" {
+  name = "${var.project_name}-${var.environment}-db-subnets"
+  subnet_ids = [
+    aws_subnet.private[0].id,
+    aws_subnet.private[1].id
+  ]
 
-  # Allow MySQL from app instances only
+  tags = {
+    Name        = "${var.project_name}-${var.environment}-db-subnets"
+    Project     = var.project_name
+    Environment = var.environment
+  }
+}
+
+# DB security group – allow MySQL from app instances only
+resource "aws_security_group" "db_sg" {
+  name        = "${var.project_name}-${var.environment}-db-sg"
+  description = "Allow MySQL from app instances"
+  # grab VPC ID from one of the private subnets so we don't depend on the VPC name
+  vpc_id = aws_subnet.private[0].vpc_id
+
   ingress {
-    description = "MySQL from app security group"
-    from_port   = 3306
-    to_port     = 3306
-    protocol    = "tcp"
-    security_groups = [
-      aws_security_group.app_sg.id
-    ]
+    description     = "MySQL from app instances"
+    from_port       = 3306
+    to_port         = 3306
+    protocol        = "tcp"
+    security_groups = [aws_security_group.app_sg.id]
   }
 
-  # Outbound allowed (for patches, monitoring, etc.)
   egress {
     from_port   = 0
     to_port     = 0
@@ -28,77 +40,39 @@ resource "aws_security_group" "rds_sg" {
   }
 
   tags = {
-    Name        = "${var.project_name}-${var.environment}-rds-sg"
-    Environment = var.environment
+    Name        = "${var.project_name}-${var.environment}-db-sg"
     Project     = var.project_name
-    Tier        = "db"
+    Environment = var.environment
   }
 }
 
 ##############################################
-#  DB Subnet Group – RDS only in private subnets
+#  RDS instance
 ##############################################
-
-resource "aws_db_subnet_group" "rds" {
-  name       = "${var.project_name}-${var.environment}-rds-subnets"
-  subnet_ids = aws_subnet.private[*].id
-
-  tags = {
-    Name        = "${var.project_name}-${var.environment}-rds-subnets"
-    Environment = var.environment
-    Project     = var.project_name
-    Tier        = "db"
-  }
-}
-
-##############################################
-#  RDS MySQL Instance
-##############################################
-
-# NOTE: For a real environment, use SSM or secrets manager.
-# For this portfolio + lab, keep it simple and controlled.
 
 resource "aws_db_instance" "rsvp_db" {
-  identifier = "${var.project_name}-${var.environment}-db"
+  identifier        = "${var.project_name}-${var.environment}-db"
+  engine            = "mysql"
+  engine_version    = "8.0"
+  instance_class    = "db.t3.micro"
+  allocated_storage = 20
+  username          = var.db_username
+  password          = var.db_password
+  db_name           = var.db_name
+  port              = 3306
 
-  engine               = var.rds_engine          # default "mysql"
-  instance_class       = var.rds_instance_class  # default "db.t3.micro"
-  allocated_storage    = var.rds_allocated_storage
-  storage_encrypted    = true
-  multi_az             = true
-  publicly_accessible  = false
+  db_subnet_group_name   = aws_db_subnet_group.rsvp_db_subnets.name
+  vpc_security_group_ids = [aws_security_group.db_sg.id]
 
-  username = "rsvp_admin"
-  password = "ChangeMeStrongPassword123!"
-
-  db_subnet_group_name   = aws_db_subnet_group.rds.name
-  vpc_security_group_ids = [aws_security_group.rds_sg.id]
-
-  backup_retention_period = 7
+  backup_retention_period = 1
   skip_final_snapshot     = true
 
-  deletion_protection     = false
-
-  auto_minor_version_upgrade = true
+  deletion_protection = false
 
   tags = {
-    Name        = "${var.project_name}-${var.environment}-rds"
-    Environment = var.environment
+    Name        = "${var.project_name}-${var.environment}-db"
     Project     = var.project_name
-    Tier        = "db"
+    Environment = var.environment
   }
 }
 
-##############################################
-#  RDS Outputs
-##############################################
-
-output "rds_endpoint" {
-  description = "RDS endpoint for application connection"
-  value       = aws_db_instance.rsvp_db.endpoint
-}
-
-output "rds_db_name" {
-  description = "RDS database identifier"
-  value       = aws_db_instance.rsvp_db.id
-}

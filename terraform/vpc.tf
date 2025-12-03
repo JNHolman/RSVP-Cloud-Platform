@@ -47,10 +47,10 @@ resource "aws_internet_gateway" "igw" {
 ##############################################
 
 resource "aws_subnet" "public" {
-  count             = length(var.public_subnet_cidrs)
-  vpc_id            = aws_vpc.main.id
-  cidr_block        = var.public_subnet_cidrs[count.index]
-  availability_zone = local.public_azs[count.index]
+  count                   = length(var.public_subnet_cidrs)
+  vpc_id                  = aws_vpc.main.id
+  cidr_block              = var.public_subnet_cidrs[count.index]
+  availability_zone       = local.public_azs[count.index]
   map_public_ip_on_launch = true
 
   tags = {
@@ -111,7 +111,7 @@ resource "aws_route_table_association" "public" {
 
 # Elastic IP for NAT
 resource "aws_eip" "nat" {
-  domain = "vpc"
+  vpc = true
 
   tags = {
     Name        = "${var.project_name}-${var.environment}-nat-eip"

@@ -57,12 +57,7 @@ resource "aws_cloudwatch_metric_alarm" "ec2_cpu_high" {
   metric_name = "CPUUtilization"
   namespace   = "AWS/EC2"
 
-  dimensions = {
-    AutoScalingGroupName = "not-used-here"
-  }
-
-  # For simplicity, attach to first instance only
-  # (in a real build you’d use ASG-based metrics)
+  # Attach the alarm to the first EC2 instance
   dimensions = {
     InstanceId = aws_instance.app[0].id
   }
@@ -83,34 +78,34 @@ resource "aws_cloudwatch_dashboard" "main" {
   dashboard_body = jsonencode({
     widgets = [
       {
-        type = "metric",
-        x    = 0,
-        y    = 0,
-        width  = 12,
-        height = 6,
+        type   = "metric"
+        x      = 0
+        y      = 0
+        width  = 12
+        height = 6
         properties = {
-          title = "ALB 5xx Errors",
+          title = "ALB 5xx Errors"
           metrics = [
-            [ "AWS/ApplicationELB", "HTTPCode_ELB_5XX_Count", "LoadBalancer", aws_lb.app_alb.arn_suffix ]
-          ],
-          period = 300,
-          stat   = "Sum",
+            ["AWS/ApplicationELB", "HTTPCode_ELB_5XX_Count", "LoadBalancer", aws_lb.app_alb.arn_suffix]
+          ]
+          period = 300
+          stat   = "Sum"
           region = var.aws_region
         }
       },
       {
-        type = "metric",
-        x    = 12,
-        y    = 0,
-        width  = 12,
-        height = 6,
+        type   = "metric"
+        x      = 12
+        y      = 0
+        width  = 12
+        height = 6
         properties = {
-          title = "App EC2 CPU",
+          title = "App EC2 CPU"
           metrics = [
-            [ "AWS/EC2", "CPUUtilization", "InstanceId", aws_instance.app[0].id ]
-          ],
-          period = 300,
-          stat   = "Average",
+            ["AWS/EC2", "CPUUtilization", "InstanceId", aws_instance.app[0].id]
+          ]
+          period = 300
+          stat   = "Average"
           region = var.aws_region
         }
       }

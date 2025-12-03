@@ -1,5 +1,12 @@
 RSVP Cloud Platform
+Highly available, cost-optimized, AI-powered AWS infrastructure — deployed fully with Terraform.
+<div align="center"> <img src="screenshots/ui.png" width="80%" style="border-radius:12px;" /> </div>
+Project Overview
 
+The RSVP Cloud Platform is a complete AWS environment designed for a small event-booking application.
+It demonstrates professional-grade cloud engineering skills across:
+
+<<<<<<< HEAD
 A highly available, cost-optimized AWS infrastructure for a small event-booking platform. Includes VPC, EC2, ALB, RDS, IAM hardening, monitoring, and AI-powered log summarization for operational insight.
 
 Business Problem
@@ -153,3 +160,141 @@ Add WAF for ALB
 Convert logs to OpenTelemetry format
 Introduce S3 static content + CloudFront
 Expand Bedrock AI to detect anomalous logs
+=======
+✔ Infrastructure as Code (Terraform)
+✔ VPC design (public + private subnets)
+✔ Compute (EC2 in private subnets)
+✔ Load balancing (ALB)
+✔ Database layer (RDS MySQL)
+✔ Observability (CloudWatch alarms + dashboard)
+✔ AI-powered log summarization (Lambda + DynamoDB + S3 + OpenAI API)
+
+This is a production-style architecture, built end-to-end by Josh Holman.
+
+Architecture Diagram
+<div align="center"> <img src="screenshots/architecture.png" width="85%" /> </div>
+🏗 Full AWS Architecture
+Core Infra
+Layer	Service	Description
+Network	VPC, IGW, NAT, Route Tables	10.0.0.0/16 VPC with public + private subnets
+Compute	EC2 Auto-scaled pair	App servers in private subnets
+Load Balancer	ALB	Handles all incoming HTTP traffic
+Database	RDS MySQL	Single-AZ dev DB
+AI/Serverless	Lambda, DynamoDB, S3	OpenAI-backed log summarization
+Monitoring	CloudWatch alarms + dashboard	ALB 5xx, EC2 CPU
+⚡ Tech Stack & Tools
+<div align="center">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+</div>
+Repository Structure
+RSVP-Cloud-Platform/
+│── terraform/
+│   ├── main.tf
+│   ├── variables.tf
+│   ├── outputs.tf
+│   ├── vpc.tf
+│   ├── ec2.tf
+│   ├── alb.tf
+│   ├── rds.tf
+│   ├── monitoring.tf
+│   ├── ai-logs.tf
+│   ├── lambda_function.py
+│   ├── ai_lambda_package.zip
+│   └── terraform.tfvars
+│
+│── screenshots/
+│   ├── ui.png
+│   ├── vpc.png
+│   ├── ec2.png
+│   ├── alb.png
+│   ├── rds.png
+│   ├── cloudwatch.png
+│   ├── lambda.png
+│   ├── s3.png
+│   ├── dynamodb.png
+│   └── terraform-output.png
+│
+│── README.md
+│── LICENSE
+│── .gitignore
+
+Screenshots
+🌐 Application UI
+<img src="screenshots/ui.png" width="80%" />
+🛜 VPC Layout
+<img src="screenshots/vpc.png" width="80%" />
+⚖️ Application Load Balancer
+<img src="screenshots/alb.png" width="80%" />
+💻 EC2 Instances
+<img src="screenshots/ec2.png" width="80%" />
+🗄 RDS MySQL
+<img src="screenshots/rds.png" width="80%" />
+📊 CloudWatch Monitoring
+<img src="screenshots/cloudwatch.png" width="80%" />
+🤖 AI Log Summarizer Lambda
+<img src="screenshots/lambda.png" width="80%" />
+📦 S3 Log Storage
+<img src="screenshots/s3.png" width="80%" />
+🧩 DynamoDB Log History
+<img src="screenshots/dynamodb.png" width="80%" />
+🧠 AI Log Summarization Pipeline
+
+The project includes a complete AI pipeline:
+
+CloudWatch logs → Lambda
+
+Lambda uses the OpenAI API to generate summaries
+
+Summary is stored in S3
+
+Metadata saved in DynamoDB
+
+Terraform provisions all pieces automatically
+
+Example output:
+
+{
+  "status": "ok",
+  "summary_saved": "summary-2025-12-02T22:11:11.766946.txt",
+  "preview": "Service healthy. No anomalies detected."
+}
+
+Deployment Steps
+1. Initialize Terraform
+terraform init
+
+2. Validate
+terraform validate
+
+3. Apply
+terraform apply
+
+4. Get outputs
+terraform output
+
+🧹 Destroy Infra
+terraform destroy
+
+Author
+
+Josh Holman
+Cloud & Network Engineer
+Louisville, KY
+>>>>>>> Updated README and synced Terraform files
