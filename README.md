@@ -6,7 +6,6 @@ Project Overview
 The RSVP Cloud Platform is a complete AWS environment designed for a small event-booking application.
 It demonstrates professional-grade cloud engineering skills across:
 
-<<<<<<< HEAD
 A highly available, cost-optimized AWS infrastructure for a small event-booking platform. Includes VPC, EC2, ALB, RDS, IAM hardening, monitoring, and AI-powered log summarization for operational insight.
 
 Business Problem
@@ -297,4 +296,3 @@ Author
 Josh Holman
 Cloud & Network Engineer
 Louisville, KY
->>>>>>> Updated README and synced Terraform files
