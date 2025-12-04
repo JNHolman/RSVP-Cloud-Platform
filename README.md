@@ -1,85 +1,193 @@
-# RSVP Cloud Platform
+🚀 RSVP Cloud Platform — Modern AWS Infrastructure & DevOps Portfolio
 
-A multi-project AWS lab showing real-world Cloud / DevOps / SRE skills, built around an event-booking concept called **RSVP**.
+A multi-project cloud engineering platform built around a simple business concept: RSVP Society, a scalable event-driven brand that needs secure infrastructure, reliable APIs, and fast deployments.
 
-This repo contains multiple infrastructure projects under [`infrastructure/`](./infrastructure):
+This repo contains two end-to-end production-grade cloud systems, each solving real business problems using modern AWS architecture, Infrastructure-as-Code, CI/CD automation, and AI-powered monitoring.
 
-- **Project 1 – Cloud Platform (Terraform + EC2 + RDS)**  
-  Highly available, cost-optimized AWS infrastructure for a small event-booking platform.  
-  Implements VPC, public/private subnets, NAT, ALB, EC2 app servers, RDS, IAM hardening, and basic monitoring.
+🧩 Business Scenario
 
-- **Project 2 – ECS Fargate App + CI/CD Pipeline**  
-  Containerized Python/Flask service running on ECS Fargate behind an ALB, with Docker images in ECR and a GitHub Actions pipeline that builds, pushes, and deploys on every `git push`.
+RSVP Society is a growing event brand that needs:
 
----
+A secure, reliable cloud platform to host event data
 
-## Project 1 – Cloud Platform (infrastructure/project-1-cloud-platform)
+A scalable application backend that can handle traffic spikes
 
-**Tech stack**
+Automated deployments so changes ship quickly without downtime
 
-- AWS: VPC, Subnets, Internet Gateway, NAT Gateway  
-- EC2 app instances behind an Application Load Balancer  
-- RDS (PostgreSQL) in private subnets  
-- Security Groups, IAM roles and instance profiles  
-- CloudWatch metrics and alarms, SNS notifications  
-- Terraform for full Infrastructure as Code
+Monitoring + alerting so issues are caught immediately
 
-**What this shows**
+AI-powered diagnosis to reduce troubleshooting time
 
-- Designing a secure, multi-tier VPC (public web, private data)
-- Using ALB + EC2 for a highly available application tier
-- Managing relational databases in AWS with RDS
-- Applying least-privilege IAM and security groups
-- Managing infra lifecycle with Terraform (`terraform init/plan/apply`)
+This repo demonstrates exactly how a Cloud/DevOps/SRE engineer would architect and operate that platform.
 
----
+📦 Repository Structure
+infrastructure/
+│
+├── project-1-cloud-platform/      # Traditional VPC + ALB + EC2 + RDS infrastructure
+├── project-2-ecs-cicd/            # ECS Fargate microservice + CI/CD pipeline
+│
+.github/workflows/                 # Automated GitHub Actions pipelines
+README.md
+LICENSE
 
-## Project 2 – ECS Fargate + CI/CD (infrastructure/project-2-ecs-cicd)
+🧱 PROJECT 1 — Cloud Platform (VPC + EC2 + RDS + AI Logs)
 
-**App**
+Folder: infrastructure/project-1-cloud-platform
 
-- Python Flask service with:
-  - `/health` endpoint for ALB/ECS health checks  
-  - `/api/message` JSON endpoint  
-  - Simple UI showing version, environment, and platform info
+🎯 Business Problem
 
-**Infrastructure**
+The company needs a secure cloud foundation to run applications and store customer data.
+It must be:
 
-- AWS ECS Fargate service running containers from ECR
-- Application Load Balancer + target group + health checks
-- CloudWatch Logs for container logs
-- IAM task role & execution role
-- Terraform modules for VPC, ECS, ALB, IAM, logging
+Highly available
 
-**CI/CD**
+Private where required
 
-- Dockerfile builds a production image with Gunicorn
-- GitHub Actions workflow:
-  - Triggers on changes under `infrastructure/project-2-ecs-cicd/**`
-  - Builds Docker image and tags with `GITHUB_SHA`
-  - Pushes image to Amazon ECR
-  - Updates ECS service and forces a new deployment
-- Effect: `git push` → new version automatically deployed to Fargate with zero downtime
+Cost-optimized
 
-**What this shows**
+Fully managed via IaC
 
-- Containerizing apps with Docker
-- Running serverless containers on ECS Fargate
-- Managing infrastructure with Terraform
-- Building CI/CD pipelines with GitHub Actions
-- Using ECR as a private Docker registry
-- Rolling deployments with ALB health checks
+Observable and auditable
 
----
+This mirrors what real small-to-medium businesses need when they migrate to AWS.
 
-## How to run locally (Project 2 app)
+🏗 Architecture Overview
 
-```bash
-cd infrastructure/project-2-ecs-cicd/app
-pip3 install -r requirements.txt
-python3 app.py   # runs on http://127.0.0.1:8080
+AWS Components:
 
+VPC with public + private subnets
 
+Internet Gateway & NAT Gateway
+
+Route Tables + Associations (public → IGW, private → NAT)
+
+EC2 Application Server (private subnet)
+
+Application Load Balancer (public subnet)
+
+RDS PostgreSQL (multi-AZ capable private DB)
+
+IAM Instance Role & Policies
+
+CloudWatch Metrics + Alarms
+
+SNS Email Alerts (high CPU, unhealthy host, DB connection drops)
+
+AI-Powered Log Diagnostics (Lambda + OpenAI)
+
+🤖 AI Component — Automated Incident Diagnosis
+
+Files:
+
+ai-logs.tf
+
+lambda_function.py
+
+ai_lambda_package.zip
+
+What the AI does:
+
+Monitors EC2 application logs (CloudWatch Logs)
+
+When errors occur, Lambda is triggered
+
+Lambda fetches recent error lines
+
+Sends them to OpenAI for analysis
+
+AI returns:
+
+probable root cause
+
+recommended fix
+
+severity level
+
+Lambda stores summary in S3 and/or sends via SNS email
+
+Business Value
+
+Dramatically reduces time-to-diagnosis
+
+Helps small teams operate like large SRE orgs
+
+Provides auto-generated postmortems
+
+🧱 PROJECT 2 — ECS Fargate Microservice + CI/CD Pipeline
+
+Folder: infrastructure/project-2-ecs-cicd
+
+🎯 Business Problem
+
+As RSVP grows, the company needs:
+
+A scalable API tier
+
+Decoupled services (microservices)
+
+Zero-downtime deployments
+
+Repeatable and automated builds
+
+Lower operational burden than EC2
+
+Faster release cycles
+
+This project solves that by moving infrastructure to containers and serverless compute.
+
+🏗 Architecture Overview
+
+AWS Components:
+
+ECS Fargate Cluster (serverless containers)
+
+ECR Repository for Docker images
+
+ALB + Target Group for HTTP routing
+
+CloudWatch Logs for container output
+
+SSM Parameter Store for environment variables
+
+IAM Task Role + Execution Role
+
+App Functionality:
+
+/health endpoint for ALB health checks
+
+/api/message endpoint
+
+UI page that shows active app version
+
+Gunicorn production server
+
+🔄 CI/CD Pipeline (GitHub Actions → ECR → ECS)
+
+Every push triggers:
+
+Docker Build
+
+Tag Image with Git Commit SHA
+
+Push to ECR
+
+Deploy to ECS Service
+
+Zero-downtime rolling update
+
+This mirrors real enterprise CI/CD pipelines (GitHub Actions → AWS).
+
+Business Value
+
+Rapid release cycles
+
+No manual deployment steps
+
+Scalable microservices
+
+Consistent environment across dev → prod
+
+Developer velocity increases
 Author
 
 Josh Holman
