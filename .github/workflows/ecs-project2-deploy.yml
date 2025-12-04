@@ -5,7 +5,7 @@ on:
     branches:
       - main
     paths:
-      - "project-2-ecs-cicd/**"
+      - "infrastructure/project-2-ecs-cicd/**"
 
 jobs:
   build-and-deploy:
@@ -38,7 +38,7 @@ jobs:
                 --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
 
       - name: Build Docker image
-        working-directory: project-2-ecs-cicd/app
+        working-directory: infrastructure/project-2-ecs-cicd/app
         run: |
           IMAGE_TAG=${GITHUB_SHA}
           docker build -t $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPOSITORY:$IMAGE_TAG .
