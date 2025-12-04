@@ -4,7 +4,7 @@ import datetime
 
 app = Flask(__name__)
 
-APP_VERSION = os.getenv("APP_VERSION", "v1.0.2")
+APP_VERSION = os.getenv("APP_VERSION", "v1.0.3-ci")
 SERVICE_NAME = os.getenv("SERVICE_NAME", "RSVP Cloud Service")
 ENV_NAME = os.getenv("ENV_NAME", "dev")
 
