@@ -1,104 +1,82 @@
-from flask import Flask, jsonify, render_template_string, request
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 import os
 import datetime
+
+from flask import Flask, jsonify, render_template_string, request
 
 app = Flask(__name__)
 
 APP_VERSION = os.getenv("APP_VERSION", "v1.0.4-ci")
-SERVICE_NAME = os.getenv("SERVICE_NAME", "RSVP Cloud Service")
 ENV_NAME = os.getenv("ENV_NAME", "dev")
+SERVICE_NAME = "RSVP Cloud Service"
 
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>RSVP Cloud Service {{ version }}</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{{ service_name }} {{ app_version }}</title>
   <style>
-    * {
-      box-sizing: border-box;
-    }
-    body {
+    html, body {
       margin: 0;
       padding: 0;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
       background: #020617;
       color: #e5e7eb;
-      min-height: 100vh;
+      height: 100%;
+    }
+    body {
       display: flex;
       justify-content: center;
       align-items: center;
-    }
-    .shell {
-      width: 100%;
-      max-width: 1200px;
-      padding: 32px 16px;
+      min-height: 100vh;
     }
     .card {
       background: radial-gradient(circle at top left, #0f172a, #020617);
       border-radius: 24px;
-      padding: 32px 40px;
-      box-shadow: 0 22px 80px rgba(15, 23, 42, 0.9);
+      padding: 40px 56px;
+      box-shadow: 0 24px 80px rgba(15, 23, 42, 0.9);
+      width: 980px;
+      max-width: 95vw;
     }
     .badge-row {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      gap: 12px;
-      margin-bottom: 18px;
-      flex-wrap: wrap;
+      margin-bottom: 16px;
     }
     .badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
+      display: inline-block;
       padding: 6px 16px;
       border-radius: 999px;
       background: rgba(34, 197, 94, 0.12);
       color: #22c55e;
-      font-size: 11px;
+      font-size: 12px;
       letter-spacing: 0.08em;
       text-transform: uppercase;
     }
-    .badge-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 999px;
-      background: #22c55e;
-      box-shadow: 0 0 0 6px rgba(34, 197, 94, 0.25);
-    }
-    .env-pill {
-      font-size: 11px;
+    .version-pill {
+      font-size: 12px;
       color: #9ca3af;
-      text-transform: uppercase;
-      letter-spacing: 0.15em;
     }
     h1 {
       margin: 0;
-      font-size: 30px;
-      letter-spacing: 0.02em;
+      font-size: 32px;
+      letter-spacing: 0.03em;
     }
     .subtitle {
       margin-top: 8px;
-      margin-bottom: 26px;
+      margin-bottom: 28px;
       color: #9ca3af;
       font-size: 14px;
     }
     .grid {
       display: grid;
-      grid-template-columns: 1.1fr 1.1fr;
-      gap: 22px 64px;
+      grid-template-columns: 1.1fr 1.1fr 1.2fr;
+      gap: 24px 40px;
       font-size: 13px;
-    }
-    @media (max-width: 840px) {
-      .card {
-        padding: 24px 18px;
-      }
-      .grid {
-        grid-template-columns: 1fr;
-        gap: 20px;
-      }
     }
     .section-title {
       color: #6b7280;
@@ -110,7 +88,6 @@ HTML_TEMPLATE = """
     .row {
       display: flex;
       justify-content: space-between;
-      gap: 16px;
       margin-bottom: 4px;
     }
     .label {
@@ -129,248 +106,235 @@ HTML_TEMPLATE = """
     .ai {
       color: #a855f7;
     }
-    .api-card {
-      margin-top: 28px;
-      padding-top: 22px;
-      border-top: 1px solid rgba(55, 65, 81, 0.7);
-    }
-    .api-title-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: baseline;
-      gap: 16px;
-      margin-bottom: 12px;
-      flex-wrap: wrap;
-    }
-    .api-title {
-      font-size: 13px;
-      font-weight: 600;
-    }
-    .api-subtitle {
-      font-size: 12px;
-      color: #6b7280;
-    }
-    .api-input-row {
-      margin-top: 6px;
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-    }
-    .api-input-row input[type="text"] {
-      flex: 1 1 260px;
-      border-radius: 999px;
-      border: 1px solid rgba(55, 65, 81, 0.9);
-      background: rgba(15, 23, 42, 0.9);
-      padding: 10px 14px;
-      color: #e5e7eb;
-      font-size: 13px;
-      outline: none;
-    }
-    .api-input-row input[type="text"]::placeholder {
-      color: #6b7280;
-    }
-    .api-input-row button {
-      border-radius: 999px;
-      border: none;
-      padding: 9px 18px;
-      font-size: 13px;
-      font-weight: 500;
-      background: #f97316;
-      color: #0b1120;
-      cursor: pointer;
-      transition: transform 0.08s ease, box-shadow 0.08s ease, background 0.08s ease;
-      white-space: nowrap;
-    }
-    .api-input-row button:hover {
-      background: #fb923c;
-      box-shadow: 0 12px 30px rgba(248, 152, 56, 0.38);
-      transform: translateY(-1px);
-    }
-    .api-input-row button:active {
-      transform: translateY(0);
-      box-shadow: none;
-    }
-    .api-result {
-      margin-top: 12px;
-      min-height: 24px;
-      font-size: 12px;
-      color: #9ca3af;
-    }
-    .api-result span.label {
-      color: #6b7280;
-      margin-right: 6px;
-    }
     .footer {
       margin-top: 24px;
-      font-size: 11px;
+      font-size: 12px;
       color: #6b7280;
       text-align: center;
     }
-    .footer span {
+    .footer strong {
       color: #e5e7eb;
+    }
+    .api-section {
+      margin-top: 32px;
+      padding-top: 20px;
+      border-top: 1px solid rgba(148, 163, 184, 0.3);
+    }
+    .api-title {
+      font-size: 14px;
       font-weight: 500;
+      margin-bottom: 10px;
+    }
+    .api-input-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    .api-input {
+      flex: 1;
+      padding: 10px 12px;
+      border-radius: 999px;
+      border: 1px solid rgba(148, 163, 184, 0.5);
+      background: #020617;
+      color: #e5e7eb;
+      font-size: 14px;
+      outline: none;
+    }
+    .api-input:focus {
+      border-color: #38bdf8;
+      box-shadow: 0 0 0 1px #38bdf8;
+    }
+    .api-button {
+      padding: 10px 20px;
+      border-radius: 999px;
+      border: none;
+      background: #f97316;
+      color: #020617;
+      font-weight: 600;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    .api-button:hover {
+      background: #fb923c;
+    }
+    .api-result {
+      min-height: 28px;
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: #020617;
+      border: 1px dashed rgba(148, 163, 184, 0.5);
+      font-size: 12px;
+      color: #9ca3af;
+      display: flex;
+      align-items: center;
+    }
+    .api-result strong {
+      color: #e5e7eb;
     }
   </style>
 </head>
 <body>
-  <div class="shell">
-    <div class="card">
-      <div class="badge-row">
-        <div class="badge">
-          <div class="badge-dot"></div>
-          Container-ready API · Project 2
+  <div class="card">
+    <div class="badge-row">
+      <div class="badge">Deployed with Terraform and GitHub Actions</div>
+      <div class="version-pill">Service version: <strong>{{ app_version }}</strong></div>
+    </div>
+
+    <h1>{{ service_name }}</h1>
+    <div class="subtitle">
+      Containerized RSVP microservice running behind an Application Load Balancer in ECS Fargate.
+    </div>
+
+    <div class="grid">
+      <div>
+        <div class="section-title">Environment</div>
+        <div class="row">
+          <div class="label">Region</div>
+          <div class="value">us-east-1</div>
         </div>
-        <div class="env-pill">
-          VERSION {{ version }} · ENV {{ environment | upper }}
+        <div class="row">
+          <div class="label">Environment</div>
+          <div class="value-strong">{{ env_name }}</div>
+        </div>
+        <div class="row">
+          <div class="label">Frontend access</div>
+          <div class="value-strong">ALB (HTTP 8080)</div>
         </div>
       </div>
 
-      <h1>RSVP Cloud Service</h1>
-      <div class="subtitle">
-        Stateless API backing the RSVP Cloud Platform — built for containers, CI/CD, and
-        zero-downtime deployments.
-      </div>
-
-      <div class="grid">
-        <div>
-          <div class="section-title">Environment</div>
-          <div class="row">
-            <div class="label">Region</div>
-            <div class="value">us-east-1</div>
-          </div>
-          <div class="row">
-            <div class="label">Runtime</div>
-            <div class="value">Flask + Gunicorn</div>
-          </div>
-          <div class="row">
-            <div class="label">Current deploy</div>
-            <div class="value-strong">Local Docker / Dev</div>
-          </div>
-          <div class="row">
-            <div class="label">Target</div>
-            <div class="value-strong">ECS Fargate + GitHub Actions</div>
-          </div>
+      <div>
+        <div class="section-title">Workload</div>
+        <div class="row">
+          <div class="label">Runtime</div>
+          <div class="value">Python + Flask</div>
         </div>
-
-        <div>
-          <div class="section-title">Service</div>
-          <div class="row">
-            <div class="label">Primary role</div>
-            <div class="value">JSON API &amp; healthcheck</div>
-          </div>
-          <div class="row">
-            <div class="label">Key endpoint</div>
-            <div class="value-strong">POST /api/message</div>
-          </div>
-          <div class="row">
-            <div class="label">CI/CD</div>
-            <div class="value">GitHub Actions → ECR → ECS service</div>
-          </div>
-          <div class="row">
-            <div class="label ai">Future AI</div>
-            <div class="value ai">Request tracing + smart alerts</div>
-          </div>
+        <div class="row">
+          <div class="label">Execution</div>
+          <div class="value">ECS Fargate task</div>
+        </div>
+        <div class="row">
+          <div class="label">Images</div>
+          <div class="value">Pushed from GitHub to ECR</div>
+        </div>
+        <div class="row">
+          <div class="label">Deployments</div>
+          <div class="value">GitHub Actions workflow</div>
         </div>
       </div>
 
-      <div class="api-card">
-        <div class="api-title-row">
-          <div class="api-title">API smoke test</div>
-          <div class="api-subtitle">Send a message and see the JSON response from <code>/api/message</code>.</div>
+      <div>
+        <div class="section-title">Observability & AI</div>
+        <div class="row">
+          <div class="label">Logs</div>
+          <div class="value">CloudWatch Logs per task</div>
         </div>
-        <form id="message-form">
-          <div class="api-input-row">
-            <input
-              id="message-input"
-              type="text"
-              name="message"
-              placeholder="Type something like: 'Hello from RSVP Project 2'"
-              autocomplete="off"
-            />
-            <button type="submit">Send</button>
-          </div>
-        </form>
-        <div class="api-result" id="api-result">
-          <span class="label">Response:</span>
-          <span id="api-result-text">waiting for a request…</span>
+        <div class="row">
+          <div class="label">Metrics</div>
+          <div class="value">ECS service CPU / memory</div>
+        </div>
+        <div class="row">
+          <div class="label ai">AI integration</div>
+          <div class="value ai">Future AI incident assistant</div>
+        </div>
+        <div class="row">
+          <div class="label">Source</div>
+          <div class="value">GitHub: RSVP-Cloud-Platform</div>
         </div>
       </div>
+    </div>
 
-      <div class="footer">
-        This is <span>Project 2</span> of the RSVP Cloud Platform — containerized app layer that will
-        sit behind the same ALB as your core platform services.
+    <div class="api-section">
+      <div class="api-title">Test the <code>/api/message</code> endpoint</div>
+      <div class="api-input-row">
+        <input
+          id="msg-input"
+          class="api-input"
+          type="text"
+          placeholder="Type a message to send into the container..."
+        />
+        <button class="api-button" onclick="sendMessage()">Send</button>
       </div>
+      <div id="api-result" class="api-result">
+        Response will appear here.
+      </div>
+    </div>
+
+    <div class="footer">
+      Task time: <strong>{{ timestamp }}</strong> &nbsp;&middot;&nbsp;
+      Built for: <strong>RSVP Platform Project 2 (ECS + CI/CD)</strong>
     </div>
   </div>
 
   <script>
-    const form = document.getElementById("message-form");
-    const input = document.getElementById("message-input");
-    const resultText = document.getElementById("api-result-text");
+    function sendMessage() {
+      var input = document.getElementById("msg-input");
+      var result = document.getElementById("api-result");
+      var msg = input.value || "";
 
-    form.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const value = input.value.trim();
-      if (!value) {
-        resultText.textContent = "Please enter a message first.";
-        return;
-      }
+      result.textContent = "Sending...";
 
-      resultText.textContent = "Sending…";
-
-      try {
-        const res = await fetch("/api/message", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({ message: value })
+      fetch("/api/message", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ message: msg })
+      })
+        .then(function (res) { return res.json(); })
+        .then(function (data) {
+          result.innerHTML =
+            "<strong>Echo:</strong> " + (data.echo || "") +
+            " &nbsp;&middot;&nbsp; " +
+            "<strong>Version:</strong> " + (data.version || "") +
+            " &nbsp;&middot;&nbsp; " +
+            "<strong>Env:</strong> " + (data.env || "") +
+            " &nbsp;&middot;&nbsp; " +
+            "<strong>Time:</strong> " + (data.timestamp || "");
+        })
+        .catch(function (err) {
+          console.error(err);
+          result.textContent = "Error calling /api/message. Check browser console.";
         });
-
-        if (!res.ok) {
-          resultText.textContent = `Error: ${res.status} ${res.statusText}`;
-          return;
-        }
-
-        const data = await res.json();
-        resultText.textContent = JSON.stringify(data);
-      } catch (err) {
-        resultText.textContent = "Network error talking to the API.";
-      }
-    });
+    }
   </script>
 </body>
 </html>
 """
 
-"""
+@app.route("/", methods=["GET"])
+def home():
+  now = datetime.datetime.utcnow().isoformat()
+  return render_template_string(
+      HTML_TEMPLATE,
+      service_name=SERVICE_NAME,
+      app_version=APP_VERSION,
+      env_name=ENV_NAME,
+      timestamp=now,
+  )
 
-@app.route("/")
-def index():
-    return render_template_string(
-        INDEX_HTML,
-        service_name=SERVICE_NAME,
-        version=APP_VERSION,
-        env_name=ENV_NAME,
-    )
 
-@app.route("/health")
+@app.route("/health", methods=["GET"])
 def health():
-    return jsonify({
-        "status": "ok",
-        "timestamp": datetime.datetime.utcnow().isoformat()
-    })
+  return jsonify(
+      status="ok",
+      version=APP_VERSION,
+      env=ENV_NAME,
+      timestamp=datetime.datetime.utcnow().isoformat(),
+  )
+
 
 @app.route("/api/message", methods=["POST"])
 def api_message():
-    payload = request.get_json() or {}
-    msg = payload.get("message", "")
-    return jsonify({
-        "echo": msg,
-        "version": APP_VERSION,
-        "env": ENV_NAME,
-        "timestamp": datetime.datetime.utcnow().isoformat()
-    })
+  payload = request.get_json() or {}
+  msg = payload.get("message", "")
+  return jsonify(
+      echo=msg,
+      version=APP_VERSION,
+      env=ENV_NAME,
+      timestamp=datetime.datetime.utcnow().isoformat(),
+  )
+
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.getenv("PORT", "8080")))
+  port = int(os.getenv("PORT", "8080"))
+  app.run(host="0.0.0.0", port=port)
