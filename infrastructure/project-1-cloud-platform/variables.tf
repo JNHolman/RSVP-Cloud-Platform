@@ -86,18 +86,6 @@ variable "rds_allocated_storage" {
   default     = 20
 }
 
-variable "app_instance_type" {
-  description = "Instance type for application EC2 instances"
-  type        = string
-  default     = "t3.micro"
-}
-
-variable "openai_api_key" {
-  type        = string
-  description = "API key for OpenAI"
-  sensitive   = true
-}
-
 variable "db_username" {
   description = "Database master username"
   type        = string
@@ -115,4 +103,24 @@ variable "db_name" {
   description = "Application database name"
   type        = string
   default     = "rsvp_app"
+}
+
+##############################################
+#  AI / External APIs
+##############################################
+
+variable "openai_api_key" {
+  description = "API key for OpenAI"
+  type        = string
+  sensitive   = true
+}
+
+##############################################
+#  Monitoring / Alerts
+##############################################
+
+variable "alert_email" {
+  description = "Email address to receive CloudWatch / AI alerts"
+  type        = string
+  default     = ""
 }
