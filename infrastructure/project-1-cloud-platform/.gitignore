@@ -1,0 +1,18 @@
+# Terraform
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+
+# Local vars
+terraform.tfvars
+*.tfvars
+
+# Lambda / build artifacts
+*.zip
+__pycache__/
+
+# macOS
+.DS_Store
