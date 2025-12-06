@@ -2,7 +2,7 @@ RSVP Cloud Platform – Project 1
 
 Highly available, cost-optimized AWS infrastructure for a scalable event-booking application.
 
-Live Service URL: 👉 (http://rsvp-dev-alb-598230497.us-east-1.elb.amazonaws.com/)
+Live Service URL: 👉 http://rsvp-dev-alb-598230497.us-east-1.elb.amazonaws.com/
 
 📌 Business Problem
 
