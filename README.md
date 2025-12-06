@@ -140,8 +140,6 @@ Business Problems Solved
 ✔ Prevents misconfigurations and account drift
 ✔ Reduces incident investigation time with AI insights
 
-This matches what companies expect from a CloudOps, Platform Engineer, or SRE in a maturing organization.
-
 🔗 HOW ALL 3 PROJECTS WORK TOGETHER
 Layer	Project	What It Delivers	Why It Matters
 1. Infrastructure Layer	Project 1	VPC, EC2, ALB, RDS, CloudWatch, AI logs	The foundation for running secure, scalable applications
@@ -154,8 +152,6 @@ Together, the platform demonstrates:
 ✔ Enterprise security governance
 ✔ AI-augmented cloud operations
 ✔ Cost control and multi-account maturity
-
-This is the exact combination of skills companies look for in strong Cloud Engineer / DevOps Engineer / Platform Engineer candidates.
 
 🏁 Future Enhancements
 
