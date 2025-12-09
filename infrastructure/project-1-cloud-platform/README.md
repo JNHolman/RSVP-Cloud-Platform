@@ -119,4 +119,52 @@ Terraform also allows the entire stack to be **created, updated, or destroyed** 
 ```bash
 git clone https://github.com/JNHolman/RSVP-Cloud-Platform.git
 cd RSVP-Cloud-Platform/infrastructure/project-1-cloud-platform
+Initialize Terraform
 
+terraform init
+
+
+2. **Review the plan**
+
+terraform plan
+
+
+3. **Apply the infrastructure**
+
+terraform apply
+
+
+4. **Access the app**
+
+Terraform output should include the ALB DNS name.
+Once the app is deployed on the EC2 instances (via user data or later via Project 2), you can reach it through the ALB URL.
+
+5. **Trigger an alert (optional, for demo)**
+Intentionally cause a small test error (e.g., bad health check path).
+
+**Verify:
+CloudWatch alarm fires
+SNS notification is sent
+Lambda runs and stores an AI-generated summary
+
+---
+
+### Business Outcomes
+
+- For a business like RSVP Society, this infrastructure:
+- Reduces outage risk during peak traffic
+- Improves user experience (no random crashes from a single overloaded server)
+- Shortens incident investigation time via AI summaries
+- Provides a path to scale as the brand grows without rewiring everything
+
+---
+
+### Future Enhancements
+
+**Potential improvements:
+
+- **Add HTTPS termination on ALB using ACM
+- **Add WAF rules for basic security protections
+- **Add SSM Parameter Store/Secrets Manager integration
+- **Expand AI pipeline to summarize not just logs but performance trends over time
+- **Integrate with external notification tools (Slack, Teams, etc.)
