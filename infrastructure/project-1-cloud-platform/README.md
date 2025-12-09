@@ -110,45 +110,6 @@ Terraform also allows the entire stack to be **created, updated, or destroyed** 
 
 ---
 
-## How to Deploy
-
-> Prereqs: Terraform CLI, AWS credentials with appropriate permissions, and any required environment variables for the AI provider.
-
-1. **Clone the repo and change into Project 1**
-
-```bash
-git clone https://github.com/JNHolman/RSVP-Cloud-Platform.git
-cd RSVP-Cloud-Platform/infrastructure/project-1-cloud-platform
-Initialize Terraform
-
-terraform init
-
-
-2. **Review the plan**
-
-terraform plan
-
-
-3. **Apply the infrastructure**
-
-terraform apply
-
-
-4. **Access the app**
-
-Terraform output should include the ALB DNS name.
-Once the app is deployed on the EC2 instances (via user data or later via Project 2), you can reach it through the ALB URL.
-
-5. **Trigger an alert (optional, for demo)**
-Intentionally cause a small test error (e.g., bad health check path).
-
-**Verify:
-CloudWatch alarm fires
-SNS notification is sent
-Lambda runs and stores an AI-generated summary
-
----
-
 ### Business Outcomes
 
 - For a business like RSVP Society, this infrastructure:
