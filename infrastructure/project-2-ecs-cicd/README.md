@@ -1,183 +1,133 @@
-RSVP Containerized App Platform – Project 2
+## Project 2 – `infrastructure/project-2-ecs-cicd/README.md`
 
-Fully automated container deployment pipeline for RSVP Society’s event platform.
-Built with AWS ECS Fargate, ECR, ALB, and GitHub Actions.
+```markdown
+# Project 2 – Container Platform & CI/CD (Application Delivery Layer)
+
+Project 2 modernizes the RSVP application from EC2-based deployments to **containers on ECS Fargate** with a fully automated **GitHub Actions CI/CD pipeline**.
+
+---
+
+## Overview
+
+This project focuses on:
+
+- Dockerizing the RSVP web application  
+- Building and pushing images to Amazon ECR  
+- Deploying the app to an ECS Fargate service behind a load balancer  
+- Implementing a GitHub Actions pipeline to:  
+  - Build  
+  - Test  
+  - Run basic security scans (as applicable)  
+  - Push to ECR  
+  - Update the ECS service  
+
+The goal is to show how a Cloud Engineer can improve **developer velocity, reliability, and release safety**.
 
 Live Service URL:
-👉 http://rsvp-project2-alb-901306910.us-east-1.elb.amazonaws.com:8080
+http://rsvp-project2-alb-901306910.us-east-1.elb.amazonaws.com:8080
+---
 
-📌 Business Problem
+## Business Problem
 
-As the RSVP platform grows, relying on EC2 user_data deployments becomes limiting:
+RSVP Society needs to:
 
-Manual deployments slow down feature releases
+- Ship new features quickly (promo banners, event types, ticket changes)  
+- Avoid downtime during deployments  
+- Reduce “it works on my machine” issues  
+- Standardize the runtime across environments  
 
-Hard to coordinate updates across multiple app servers
+Manual deployments to EC2 are slow, fragile, and inconsistent. Containers + CI/CD solve this by making deployments **repeatable and automated**.
 
-Inconsistent build environments
+---
 
-Increased operational overhead
+## Architecture Decisions
 
-No automated rollback or versioning
+Key choices:
 
-Growing businesses need:
+- **Docker images** as the unit of deployment  
+- **ECS Fargate** for serverless containers (no node management)  
+- **Reuse or attach to a load balancer** so traffic routing stays consistent  
+- **GitHub Actions** because the code already lives in GitHub  
+- **Rolling deployments** to avoid downtime  
 
-Containerization
+This provides a realistic path that many teams take when modernizing existing apps.
 
-Continuous delivery pipelines
+---
 
-Zero-downtime deployments
+## Architecture Breakdown
 
-Secure, repeatable build processes
+### Containerization
 
-🎯 Business Solution
+- Dockerfile for the RSVP web app  
+- Local builds for dev/testing  
+- Application packaged with its dependencies into a single image  
 
-Project 2 delivers a production-ready container platform that automates the entire build → deploy lifecycle.
+### Image Registry
 
-⭐ Containerization
+- Amazon ECR repository for application images  
+- Tagging strategy (e.g., `main`, `feature-*`, commit SHA)  
 
-Application packaged into a Docker image
+### ECS Fargate
 
-Stored in private Amazon ECR repository
+- ECS cluster  
+- Task definitions referencing the ECR image  
+- Fargate service:
+  - Desired count configured for high availability  
+  - Integrated with a target group and load balancer  
+  - Health checks to remove unhealthy tasks  
 
-Each commit automatically builds a clean image
+### CI/CD Pipeline (GitHub Actions)
 
-⭐ Fully Managed Compute
+Typical workflow stages:
 
-ECS Fargate runs the container with NO servers to manage
+1. **Trigger**  
+   - On push to `main` or on pull request merge  
 
-Auto-healing ensures 24/7 availability
+2. **Build & Test**  
+   - Build Docker image  
+   - Run unit tests (if configured)  
 
-ALB routes traffic to healthy tasks
+3. **Security Scan (optional/extendable)**  
+   - Container scan or dependency check  
 
-⭐ Continuous Deployment via GitHub Actions
+4. **Push to ECR**  
+   - Authenticate to AWS  
+   - Tag and push image  
 
-Whenever code is pushed to main:
+5. **Deploy to ECS**  
+   - Update service/task definition  
+   - ECS performs rolling deployment behind the load balancer  
 
-GitHub Actions builds a Docker image
+---
 
-Logs into ECR
+## Cost Strategy
 
-Pushes the new image
+- **Fargate** avoids managing EC2 worker nodes (saves ops time and removes always-on instance costs).
+- **Right-sized task counts** limit how many containers run concurrently.
+- Ability to **scale task count** up for promo events, down during normal periods.
+- CI/CD pipeline uses **GitHub Actions minutes** plus minimal AWS cost during deploys.
 
-Triggers ECS task definition update
+This pattern is cost-efficient for small teams that want modern deployment workflows without building a complex Kubernetes platform.
 
-ECS performs rolling deployment with zero downtime
+---
 
-Releases are automatic, safe, and consistent.
+## Business Outcomes
 
-🏗 Architecture Overview
-1. Networking
+- Moving to containers and CI/CD gives RSVP Society:
+- Faster releases (new features can ship in minutes instead of days)
+- Safer changes (pipeline adds checks before production)
+- Less deployment stress (no manual SSH or package installs)
+- Consistent environments from dev → prod
 
-Reuses Project 1 VPC
+This is what many hiring managers expect from Cloud/DevOps Engineers: not just standing up servers, but owning the delivery pipeline.
 
-Private subnets for ECS tasks
+---
 
-Public subnets for ALB
+## Future Enhancements
 
-IAM roles for ECS tasks + execution
-
-2. Container Layer
-
-Dockerfile builds app image
-
-Amazon ECR stores multiple tagged versions
-
-3. Compute
-
-ECS Cluster (serverless Fargate compute)
-
-ECS Service with:
-
-Desired count (1–2 tasks)
-
-Rolling deployment controller
-
-ECS Task Definition referencing your ECR image
-
-4. Load Balancing
-
-ALB routes to Fargate tasks
-
-Health checks ensure only healthy tasks receive traffic
-
-5. CI/CD Pipeline
-
-GitHub Actions workflow:
-
-Checks out repo
-
-Builds Docker image
-
-Logs into AWS ECR
-
-Pushes image
-
-Updates ECS service
-
-Triggers rollout
-
-🧩 Technology Stack
-Layer	Technology
-IaC	Terraform
-Containers	Docker
-Container Registry	Amazon ECR
-Compute	ECS Fargate
-Networking	ALB, VPC
-CI/CD	GitHub Actions
-IAM	Task roles + execution roles
-🚦 Deployment
-1️⃣ Build infrastructure (Terraform)
-terraform init
-terraform apply
-
-2️⃣ Push application code
-
-Just push commits to main — the pipeline deploys automatically.
-
-📸 Demo
-
-Push code → ECS updates automatically
-
-ALB DNS instantly serves new container version
-
-Zero downtime
-
-(Add screenshots of ECS console + ALB test page here.)
-
-🔮 Future Enhancements
-1. Blue/Green Deployments
-
-Safer releases using CodeDeploy + ECS
-
-2. Canary Deployments
-
-Send 1–5% of traffic to new versions first
-
-3. Secrets Manager Integration
-
-Secure DB credentials, API keys
-
-4. Autoscaling
-
-Scale ECS tasks based on CPU, memory, request count
-
-5. Logging & Monitoring
-
-CloudWatch Logs + Datadog or OpenSearch
-
-💼 Business Value Summary
-
-This project demonstrates:
-
-Modern container architecture
-
-Production-ready CI/CD automation
-
-Immutable deployments
-
-Cost-efficient and fully managed compute
-
-Zero-downtime rollouts
-
-It prepares RSVP Society’s platform for real growth and rapid feature iteration.
+- Ideas to extend the platform:
+- Add staging environment with approval gates before prod
+- Integrate more advanced security scanning (Snyk, Trivy, etc.)
+- Add blue/green or canary deployments for high-safety rollouts
+- Introduce feature flags for gradual enablement
+- Add performance tests into the pipeline for bigger releases
