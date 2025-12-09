@@ -116,8 +116,6 @@ This pattern is cost-efficient for small teams that want modern deployment workf
 - Less deployment stress (no manual SSH or package installs)
 - Consistent environments from dev → prod
 
-This is what many hiring managers expect from Cloud/DevOps Engineers: not just standing up servers, but owning the delivery pipeline.
-
 ---
 
 ## Future Enhancements
