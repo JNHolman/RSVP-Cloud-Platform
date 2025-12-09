@@ -19,6 +19,7 @@ This project uses **Terraform** to define:
   - Produces human-readable incident summaries (what happened, impact, next steps)
 
 This is the “enterprise layer” that many companies layer on top of their workloads.
+
 Live Service URL: http://rsvp-cloud-governance-dashboard.s3-website-us-east-1.amazonaws.com/
 
 ---
@@ -134,8 +135,6 @@ With this layer in place, the RSVP platform gains:
 - Guardrails that prevent “dangerous by accident” actions
 - Clearer visibility into costs and potential anomalies
 - Faster, more informed incident response via AI summaries
-
-This is the level of thinking hiring managers expect from engineers stepping into CloudOps/Platform/Security-focused roles.
 
 ---
 
