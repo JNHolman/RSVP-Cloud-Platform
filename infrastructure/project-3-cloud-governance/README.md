@@ -1,5 +1,4 @@
-```markdown
-Project 3 – Multi-Account Security, Governance & AI Incident Response (Enterprise Layer)
+# Project 3 – Multi-Account Security, Governance & AI Incident Response (Enterprise Layer)
 
 Project 3 takes the RSVP platform from “working in one account” to **enterprise-grade governance** using multiple AWS accounts, centralized security services, cost controls, and an AI-assisted incident response workflow.
 
