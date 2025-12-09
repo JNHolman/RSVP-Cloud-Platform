@@ -1,190 +1,143 @@
-🌐 RSVP Cloud Platform — End-to-End Cloud Engineering Portfolio
+# Cloud Engineering Portfolio — RSVP Multi-Project AWS Platform
 
-A three-project portfolio demonstrating modern AWS architecture, security, automation, observability, and AI-assisted operations.
+A three-project, production-style cloud platform showcasing modern AWS architecture, Infrastructure as Code, container orchestration, CI/CD automation, multi-account security, cost governance, and AI-assisted operations.
 
-📌 Overview
+This portfolio demonstrates the full lifecycle of cloud engineering:
 
-The RSVP Cloud Platform is a complete, end-to-end cloud engineering portfolio designed to demonstrate real-world skills across:
+**Design → Deploy → Automate → Secure → Scale → Govern**
 
-Modern AWS architecture
+It reflects the type of work performed by Cloud Engineers, CloudOps Engineers, DevOps/Platform Engineers, and Cloud Security practitioners building and operating real systems.
 
-Infrastructure as Code (Terraform)
+---
 
-Container orchestration and CI/CD
+## Business Context
 
-Multi-account security and governance
+**RSVP Society** is a modern events and nightlife brand that needs a cloud platform capable of supporting:
 
-Cloud monitoring and automated incident workflows
+- Unpredictable event-driven traffic (ticket drops, RSVP spikes, promo campaigns)
+- Fast updates to web and mobile features
+- Strong security and cost visibility
+- Reliability during peak demand
+- Automated insight into logs, alerts, and incidents
 
-AI-assisted operations using Lambda + OpenAI
+This portfolio simulates what a Cloud Engineer would build for a startup or small business maturing toward enterprise-grade cloud operations.
 
-This portfolio is structured across three production-quality projects, each building on the previous one, showcasing a full Cloud / DevOps engineering skill set, from foundational infrastructure all the way to enterprise-level governance and AI-powered incident response.
+---
 
-Together, these projects represent the full lifecycle of a cloud platform:
+## What This Portfolio Demonstrates
 
-Design → Deploy → Automate → Secure → Scale → Govern
+- Modern AWS architecture
+- Infrastructure as Code (Terraform)
+- Containerization and ECS orchestration
+- CI/CD automation with GitHub Actions
+- Multi-account security and governance
+- Centralized logging and monitoring
+- Cost control and automated budget alerts
+- AI-driven log and incident summarization
+- Practical CloudOps workflows
+- Real-world business problem solving
 
-🧱 PROJECT BREAKDOWN
-🚀 PROJECT 1 — RSVP Cloud Platform (Foundational Infrastructure Layer)
-VPC • ALB • Auto Scaling • EC2 • RDS • CloudWatch • AI Log Summarization
+---
 
-Project 1 builds a highly available AWS environment designed for a small event-booking app. It includes:
+## Project Index
 
-Infrastructure
+| Project | Folder | Focus Area | Description |
+|--------|--------|-----------|-------------|
+| **Project 1 – RSVP Cloud Platform** | `infrastructure/project-1-cloud-platform` | Infrastructure Layer | VPC, ALB, EC2 Auto Scaling, RDS, CloudWatch, AI log summarization |
+| **Project 2 – Container Platform & CI/CD** | `infrastructure/project-2-ecs-cicd` | Application Delivery Layer | Modernizes to Docker + ECS Fargate with GitHub Actions CI/CD |
+| **Project 3 – Multi-Account Security & AI Incident Response** | `infrastructure/project-3-cloud-governance` | Enterprise Layer | Organizations, SCPs, Identity Center, GuardDuty, Security Hub, budgets, AI incident assistant |
 
-Multi-AZ VPC (public/private subnets)
+Each project builds on the previous one, creating a unified platform from **infrastructure → application delivery → enterprise readiness**.
 
-Auto Scaling Group with EC2 app servers
+---
 
-Application Load Balancer (ALB)
+## Architecture Overview
 
-RDS MySQL in private subnets
+The platform is structured as a three-layer cloud architecture:
 
-NAT Gateway, IGW, custom route tables
+1. **Infrastructure Layer (Project 1)**  
+   - Multi-AZ VPC (public + private subnets)  
+   - Application Load Balancer  
+   - EC2 Auto Scaling Group  
+   - RDS MySQL in private subnets  
+   - NAT + IGW + custom route tables  
+   - CloudWatch metrics and alarms → SNS  
+   - AI Ops pipeline for log summarization (CloudWatch → SNS → Lambda → LLM → S3/DynamoDB)
 
-Security groups with least-privilege design
+2. **Application Delivery Layer (Project 2)**  
+   - Dockerized web application  
+   - Amazon ECR for image storage  
+   - ECS Fargate service behind a load balancer  
+   - GitHub Actions CI/CD pipeline (build → test → scan → push → deploy)  
+   - Zero-downtime rolling deployments
 
-Observability
+3. **Enterprise Security & Operations Layer (Project 3)**  
+   - AWS Organization with multiple accounts (Security, Dev, Prod)  
+   - Service Control Policies (SCPs) for guardrails  
+   - IAM Identity Center (SSO and permission sets)  
+   - Centralized security services: GuardDuty, Security Hub, IAM Access Analyzer  
+   - AWS Budgets and Cost Anomaly Detection  
+   - AI Incident Assistant: GuardDuty/CloudWatch events → Lambda → LLM → human-readable incident summary
 
-System metrics (CPU, RAM, status checks)
+---
 
-CloudWatch alarms routed to SNS
+## How the Projects Work Together
 
-Dashboard for environment health
+**Layer** | **Project** | **What It Delivers** | **Why It Matters**
+---|---|---|---
+Infrastructure | Project 1 | VPC, compute, database, observability, AI log summaries | Reliable foundation for secure, scalable RSVP workloads
+Application Delivery | Project 2 | Containers, ECS Fargate, CI/CD pipeline | Faster, safer deployments and modernized app delivery
+Enterprise Security & Ops | Project 3 | Multi-account structure, guardrails, cost controls, AI incident analysis | Production-ready governance, compliance, and incident response
 
-AI Operations Layer
+Together, these projects reflect what companies expect from a Cloud Engineer owning both **technical implementation** and **business impact**.
 
-CloudWatch → SNS → Lambda → AI log summarization
+---
 
-Automatic summaries stored in S3 and DynamoDB
+## Cost Optimization Strategy
 
-Human-readable incident insights (what happened & why)
+The platform is designed to be realistic for a small-to-mid sized business:
 
-Business Problems Solved
+- **Right-sized compute:** Auto Scaling EC2 and Fargate tasks scale with demand.
+- **Private RDS:** Keeps data secure while avoiding unnecessary overhead.
+- **IaC for environments:** Non-prod environments can be created/destroyed quickly.
+- **Budgets + anomaly detection:** Owners get early warning on spend spikes.
+- **Minimal NAT exposure:** Architected to avoid unnecessary data processing costs where possible.
 
-✔ Creates a reliable, scalable backend foundation
-✔ Ensures the application is always available
-✔ Adds automated insight to logs (no manual digging)
-✔ Reduces operational load with AI-driven summaries
+Cost is treated as a **first-class design constraint**, not an afterthought.
 
-This is what real companies expect from a Cloud Engineer handling an app migration or greenfield deployment.
+---
 
-📦 PROJECT 2 — Containerized Platform & CI/CD Pipeline (Developer Velocity Layer)
-Docker • ECS Fargate • ECR • GitHub Actions • Immutable Deployments
+## Future Enhancements
 
-Project 2 modernizes the application from EC2 → containers and introduces a full CI/CD pipeline.
+Planned improvements to evolve the RSVP platform:
 
-Core Components
+1. **Serverless API & Event-Driven Workflows**
+   - API Gateway + Lambda microservices
+   - Step Functions for orchestration
+   - EventBridge for decoupled workflows
 
-Containerized web app (Docker)
+2. **Infrastructure Testing & Policy as Code**
+   - Terratest for infra validation
+   - Checkov or OPA policies for security/compliance checks
+   - Pre-commit hooks to block misconfigurations
 
-Automated builds pushed to Amazon ECR
+3. **GitOps for Environment Management**
+   - ArgoCD or Flux for declarative deployments
+   - Git-driven promotion across dev → staging → prod
+   - Drift detection between desired and actual state
 
-ECS Fargate cluster for serverless containers
+4. **AI-Powered Cloud Operations Dashboard**
+   - Central view for health, spend, alerts, and incidents
+   - Natural language querying across logs, metrics, and incidents
 
-Load balanced service running across multiple AZs
+---
 
-GitHub Actions CI/CD pipeline:
+## Contact
 
-Build → test → security scan → push → deploy
+**Josh Holman**  
+Cloud Engineer • Network Engineer • DevOps Practitioner  
 
-Zero-downtime rolling deployments
+https://www.linkedin.com/in/jnholmanjr/
+jnholman@charter.net
 
-Business Problems Solved
 
-✔ No more managing EC2 servers manually
-✔ Faster deployments for developers
-✔ Safer code releases with automated checks
-✔ Lower infrastructure overhead and improved scaling
-
-This layer represents what companies expect when upgrading legacy EC2 workloads toward a modern DevOps-friendly microservices architecture.
-
-🛡 PROJECT 3 — Multi-Account Security, Cost Governance & AI-Incident Assistant (Enterprise Layer)
-IAM Identity Center • SCPs • GuardDuty • Security Hub • Budgets • AI Incident Analysis
-
-Project 3 elevates the platform to enterprise readiness.
-
-Security & Governance
-
-AWS Organization with multiple accounts (Security, Dev, Prod)
-
-Service Control Policies (SCPs) for guardrails
-
-IAM Identity Center for SSO + permission sets
-
-Audit account for centralized logging
-
-GuardDuty, Security Hub, IAM Access Analyzer enabled org-wide
-
-Cost Optimization
-
-AWS Budgets with automated alerts
-
-Cost Anomaly Detection
-
-Tagging enforcement policies
-
-AI Incident Assistant
-
-Detects GuardDuty or CloudWatch events
-
-Lambda sends the event through an AI model
-
-AI returns actionable summaries:
-Root cause, impact, urgency, recommended remediation
-
-Business Problems Solved
-
-✔ Provides enterprise-grade security & compliance
-✔ Centralizes monitoring and guardrails
-✔ Prevents misconfigurations and account drift
-✔ Reduces incident investigation time with AI insights
-
-🔗 HOW ALL 3 PROJECTS WORK TOGETHER
-Layer	Project	What It Delivers	Why It Matters
-1. Infrastructure Layer	Project 1	VPC, EC2, ALB, RDS, CloudWatch, AI logs	The foundation for running secure, scalable applications
-2. Application Delivery Layer	Project 2	Containers, ECS, CI/CD pipeline	Improves developer velocity, reduces ops overhead, modernizes architecture
-3. Enterprise Security & Operations Layer	Project 3	Multi-account governance, budgets, guardrails, AI incident assistant	Makes the platform production-ready and compliant for a real company
-Together, the platform demonstrates:
-
-✔ Real-world cloud architecture
-✔ Automated deployment workflows
-✔ Enterprise security governance
-✔ AI-augmented cloud operations
-✔ Cost control and multi-account maturity
-
-🏁 Future Enhancements
-
-To continue evolving the RSVP Cloud Platform:
-
-🔮 1. Project 4 — Serverless API & Event-Driven Architecture
-
-API Gateway + Lambda microservices
-
-Step Functions
-
-EventBridge decoupled workflows
-
-🔮 2. Add Infrastructure Testing
-
-Terratest
-
-Checkov or OPA policies
-
-Pre-commit hooks
-
-🔮 3. GitOps with ArgoCD or Flux
-
-Full declarative Kubernetes or ECS config
-
-Git-driven releases across environments
-
-🔮 4. AI-Powered Dashboard
-
-Centralized UI showing environment summaries, spending, alerts, incidents
-
-LLM-powered natural language search for data across logs & metrics
-
-📬 Contact
-Josh Holman
-Cloud Engineer • Network Engineer • DevOps Practitioner
