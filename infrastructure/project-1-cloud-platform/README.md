@@ -1,252 +1,122 @@
-RSVP Cloud Platform – Project 1
+# Project 1 – RSVP Cloud Platform (Infrastructure Layer)
 
-Highly available, cost-optimized AWS infrastructure for a scalable event-booking application.
+Project 1 builds the **foundational AWS infrastructure** for the RSVP Society platform: a highly available, secure environment for running a small event-booking / RSVP application with observability and AI-assisted log analysis.
 
-Live Service URL: 👉 http://rsvp-dev-alb-598230497.us-east-1.elb.amazonaws.com/
+---
 
-📌 Business Problem
+## Overview
 
-Event-driven businesses need:
+This project provisions a production-style environment using **Terraform**, including:
 
-High availability during peak RSVPs
+- Multi-AZ VPC with public and private subnets  
+- Application Load Balancer (ALB)  
+- EC2 Auto Scaling Group for the web app  
+- RDS MySQL database in private subnets  
+- NAT Gateway and Internet Gateway routing  
+- Security groups using least-privilege design  
+- CloudWatch metrics, dashboards, and alarms  
+- SNS notifications for critical alerts  
+- AI log summarization pipeline (CloudWatch → SNS → Lambda → LLM → S3/DynamoDB)
 
-Secure storage for customer data
+This is the kind of baseline environment many businesses migrate to when modernizing a legacy on-prem or single-server app.
 
-Ability to scale automatically
+---
 
-Operational visibility
+## Business Problem
 
-Fast detection + diagnosis of system issues
+RSVP Society (or any events brand) needs:
 
-But small teams usually lack:
+- A **reliable, scalable backend** for event discovery, RSVPs, and bookings  
+- Protection from **traffic spikes** around big events or promotions  
+- Minimal downtime during weekends and peak nightlife hours  
+- Faster incident investigation when something goes wrong  
 
-Cloud architecture expertise
+Running a single EC2 instance or a basic VPS is risky: one spike or misconfiguration can take the whole app down. This project solves that by designing a **highly available, observable platform**.
 
-Automated incident response
+---
 
-Standardized infrastructure
+## Architecture Decisions
 
-Efficient monitoring and alerting
+Key design choices:
 
-The RSVP Cloud Platform solves this by delivering a production-grade AWS foundation using Terraform.
+- **Multi-AZ VPC** for resilience against AZ failures  
+- **ALB + Auto Scaling Group** instead of a single EC2 instance  
+- **RDS MySQL in private subnets** for managed, durable storage  
+- **Public subnets for ALB only**; app and DB stay private  
+- **CloudWatch + SNS** to avoid “silent failures”  
+- **AI summarization** of logs and alerts to cut down investigation time  
 
-🎯 Business Solution
+This balances **cost, simplicity, and availability** for a small-to-mid sized business.
 
-This platform provides:
+---
 
-⭐ High Availability
+## Architecture Breakdown
 
-Multi-AZ architecture
+### Networking
 
-Load balancing across multiple EC2 instances
+- 1 VPC  
+- Public subnets (per AZ)  
+- Private subnets for app and database tiers  
+- Internet Gateway attached to the VPC  
+- NAT Gateway in public subnets for outbound access from private subnets  
+- Route tables for public and private traffic flows  
 
-Automatic scaling based on demand
+### Compute & Load Balancing
 
-⭐ Security by Design
+- Application Load Balancer (HTTP/HTTPS listener)  
+- Target group mapped to EC2 instances in an Auto Scaling Group  
+- Auto Scaling policies (min/max/desired) tuned for predictable costs  
 
-Private subnets for compute + database
+### Database
 
-No publicly exposed EC2
+- Amazon RDS MySQL instance  
+- Deployed in private subnets  
+- Security group allowing only app tier access  
+- Backups handled by RDS automated backups
 
-Strict security groups
+### Observability
 
-NAT + IGW architecture
+- CloudWatch metrics: CPU, RAM (via CloudWatch agent if configured), status checks  
+- CloudWatch dashboards for environment health  
+- CloudWatch alarms for high CPU, unhealthy hosts, or HTTP 5xx spikes  
+- SNS topics and subscriptions for alerting (e.g., email)
 
-⭐ Cost Efficiency
+### AI Operations Layer
 
-Small instance sizes
+- CloudWatch alarms / log events trigger SNS  
+- SNS invokes a Lambda function  
+- Lambda calls an LLM (e.g., OpenAI API) with relevant log/alert context  
+- AI response is stored in S3 and/or DynamoDB as a **human-readable incident summary**  
+  - What happened  
+  - Likely root cause  
+  - Impact  
+  - Suggested next steps  
 
-Autoscaling
+This turns noisy logs into concise summaries you can quickly act on.
 
-Serverless AI features instead of expensive monitoring tools
+---
 
-⭐ AI-Powered Incident Response
+## Cost Strategy
 
-When errors or CPU spikes occur:
+Design choices to keep costs reasonable for a small business:
 
-A CloudWatch Alarm triggers
+- **Single VPC, single region, multi-AZ** instead of complex multi-region setups  
+- **Right-sized ASG** with low minimum instance count  
+- **Use of managed RDS** to avoid hidden ops costs of managing databases manually  
+- **Alerting before scaling up too far** (e.g., watch CPU over time, not one spike)  
+- AI summarization runs **only on alerts/events**, not on every log line.
 
-Lambda pulls logs → sends them to OpenAI
+Terraform also allows the entire stack to be **created, updated, or destroyed** quickly as needed (for demos, tests, or cost savings).
 
-AI summarizes root cause
+---
 
-Summary stored in S3 + DynamoDB
+## How to Deploy
 
-SNS email sends human-readable diagnosis
+> Prereqs: Terraform CLI, AWS credentials with appropriate permissions, and any required environment variables for the AI provider.
 
-🏗 Architecture Overview
-Networking
+1. **Clone the repo and change into Project 1**
 
-VPC (10.0.0.0/16)
+```bash
+git clone https://github.com/JNHolman/RSVP-Cloud-Platform.git
+cd RSVP-Cloud-Platform/infrastructure/project-1-cloud-platform
 
-Public subnets (ALB)
-
-Private subnets (EC2 + RDS)
-
-Internet Gateway + NAT Gateway
-
-Route tables for segmented traffic flow
-
-Compute Layer
-
-Auto Scaling Group (2–4 instances)
-
-Apache web server installed via user_data
-
-Private EC2 instances (not public)
-
-Load Balancing
-
-Application Load Balancer (ALB)
-
-Health checks at /
-
-ALB → Target Group → ASG
-
-Database
-
-Amazon RDS MySQL
-
-Private-only access
-
-SG allows inbound ONLY from EC2
-
-Dev-sized DB for cost savings
-
-Monitoring & Alerts
-
-CloudWatch alarms for:
-
-ALB 5xx spikes
-
-High CPU on ASG
-
-SNS notifications with summary
-
-AI Operations Layer
-
-Lambda triggered by EventBridge
-
-Analyzes CloudWatch logs
-
-Uses OpenAI for log summarization
-
-Outputs stored in:
-
-S3 (full summaries)
-
-DynamoDB (metadata)
-
-Emails the analysis to the engineer
-
-🧩 Technology Stack
-Layer	Technology
-IaC	Terraform
-Compute	EC2 (ASG)
-Networking	VPC, Subnets, IGW, NAT
-Load Balancer	ALB
-Database	RDS MySQL
-Monitoring	CloudWatch + SNS
-Serverless	Lambda + EventBridge
-AI	OpenAI GPT
-Storage	S3 + DynamoDB
-🚦 Deployment
-terraform init
-terraform plan
-terraform apply
-
-
-Terraform outputs include:
-
-ALB DNS
-
-RDS endpoint
-
-S3 bucket name
-
-DynamoDB table
-
-SNS ARN
-
-📸 Demo UI (Rendered Automatically on EC2)
-
-The platform includes a custom HTML system dashboard showing:
-
-Environment details
-
-Network architecture
-
-Compute details
-
-AI layer status
-
-Instance identity
-
-(Add screenshot here after uploading to GitHub.)
-
-🔮 Future Enhancements
-1. HTTPS/TLS
-
-ACM certificate
-
-ALB 443 listener
-
-Redirect HTTP → HTTPS
-
-2. Secrets Management
-
-Move DB passwords + OpenAI keys into:
-
-SSM Parameter Store
-
-or Secrets Manager
-
-3. Application Logging
-
-CloudWatch agent on EC2
-
-ALB access logs → S3
-
-4. Scaling Policies
-
-CPU or RequestCount-based autoscaling
-
-5. RDS Hardening
-
-Backup retention
-
-Multi-AZ failover
-
-Deletion protection
-
-6. Secure Admin Access
-
-SSM Session Manager
-
-or Bastion host
-
-7. Terraform CI/CD
-
-Validate
-
-fmt
-
-lint
-
-plan on PRs
-
-💼 Business Value Summary
-
-This project demonstrates:
-
-Real-world AWS architecture
-
-Production-ready networking and security
-
-Automated incident response using AI
-
-Clean, modular Terraform IaC
-
-Platform engineering best practices
-
-It forms the foundation for a scalable cloud application supporting RSVP Society’s event operations.
