@@ -122,10 +122,9 @@ Terraform also allows the entire stack to be **created, updated, or destroyed** 
 
 ### Future Enhancements
 
-**Potential improvements:
-
-- **Add HTTPS termination on ALB using ACM
-- **Add WAF rules for basic security protections
-- **Add SSM Parameter Store/Secrets Manager integration
-- **Expand AI pipeline to summarize not just logs but performance trends over time
-- **Integrate with external notification tools (Slack, Teams, etc.)
+Potential improvements:
+- Add HTTPS termination on ALB using ACM
+- Add WAF rules for basic security protections
+- Add SSM Parameter Store/Secrets Manager integration
+- Expand AI pipeline to summarize not just logs but performance trends over time
+- Integrate with external notification tools (Slack, Teams, etc.)
