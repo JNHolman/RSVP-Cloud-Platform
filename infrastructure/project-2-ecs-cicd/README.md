@@ -1,6 +1,3 @@
-## Project 2 – `infrastructure/project-2-ecs-cicd/README.md`
-
-```markdown
 # Project 2 – Container Platform & CI/CD (Application Delivery Layer)
 
 Project 2 modernizes the RSVP application from EC2-based deployments to **containers on ECS Fargate** with a fully automated **GitHub Actions CI/CD pipeline**.
