@@ -126,3 +126,31 @@ This pattern is cost-efficient for small teams that want modern deployment workf
 - Add blue/green or canary deployments for high-safety rollouts
 - Introduce feature flags for gradual enablement
 - Add performance tests into the pipeline for bigger releases
+  
+---
+
+## 📸 Infrastructure Screenshots
+
+Below are visual references showing the AWS resources deployed by this project.
+
+### ECR – Container Image Repository
+![ECR Repository](./screenshots/ecr-repository.png)
+
+### ECS Cluster & Services
+![ECS Cluster Overview](./screenshots/ecs-cluster-overview.png)
+![ECS Service Overview](./screenshots/ecs-service-overview.png)
+![ECS Service Health](./screenshots/ecs-service-health.png)
+
+### Task Definition
+![ECS Task Definition](./screenshots/ecs-task-definition.png)
+
+### Load Balancing
+![ALB Overview](./screenshots/ecs-alb-overview.png)
+![Target Group](./screenshots/ecs-target-group.png)
+
+### CI/CD Pipeline
+![CI/CD Pipeline Run](./screenshots/cicd-pipeline-run.png)
+
+### Application UI
+![Project 2 UI](./screenshots/project2-ui.png)
+
