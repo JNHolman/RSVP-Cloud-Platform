@@ -22,7 +22,7 @@ This is the kind of baseline environment many businesses migrate to when moderni
 
 ---
 
-## 🧱 Architecture Diagram
+## Architecture Diagram
 
 Below is the high-level architecture for Project 1.
 
