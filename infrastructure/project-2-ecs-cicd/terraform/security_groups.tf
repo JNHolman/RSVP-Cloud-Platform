@@ -4,11 +4,11 @@
 
 resource "aws_security_group" "alb" {
   name        = "${var.project_name}-alb-sg"
-  description = "Allow HTTP from the internet to ALB"
+  description = "Allow inbound traffic to ALB"
   vpc_id      = aws_vpc.this.id
 
   ingress {
-    description = "HTTP from anywhere"
+    description = "Public HTTP on 8080"
     from_port   = 8080
     to_port     = 8080
     protocol    = "tcp"
@@ -16,7 +16,6 @@ resource "aws_security_group" "alb" {
   }
 
   egress {
-    description = "All outbound"
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
@@ -29,6 +28,7 @@ resource "aws_security_group" "alb" {
     Environment = "dev"
   }
 }
+
 
 ######################################################
 # Security Group for ECS Tasks (internal)
