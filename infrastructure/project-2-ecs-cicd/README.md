@@ -20,8 +20,8 @@ This project focuses on:
 
 The goal is to show how a Cloud Engineer can improve **developer velocity, reliability, and release safety**.
 
-Live Service URL:
-http://rsvp-project2-alb-901306910.us-east-1.elb.amazonaws.com:8080
+Live Service URL: [Project 2 Live Service](http://rsvp-project2-alb-901306910.us-east-1.elb.amazonaws.com:8080)
+
 ---
 
 ## Business Problem
