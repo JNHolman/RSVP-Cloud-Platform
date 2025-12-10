@@ -120,7 +120,7 @@ This pattern is cost-efficient for small teams that want modern deployment workf
 
 ## Future Enhancements
 
-- Ideas to extend the platform:
+Ideas to extend the platform:
 - Add staging environment with approval gates before prod
 - Integrate more advanced security scanning (Snyk, Trivy, etc.)
 - Add blue/green or canary deployments for high-safety rollouts
