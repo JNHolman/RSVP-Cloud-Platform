@@ -128,3 +128,35 @@ Potential improvements:
 - Add SSM Parameter Store/Secrets Manager integration
 - Expand AI pipeline to summarize not just logs but performance trends over time
 - Integrate with external notification tools (Slack, Teams, etc.)
+
+---
+
+## 📸 Infrastructure Screenshots
+
+Below are visual references showing the AWS resources deployed by this project.
+
+### VPC & Networking
+![VPC Overview](./screenshots/vpc-overview.png)
+![VPC Resource Map](./screenshots/vpc-resource-map.png)
+![Subnets List](./screenshots/subnets-list.png)
+
+### Load Balancing
+![ALB Overview](./screenshots/alb-overview.png)
+![Target Group](./screenshots/target-group.png)
+
+### Compute
+![Auto Scaling Group](./screenshots/autoscaling-group.png)
+
+### Database
+![RDS Overview](./screenshots/rds-overview.png)
+
+### Monitoring & AI Automation
+![CloudWatch Alarms](./screenshots/cloudwatch-alarms.png)
+![Lambda Log Summarizer](./screenshots/lambda-function.png)
+
+### Storage (AI Log Summaries)
+![S3 Bucket Overview](./screenshots/s3-bucket-overview.png)
+![S3 Summary Object](./screenshots/s3-summary-object.png)
+
+### Application UI
+![Project UI](./screenshots/project-ui.png)
