@@ -22,6 +22,14 @@ This is the kind of baseline environment many businesses migrate to when moderni
 
 ---
 
+## 🧱 Architecture Diagram
+
+Below is the high-level architecture for Project 1.
+
+![Project 1 Architecture](./screenshots/project1-architecture.png)
+
+---
+
 ## Business Problem
 
 RSVP Society (or any events brand) needs:
