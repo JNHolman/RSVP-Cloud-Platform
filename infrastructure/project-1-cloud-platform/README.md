@@ -130,6 +130,7 @@ Potential improvements:
 - Integrate with external notification tools (Slack, Teams, etc.)
 
 ---
+
 ## 📸 Infrastructure Screenshots
 
 Below are visual references showing the AWS resources deployed by this project.
