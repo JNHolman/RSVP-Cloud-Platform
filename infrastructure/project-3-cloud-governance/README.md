@@ -20,7 +20,8 @@ This project uses **Terraform** to define:
 
 This is the “enterprise layer” that many companies layer on top of their workloads.
 
-Live Service URL: http://rsvp-cloud-governance-dashboard.s3-website-us-east-1.amazonaws.com/
+**Live Service URL:**  
+[rsvp-cloud-governance-dashboard](http://rsvp-cloud-governance-dashboard.s3-website-us-east-1.amazonaws.com/)
 
 ---
 
@@ -147,3 +148,30 @@ Potential upgrades:
 - Mapping incident severity to on-call schedules/pages
 - More granular SCPs and permission sets as the org expands
 - AI assistant for cost optimization recommendations in addition to security
+
+---
+
+## 📸 Governance & Security Screenshots
+
+Below are visual references included for this project.
+
+### AWS Organizations
+![Organization Accounts](./screenshots/organizations-accounts.png)
+
+### IAM Governance
+![IAM User](./screenshots/iam-user.png)
+![IAM Root Security](./screenshots/iam-root-security.png)
+![IAM Roles Overview](./screenshots/iam-roles-overview.png)
+![IAM Role Config Detail](./screenshots/iam-role-config-detail.png)
+![IAM Role Trust Policy](./screenshots/iam-role-config-trust.png)
+
+### Security & Compliance
+![GuardDuty Summary](./screenshots/guardduty-summary.png)
+![Security Hub Summary](./screenshots/security-hub-summary.png)
+![CloudTrail Event History](./screenshots/cloudtrail-event-history.png)
+![AWS Config Dashboard](./screenshots/aws-config-dashboard.png)
+
+### Governance Dashboard UI
+![Project 3 UI](./screenshots/project3-ui.png)
+![Project 3 UI - Page 2](./screenshots/project3-ui-2.png)
+
