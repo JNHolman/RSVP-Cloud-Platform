@@ -53,19 +53,17 @@ Each project builds on the previous one, creating a cohesive system that evolves
 
 ## Architecture Overview
 
-The RSVP platform uses a layered architecture reflecting real AWS cloud maturity stages.
+The RSVP platform uses a layered architecture that reflects real-world AWS cloud maturity stages — progressing from foundational infrastructure, to modern application delivery, to enterprise-grade security and governance.
 
-## Platform Architecture Overview
+### Platform Architecture Diagram
 
 ![Platform Architecture Overview](platform-architecture-overview.png)
 
-This platform architecture illustrates how the three projects operate as a cohesive system:
-- Project 1 establishes foundational infrastructure and observability
-- Project 2 demonstrates modern containerized application delivery with CI/CD
-- Project 3 centralizes security, governance, and AI-assisted incident response
+This platform architecture illustrates how the three projects operate together as a cohesive system:
 
-
----
+- **Project 1** establishes foundational infrastructure, networking, and observability
+- **Project 2** introduces modern containerized application delivery with CI/CD automation
+- **Project 3** centralizes security, governance, cost controls, and AI-assisted incident response
 
 ### 1. Infrastructure Layer (Project 1)
 
