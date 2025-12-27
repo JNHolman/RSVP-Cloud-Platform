@@ -128,6 +128,94 @@ The combined platform demonstrates both technical capability and business alignm
 
 ---
 
+## Failure Scenarios & Operational Response
+
+This platform was designed with operational behavior in mind, focusing on how services fail, how issues are detected, and how recovery occurs with minimal impact.
+
+**Application Load Balancer (ALB) – Unhealthy Targets**
+- CloudWatch alarms trigger on target health degradation and elevated 5xx error rates.
+- Traffic is automatically routed away from unhealthy targets.
+- ECS services replace failed tasks to restore capacity.
+- Alerts notify operators for investigation and root cause analysis.
+
+**ECS Task Failures**
+- ECS automatically restarts failed or crashed tasks.
+- Repeated failures surface via CloudWatch alarms.
+- Centralized logging enables rapid diagnosis, with AI-assisted summaries accelerating triage.
+
+**NAT Gateway or Network Egress Issues**
+- Outbound connectivity failures primarily impact egress-dependent services.
+- Inbound application traffic remains available through the ALB.
+- Blast radius is limited to private subnet workloads requiring internet access.
+- Resolution focuses on route table validation and NAT recovery.
+
+**RDS Failover Events**
+- Multi-AZ RDS performs automatic failover during infrastructure failures.
+- Short-lived connection interruptions are expected.
+- Application retry logic mitigates user impact.
+- Monitoring confirms database availability post-failover.
+
+**CI/CD Deployment Failures**
+- Failed deployments do not promote unhealthy containers.
+- Rolling deployments maintain existing healthy tasks.
+- Rollback is performed by redeploying the last known good container image.
+- Deployment history and logs support fast recovery decisions.
+  
+---
+
+## Architecture Tradeoffs
+
+This platform reflects deliberate engineering tradeoffs aligned with operational simplicity, reliability, and team efficiency.
+
+**ECS Fargate vs EKS**
+- ECS Fargate was selected to reduce operational overhead.
+- No Kubernetes control plane or worker node management is required.
+- Well-suited for small teams prioritizing reliability over platform complexity.
+
+**GitHub Actions vs AWS CodePipeline**
+- GitHub Actions integrates directly with source control.
+- Simplifies CI/CD workflows without introducing additional AWS services.
+- Provides sufficient flexibility while keeping pipelines easy to reason about.
+
+**Multi-Account Governance vs Single-Account Hardening**
+- Multi-account architecture limits blast radius and improves isolation.
+- Enables centralized visibility, auditing, and security enforcement.
+- Mirrors governance patterns used in enterprise AWS environments.
+
+**Terraform vs CloudFormation**
+- Terraform enables reusable modules and consistent infrastructure patterns.
+- Provides strong lifecycle management and state control.
+- Aligns with widely adopted Infrastructure as Code practices.
+  
+---
+
+## Cost Awareness & Scaling Considerations
+
+Cost is treated as a first-class engineering concern rather than an afterthought.
+
+**Baseline Costs**
+- Primary baseline costs include ALB, ECS Fargate tasks, RDS, NAT Gateway, and CloudWatch.
+- Designed to operate at a low steady-state cost during normal usage.
+
+**Primary Cost Drivers**
+- ECS task count during peak traffic periods.
+- NAT Gateway hourly and data processing charges.
+- RDS instance class, storage, and backups.
+- Log ingestion volume and retention settings.
+
+**Scaling with Traffic**
+- ECS task count scales with application demand.
+- ALB and CloudWatch costs increase proportionally with usage.
+- Database load grows with concurrent user activity.
+
+**Scaling at 10× Usage**
+- Introduce autoscaling policies for ECS services.
+- Evaluate read replicas or Aurora for database scalability.
+- Reduce NAT dependency using VPC endpoints where applicable.
+- Optimize logging retention and sampling strategies.
+
+---
+
 ## Cost Optimization Strategy
 
 This platform was designed to be realistic and cost-effective for a small-to-mid sized business:
@@ -173,7 +261,7 @@ Cost is treated as an engineering constraint from day one.
 ## Contact
 
 Josh Holman  
-Cloud Engineer • Network Engineer • DevOps Practitioner  
+Infrastructure Engineer • Cloud Operations  
 
 LinkedIn: https://www.linkedin.com/in/jnholmanjr/  
 Email: jnholman@charter.net
