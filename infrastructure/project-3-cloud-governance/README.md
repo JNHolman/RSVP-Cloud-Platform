@@ -54,6 +54,11 @@ Key design choices:
 This aligns with modern AWS best practices for mid-sized teams.
 
 ---
+## Architecture Diagram
+
+![Project 3 – Multi-Account Security & Governance Architecture](./screenshots/project3-security-governance-architecture.png)
+
+This diagram illustrates how AWS Organizations, multiple accounts, centralized security services, and an AI-assisted incident response workflow work together to enforce guardrails, monitor activity, and produce actionable security insights across the platform.
 
 ## Architecture Breakdown
 
