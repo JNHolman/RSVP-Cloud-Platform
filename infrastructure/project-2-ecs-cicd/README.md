@@ -47,7 +47,8 @@ Key choices:
 - **GitHub Actions** because the code already lives in GitHub  
 - **Rolling deployments** to avoid downtime  
 
-This provides a realistic path that many teams take when modernizing existing apps.
+These decisions reflect a realistic modernization path many teams take when transitioning from VM-based deployments to containerized platforms.
+
 ---
 
 ## Architecture Diagram
