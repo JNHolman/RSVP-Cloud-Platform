@@ -48,6 +48,13 @@ Key choices:
 - **Rolling deployments** to avoid downtime  
 
 This provides a realistic path that many teams take when modernizing existing apps.
+---
+
+## Architecture Diagram
+
+![Project 2 – Container Platform & CI/CD Architecture](./screenshots/project2-container-cicd-architecture.png)
+
+This diagram shows how the RSVP application is built, packaged, and deployed using containers and an automated CI/CD pipeline. Traffic is routed through a load balancer to ECS Fargate tasks, while GitHub Actions handles build, test, and deployment workflows.
 
 ---
 
@@ -110,7 +117,8 @@ This pattern is cost-efficient for small teams that want modern deployment workf
 
 ## Business Outcomes
 
-- Moving to containers and CI/CD gives RSVP Society:
+Moving to containers and CI/CD gives RSVP Society:
+
 - Faster releases (new features can ship in minutes instead of days)
 - Safer changes (pipeline adds checks before production)
 - Less deployment stress (no manual SSH or package installs)
