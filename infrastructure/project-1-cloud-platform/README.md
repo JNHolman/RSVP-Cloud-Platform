@@ -102,17 +102,15 @@ This balances **cost, simplicity, and availability** for a small-to-mid sized bu
 
 This turns noisy logs into concise summaries you can quickly act on.
 
-### AI Design Principles
+### AI Guardrails & Safety Controls
 
-AI is intentionally used as an **operational assistant**, not an automated control system.
+AI usage in this project is intentionally constrained to reduce risk and prevent unintended behavior.
 
-- **Human-in-the-loop:** AI provides summaries and insights, not automated remediation.
-- **Scoped inputs:** Only relevant log slices and alert context are passed to the model.
-- **Failure-safe:** AI failures do not impact application availability or infrastructure behavior.
-- **Cost-aware:** AI runs only on alerts/events, not continuously.
-- **Security-conscious:** No secrets, credentials, or sensitive user data are passed to the model.
-
-This reflects how AI is realistically adopted in production CloudOps environments today — as a tool to reduce cognitive load during incidents, not replace engineers.
+- **Human-in-the-loop:** AI provides summaries and recommendations only; no automated remediation is performed.
+- **Scoped context:** Only relevant log slices and alert metadata are passed to the model.
+- **Failure-safe:** If the AI service is unavailable or returns invalid output, the pipeline exits gracefully without impacting infrastructure.
+- **Cost controls:** AI invocation is event-driven (alerts/incidents only), with no continuous polling.
+- **Security boundaries:** No secrets, credentials, or sensitive user data are included in prompts or outputs.
 
 ---
 
