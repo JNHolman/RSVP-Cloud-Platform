@@ -1,148 +1,113 @@
-# Project 2 – Container Platform & CI/CD (Application Delivery Layer)
+# Project 2 — Container Platform & CI/CD (Application Delivery Layer)
 
-Project 2 modernizes the RSVP application from EC2-based deployments to **containers on ECS Fargate** with a fully automated **GitHub Actions CI/CD pipeline**.
+Project 2 moves the RSVP app from VM-style deployment to **containers on ECS Fargate**, with an automated **GitHub Actions** workflow that builds and publishes images to **ECR** and triggers an ECS redeploy.
+
+---
+
+## Live service
+
+URL: http://rsvp-project2-alb-901306910.us-east-1.elb.amazonaws.com:8080
+
+**Done when (user-facing):** The page loads and `/api/message` returns a response.
+
+**Done when (AWS evidence):** ECS service has a running task and the ALB target group shows **Healthy** targets.
 
 ---
 
 ## Overview
 
-This project focuses on:
+This project includes:
 
-- Dockerizing the RSVP web application  
-- Building and pushing images to Amazon ECR  
-- Deploying the app to an ECS Fargate service behind a load balancer  
-- Implementing a GitHub Actions pipeline to:  
-  - Build  
-  - Test  
-  - Run basic security scans (as applicable)  
-  - Push to ECR  
-  - Update the ECS service  
+- Dockerized RSVP web application
+- Amazon ECR repository for container images
+- ECS Fargate cluster/service behind an Application Load Balancer
+- GitHub Actions workflow that:
+  - builds the Docker image
+  - tags and pushes to ECR (`$GITHUB_SHA` and `latest`)
+  - triggers a rolling redeploy of the ECS service
 
-The goal is to show how a Cloud Engineer can improve **developer velocity, reliability, and release safety**.
-
-Live Service URL: [Project 2 Live Service](http://rsvp-project2-alb-901306910.us-east-1.elb.amazonaws.com:8080)
+This repo shows a practical “small team” delivery path: standard runtime, repeatable builds, and automated deployments without standing up Kubernetes.
 
 ---
 
-## Business Problem
+## Business problem
 
-RSVP Society needs to:
-
-- Ship new features quickly (promo banners, event types, ticket changes)  
-- Avoid downtime during deployments  
-- Reduce “it works on my machine” issues  
-- Standardize the runtime across environments  
-
-Manual deployments to EC2 are slow, fragile, and inconsistent. Containers + CI/CD solve this by making deployments **repeatable and automated**.
+RSVP Society needs to ship updates quickly without manual SSH deploys and “works on my machine” issues. Containers + ECS provide a consistent runtime, and GitHub Actions automates the release steps.
 
 ---
 
-## Architecture Decisions
+## Architecture diagram
 
-Key choices:
-
-- **Docker images** as the unit of deployment  
-- **ECS Fargate** for serverless containers (no node management)  
-- **Reuse or attach to a load balancer** so traffic routing stays consistent  
-- **GitHub Actions** because the code already lives in GitHub  
-- **Rolling deployments** to avoid downtime  
-
-These decisions reflect a realistic modernization path many teams take when transitioning from VM-based deployments to containerized platforms.
+![Project 2 — Container Platform & CI/CD Architecture](./screenshots/project2-container-cicd-architecture.png)
 
 ---
 
-## Architecture Diagram
-
-![Project 2 – Container Platform & CI/CD Architecture](./screenshots/project2-container-cicd-architecture.png)
-
-This diagram shows how the RSVP application is built, packaged, and deployed using containers and an automated CI/CD pipeline. Traffic is routed through a load balancer to ECS Fargate tasks, while GitHub Actions handles build, test, and deployment workflows.
-
----
-
-## Architecture Breakdown
+## Architecture breakdown
 
 ### Containerization
+- App packaged as a Docker image
+- Local build supported for dev/testing
 
-- Dockerfile for the RSVP web app  
-- Local builds for dev/testing  
-- Application packaged with its dependencies into a single image  
-
-### Image Registry
-
-- Amazon ECR repository for application images  
-- Tagging strategy (e.g., `main`, `feature-*`, commit SHA)  
+### Image registry (ECR)
+- ECR stores images for deployment
+- Tags used:
+  - `latest`
+  - commit SHA (`$GITHUB_SHA`) for traceability
 
 ### ECS Fargate
+- ECS cluster runs the service on Fargate (no instance management)
+- Service is attached to an ALB target group
+- Health checks remove unhealthy tasks
 
-- ECS cluster  
-- Task definitions referencing the ECR image  
-- Fargate service:
-  - Desired count configured for high availability  
-  - Integrated with a target group and load balancer  
-  - Health checks to remove unhealthy tasks  
+### CI/CD (GitHub Actions)
+Workflow file: `.github/workflows/ecs-project2-deploy.yml`
 
-### CI/CD Pipeline (GitHub Actions)
+What it does today:
+1. Triggers on pushes to `main` affecting `infrastructure/project-2-ecs-cicd/`
+2. Builds the Docker image
+3. Logs into ECR and pushes:
+   - `:latest`
+   - `:${GITHUB_SHA}`
+4. Forces an ECS service redeploy
 
-Typical workflow stages:
-
-1. **Trigger**  
-   - On push to `main` or on pull request merge  
-
-2. **Build & Test**  
-   - Build Docker image  
-   - Run unit tests (if configured)  
-
-3. **Security Scan (optional/extendable)**  
-   - Container scan or dependency check  
-
-4. **Push to ECR**  
-   - Authenticate to AWS  
-   - Tag and push image  
-
-5. **Deploy to ECS**  
-   - Update service/task definition  
-   - ECS performs rolling deployment behind the load balancer  
+**Note:** the current workflow triggers a redeploy; it does not register a new task definition revision pinned to the SHA image. That is listed under Future Enhancements.
 
 ---
 
-## Cost Strategy
+## Verify (fast checks)
 
-- **Fargate** avoids managing EC2 worker nodes (saves ops time and removes always-on instance costs).
-- **Right-sized task counts** limit how many containers run concurrently.
-- Ability to **scale task count** up for promo events, down during normal periods.
-- CI/CD pipeline uses **GitHub Actions minutes** plus minimal AWS cost during deploys.
-
-This pattern is cost-efficient for small teams that want modern deployment workflows without building a complex Kubernetes platform.
-
----
-
-## Business Outcomes
-
-Moving to containers and CI/CD gives RSVP Society:
-
-- Faster releases (new features can ship in minutes instead of days)
-- Safer changes (pipeline adds checks before production)
-- Less deployment stress (no manual SSH or package installs)
-- Consistent environments from dev → prod
+- **ECR:** Repository contains `latest` and a recent SHA tag
+- **ECS service:** Desired task count is running
+- **Target group:** Targets are **healthy**
+- **ALB:** Live URL returns HTTP 200 and renders the UI
+- **Deployment traceability:** The image tag exists in ECR for the commit you pushed
 
 ---
 
-## Future Enhancements
+## Cost notes (high-level)
 
-Ideas to extend the platform:
-- Add staging environment with approval gates before prod
-- Integrate more advanced security scanning (Snyk, Trivy, etc.)
-- Add blue/green or canary deployments for high-safety rollouts
-- Introduce feature flags for gradual enablement
-- Add performance tests into the pipeline for bigger releases
-  
+Primary costs come from:
+- ALB hourly + LCUs
+- Fargate CPU/memory-hours
+- CloudWatch logs
+
+This setup is designed to be simple to operate and easy to tear down when not needed.
+
 ---
 
-## 📸 Infrastructure Screenshots
+## Future enhancements (not counted as delivered)
 
-Below are visual references showing the AWS resources deployed by this project.
+- Pin deployments to immutable releases by registering a new task definition revision using the SHA image tag
+- Add basic unit tests in the GitHub Actions workflow
+- Add a container scan step (Trivy/Grype/Snyk)
+- Add a staging environment with approval gates
+- Add blue/green or canary deployment strategy (if needed)
 
-### ECR – Container Image Repository
+---
+
+## 📸 Infrastructure screenshots
+
+### ECR — Container Image Repository
 ![ECR Repository](./screenshots/ecr-repository.png)
 
 ### ECS Cluster & Services
@@ -157,9 +122,4 @@ Below are visual references showing the AWS resources deployed by this project.
 ![ALB Overview](./screenshots/ecs-alb-overview.png)
 ![Target Group](./screenshots/ecs-target-group.png)
 
-### CI/CD Pipeline
-![CI/CD Pipeline Run](./screenshots/cicd-pipeline-run.png)
-
-### Application UI
-![Project 2 UI](./screenshots/project2-ui.png)
 
