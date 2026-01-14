@@ -1,165 +1,160 @@
-# Project 1 – RSVP Cloud Platform (Infrastructure Layer)
+# Project 1 — RSVP Cloud Platform (Infrastructure Layer)
 
-Project 1 builds the **foundational AWS infrastructure** for the RSVP Society platform: a highly available, secure environment for running a small event-booking / RSVP application with observability and AI-assisted log analysis.
+Project 1 builds the foundational AWS infrastructure for a small web application: networking, ingress, compute scaling, database, alerting, and an event-driven AI log summary workflow. This is a **production-style lab**: deployable, verifiable, and designed to be destroyed cleanly to control cost.
 
 ---
 
 ## Overview
 
-This project provisions a production-style environment using **Terraform**, including:
+This project provisions AWS infrastructure with **Terraform**:
 
-- Multi-AZ VPC with public and private subnets  
-- Application Load Balancer (ALB)  
-- EC2 Auto Scaling Group for the web app  
-- RDS MySQL database in private subnets  
-- NAT Gateway and Internet Gateway routing  
-- Security groups using least-privilege design  
-- CloudWatch metrics, dashboards, and alarms  
-- SNS notifications for critical alerts  
-- AI log summarization pipeline (CloudWatch → SNS → Lambda → LLM → S3/DynamoDB)
+- Multi-AZ VPC with public and private subnets
+- Application Load Balancer (ALB)
+- EC2 Auto Scaling Group for the web tier
+- RDS MySQL in private subnets
+- Internet Gateway + NAT Gateway + route tables
+- Security groups scoped by tier (ALB → app → DB)
+- CloudWatch alarms and log group (app logs)
+- SNS alerts topic (email subscription optional)
+- AI log summarization workflow:
+  - **CloudWatch alarm actions → SNS email alerts**
+  - **CloudWatch Alarm State Change → EventBridge → Lambda → OpenAI → S3 + DynamoDB → SNS**
 
-This is the kind of baseline environment many businesses migrate to when modernizing a legacy on-prem or single-server app.
+This is a common baseline pattern for teams moving off a single server into AWS with predictable operations and a clear failure/alert path.
 
 ---
 
-## Architecture Diagram
-
-Below is the high-level architecture for Project 1.
+## Architecture diagram
 
 ![Project 1 Network Architecture](./screenshots/project1-network-architecture.png)
 
 ---
 
-## Business Problem
+## Business problem
 
-RSVP Society (or any events brand) needs:
+RSVP apps and event sites tend to spike during promos and major weekends. A single instance/VPS is a single point of failure. This project shows a baseline architecture that:
 
-- A **reliable, scalable backend** for event discovery, RSVPs, and bookings  
-- Protection from **traffic spikes** around big events or promotions  
-- Minimal downtime during weekends and peak nightlife hours  
-- Faster incident investigation when something goes wrong  
-
-Running a single EC2 instance or a basic VPS is risky: one spike or misconfiguration can take the whole app down. This project solves that by designing a **highly available, observable platform**.
+- scales the web tier horizontally
+- keeps the database isolated in private subnets
+- alerts on obvious failure signals (ALB 5xx, high CPU)
+- produces a short, human-readable summary when an alarm fires
 
 ---
 
-## Architecture Decisions
+## Key design decisions
 
-Key design choices:
-
-- **Multi-AZ VPC** for resilience against AZ failures  
-- **ALB + Auto Scaling Group** instead of a single EC2 instance  
-- **RDS MySQL in private subnets** for managed, durable storage  
-- **Public subnets for ALB only**; app and DB stay private  
-- **CloudWatch + SNS** to avoid “silent failures”  
-- **AI summarization** of logs and alerts to cut down investigation time  
-
-This balances **cost, simplicity, and availability** for a small-to-mid sized business.
+- **Multi-AZ VPC** to reduce single-AZ blast radius
+- **ALB + Auto Scaling Group** instead of one EC2 instance
+- **RDS MySQL in private subnets** for managed storage and isolation
+- **Public subnets for ALB; private subnets for app/DB**
+- **CloudWatch alarms + SNS** for alerts (no silent failures)
+- **Event-driven AI summaries** only when alarms change state (no polling)
 
 ---
 
-## Architecture Breakdown
+## Architecture breakdown
 
 ### Networking
+- 1 VPC
+- Public subnets (ALB, NAT)
+- Private subnets (app tier, DB tier)
+- Internet Gateway attached to the VPC
+- NAT Gateway for private subnet egress (where needed)
+- Separate route tables for public/private traffic flows
 
-- 1 VPC  
-- Public subnets (per AZ)  
-- Private subnets for app and database tiers  
-- Internet Gateway attached to the VPC  
-- NAT Gateway in public subnets for outbound access from private subnets  
-- Route tables for public and private traffic flows  
-
-### Compute & Load Balancing
-
-- Application Load Balancer (HTTP/HTTPS listener)  
-- Target group mapped to EC2 instances in an Auto Scaling Group  
-- Auto Scaling policies (min/max/desired) tuned for predictable costs  
+### Compute & load balancing
+- ALB (HTTP listener; HTTPS is a planned enhancement)
+- Target group routes to instances in an Auto Scaling Group
+- ASG min/max/desired tuned for baseline cost control
 
 ### Database
+- RDS MySQL instance
+- Private subnets only
+- DB security group allows inbound only from the app tier security group
+- Automated backups handled by RDS
 
-- Amazon RDS MySQL instance  
-- Deployed in private subnets  
-- Security group allowing only app tier access  
-- Backups handled by RDS automated backups
-
-### Observability
-
-- CloudWatch metrics: CPU, RAM (via CloudWatch agent if configured), status checks  
-- CloudWatch dashboards for environment health  
-- CloudWatch alarms for high CPU, unhealthy hosts, or HTTP 5xx spikes  
-- SNS topics and subscriptions for alerting (e.g., email)
-
-### AI Operations Layer
-
-- CloudWatch alarms / log events trigger SNS  
-- SNS invokes a Lambda function  
-- Lambda calls an LLM (e.g., OpenAI API) with relevant log/alert context  
-- AI response is stored in S3 and/or DynamoDB as a **human-readable incident summary**  
-  - What happened  
-  - Likely root cause  
-  - Impact  
-  - Suggested next steps  
-
-This turns noisy logs into concise summaries you can quickly act on.
-
-### AI Guardrails & Safety Controls
-
-AI usage in this project is intentionally constrained to reduce risk and prevent unintended behavior.
-
-- **Human-in-the-loop:** AI provides summaries and recommendations only; no automated remediation is performed.
-- **Scoped context:** Only relevant log slices and alert metadata are passed to the model.
-- **Failure-safe:** If the AI service is unavailable or returns invalid output, the pipeline exits gracefully without impacting infrastructure.
-- **Cost controls:** AI invocation is event-driven (alerts/incidents only), with no continuous polling.
-- **Security boundaries:** No secrets, credentials, or sensitive user data are included in prompts or outputs.
+### Monitoring & alerts
+- CloudWatch alarms (examples in this project):
+  - ALB 5xx high
+  - ASG average CPU high
+- SNS topic for alerting (optional email subscription)
 
 ---
 
-## Cost Strategy
+## AI log summarization (Implemented)
 
-Design choices to keep costs reasonable for a small business:
+This project includes an event-driven summary workflow that turns an alarm + a short slice of recent logs into a stored JSON summary and a short notification.
 
-- **Single VPC, single region, multi-AZ** instead of complex multi-region setups  
-- **Right-sized ASG** with low minimum instance count  
-- **Use of managed RDS** to avoid hidden ops costs of managing databases manually  
-- **Alerting before scaling up too far** (e.g., watch CPU over time, not one spike)  
-- AI summarization runs **only on alerts/events**, not on every log line.
+### Trigger paths (two things happen)
+1) **Alerting:** CloudWatch alarm actions publish to **SNS** (email subscription optional).  
+2) **Summaries:** CloudWatch alarm state changes are matched by an **EventBridge rule**, which invokes the summarizer Lambda.
 
-Terraform also allows the entire stack to be **created, updated, or destroyed** quickly as needed (for demos, tests, or cost savings).
+### Summary workflow
+**CloudWatch Alarm State Change → EventBridge → Lambda → OpenAI → S3 + DynamoDB → SNS**
 
----
+What the Lambda does:
+- Pulls the last ~5 minutes of log lines from the app log group (`/${name_prefix}/app`)
+- Calls OpenAI with the alarm details + recent logs
+- Writes a full JSON record to S3: `summaries/<uuid>.json`
+- Writes metadata to DynamoDB (id, timestamp, alarm, state, s3_key)
+- Publishes a short message to SNS
 
-### Business Outcomes
-
-- For a business like RSVP Society, this infrastructure:
-- Reduces outage risk during peak traffic
-- Improves user experience (no random crashes from a single overloaded server)
-- Shortens incident investigation time via AI summaries
-- Provides a path to scale as the brand grows without rewiring everything
-
----
-
-### Future Enhancements
-
-Potential improvements:
-- Add HTTPS termination on ALB using ACM
-- Add WAF rules for basic security protections
-- Add SSM Parameter Store/Secrets Manager integration
-- Expand AI pipeline to summarize not just logs but performance trends over time
-- Integrate with external notification tools (Slack, Teams, etc.)
+### Guardrails (what this does and does not do)
+- No auto-remediation. Output is summaries + suggestions only.
+- Scoped context: alarm metadata + recent logs only.
+- Fail-safe: if the model call fails, it records the error and still writes the record.
+- Event-driven: runs on alarm state changes, not continuously.
 
 ---
 
-## 📸 Infrastructure Screenshots
+## Verify (fast checks)
 
-Below are visual references showing the AWS resources deployed by this project.
+**Infrastructure**
+- ALB target group shows **healthy** targets
+- ASG instances are **InService**
+- RDS status is **Available**
+- CloudWatch alarms exist and are **OK** (or show expected state)
+
+**AI summaries**
+- Force or wait for an alarm state change (e.g., threshold breach)
+- Confirm a new S3 object exists in `summaries/`
+- Confirm a matching DynamoDB item exists with the same `id` / `s3_key`
+- Confirm SNS has published the short message (email if subscribed)
+
+---
+
+## Cost strategy (practical)
+
+Primary cost drivers in this stack:
+- NAT Gateway hourly + data processing
+- ALB hourly + LCUs
+- EC2 instance-hours in the ASG
+- RDS instance + storage + backups
+- CloudWatch log ingestion + retention
+- AI calls only occur on alarm state changes
+
+Terraform makes it easy to spin the environment up for demos/tests and destroy it afterward.
+
+---
+
+## Future enhancements (not counted as delivered)
+- HTTPS termination on ALB using ACM
+- WAF rules for basic protections
+- SSM Parameter Store / Secrets Manager integration
+- Expand summaries to include trends (not just alarm events)
+- Slack/Teams notifications
+
+---
+
+## 📸 Infrastructure screenshots (evidence)
 
 ### VPC & Networking
-![VPC Overview](./screenshots/vpc-overview.png)
-![VPC Resource Map](./screenshots/vpc-resource-map.png)
+![VPC Overview](./screenshots/vpc-overview.png)  
+![VPC Resource Map](./screenshots/vpc-resource-map.png)  
 ![Subnets List](./screenshots/subnets-list.png)
 
 ### Load Balancing
-![ALB Overview](./screenshots/alb-overview.png)
+![ALB Overview](./screenshots/alb-overview.png)  
 ![Target Group](./screenshots/target-group.png)
 
 ### Compute
@@ -169,12 +164,13 @@ Below are visual references showing the AWS resources deployed by this project.
 ![RDS Overview](./screenshots/rds-overview.png)
 
 ### Monitoring & AI Automation
-![CloudWatch Alarms](./screenshots/cloudwatch-alarms.png)
+![CloudWatch Alarms](./screenshots/cloudwatch-alarms.png)  
 ![Lambda Log Summarizer](./screenshots/lambda-function.png)
 
 ### Storage (AI Log Summaries)
-![S3 Bucket Overview](./screenshots/s3-bucket-overview.png)
+![S3 Bucket Overview](./screenshots/s3-bucket-overview.png)  
 ![S3 Summary Object](./screenshots/s3-summary-object.png)
 
 ### Application UI
 ![Project UI](./screenshots/project-ui.png)
+
