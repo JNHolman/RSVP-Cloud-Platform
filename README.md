@@ -1,260 +1,137 @@
 # Cloud Engineering Portfolio — RSVP Multi-Project AWS Platform
 
-A three-project, production-style cloud platform demonstrating end-to-end cloud engineering across infrastructure, application delivery, multi-account governance, cost control, and AI-assisted operations.
+A three-part AWS portfolio built with **Terraform** to show how I approach cloud infrastructure, application delivery, and governance/ops. It’s a **production-style lab**: deployable, verifiable, and designed to be torn down cleanly to control cost.
 
-This portfolio covers the full lifecycle expected of a modern Cloud/DevOps/Platform Engineer:
+This repo is organized as:
 
-Design → Deploy → Automate → Secure → Scale → Govern
-
-It mirrors real engineering work delivered in enterprise AWS environments.
+**Build → Deploy → Operate**
 
 ---
 
-## Business Context
+## Business context (why this platform exists)
 
-RSVP Society is a modern events and nightlife brand requiring a cloud platform capable of supporting:
+RSVP Society is an events/nightlife brand. A platform like this needs to handle:
+- traffic spikes around promos and event drops
+- frequent application updates
+- clear visibility into outages and errors
+- basic security hygiene and cost awareness
 
-- Sudden traffic spikes (RSVP drops, ticket sales, promo pushes)
-- Fast updates to web and mobile features
-- Strong security posture and cost visibility
-- High uptime during peak nightlife/entertainment hours
-- Automated insights for logs, alerts, and incidents
-
-This portfolio simulates how a Cloud Engineer would build a scalable, secure, cost-aware platform for a small business growing into enterprise cloud maturity.
+The goal here is not to claim “enterprise scale.” The goal is to show **real AWS patterns**, with **proof in Terraform, workflows, and screenshots**.
 
 ---
 
-## What This Portfolio Demonstrates
+## What this portfolio demonstrates (implemented vs planned)
 
-- Multi-AZ and multi-account AWS architecture
-- Infrastructure as Code with Terraform
-- Containerization and ECS/Fargate orchestration
-- CI/CD automation using GitHub Actions
-- Centralized logging, monitoring, and alerting
-- GuardDuty, Security Hub, IAM Access Analyzer
-- Cost controls, budgets, and anomaly detection
-- AI-driven summarization of logs and incidents
-- Real-world CloudOps troubleshooting and automation
-- Business-aligned engineering decisions
+### Implemented in this repo
+- **Terraform IaC** for AWS infrastructure
+- **Multi-AZ networking patterns** (public/private subnets, routing)
+- **EC2 + ALB + Auto Scaling + RDS** (Project 1)
+- **ECS Fargate delivery** with **ECR** (Project 2)
+- **GitHub Actions pipeline** that **builds and pushes** an image and **triggers an ECS redeploy** (Project 2)
+- **Event-driven AI log summarization** (Project 1):  
+  **CloudWatch Alarm State Change (EventBridge) → Lambda → OpenAI → S3 + DynamoDB → SNS**
+- **Governance/security visibility** screenshots and baseline setup work (Project 3):  
+  Organizations (enabled), IAM roles/policies, GuardDuty/Security Hub/CloudTrail/AWS Config pages
 
----
-
-## Project Index
-
-| Project | Folder | Focus Area | Description |
-|--------|--------|------------|-------------|
-| Project 1 – RSVP Cloud Platform | [infrastructure/project-1-cloud-platform](./infrastructure/project-1-cloud-platform) | Infrastructure Layer | VPC, ALB, EC2 Auto Scaling, RDS, CloudWatch, AI log summarization |
-| Project 2 – Container Platform & CI/CD | [infrastructure/project-2-ecs-cicd](./infrastructure/project-2-ecs-cicd) | Application Delivery Layer | Docker + ECS Fargate + GitHub Actions CI/CD |
-| Project 3 – Multi-Account Security & AI Incident Response | [infrastructure/project-3-cloud-governance](./infrastructure/project-3-cloud-governance) | Enterprise Layer | Organizations, SCPs, Identity Center, GuardDuty, Security Hub, Budgets, AI incident assistant |
-
-Each project builds on the previous one, creating a cohesive system that evolves from infrastructure → application delivery → enterprise governance.
+### Planned / partial (not counted as delivered yet)
+- True **multi-account** structure (Security/Dev/Prod) with delegated admin + org-wide aggregation
+- Full “AI incident response” workflow in Project 3 (Lambda + event routing + stored summaries)
+- Tests/scans in CI/CD (Project 2) beyond build/push/redeploy
 
 ---
 
-## Architecture Overview
+## Project index
 
-The RSVP platform uses a layered architecture that reflects real-world AWS cloud maturity stages — progressing from foundational infrastructure, to modern application delivery, to enterprise-grade security and governance.
+| Project | Folder | Focus | What it does |
+|---|---|---|---|
+| Project 1 — RSVP Cloud Platform | [`infrastructure/project-1-cloud-platform`](./infrastructure/project-1-cloud-platform) | Infrastructure | VPC, ALB, EC2 Auto Scaling, RDS, CloudWatch alarms + **AI log summaries to S3/DynamoDB** |
+| Project 2 — Container Platform & CI/CD | [`infrastructure/project-2-ecs-cicd`](./infrastructure/project-2-ecs-cicd) | Delivery | Docker + ECR + ECS Fargate behind an ALB + GitHub Actions build/push/redeploy |
+| Project 3 — Governance & Security (Org / Ops Layer) | [`infrastructure/project-3-cloud-governance`](./infrastructure/project-3-cloud-governance) | Governance/Ops | Org/security tooling setup work + dashboard site; multi-account + AI incident workflow are planned |
 
-### Platform Architecture Diagram
+Each project stands alone, but together they show a realistic progression from **infrastructure** → **delivery** → **governance/ops**.
+
+---
+
+## Architecture overview
 
 ![Platform Architecture Overview](platform-architecture-overview.png)
 
-This platform architecture illustrates how the three projects operate together as a cohesive system:
-
-- **Project 1** establishes foundational infrastructure, networking, and observability
-- **Project 2** introduces modern containerized application delivery with CI/CD automation
-- **Project 3** centralizes security, governance, cost controls, and AI-assisted incident response
-
-### 1. Infrastructure Layer (Project 1)
-
-Folder: `infrastructure/project-1-cloud-platform`
-
+### Layer 1 — Infrastructure (Project 1)
 Core components:
-
-- Multi-AZ VPC (public + private subnets)
-- Application Load Balancer
+- VPC across 2+ AZs (public + private subnets)
+- Internet Gateway + NAT (for private egress where needed)
+- ALB + target groups
 - EC2 Auto Scaling Group
-- RDS MySQL in private subnets
-- NAT Gateway, Internet Gateway, and custom route tables
-- CloudWatch metrics, dashboards, and alarms
-- CloudWatch → SNS → Lambda → LLM → S3 AI Ops pipeline
+- RDS MySQL (private subnets)
+- CloudWatch alarms + SNS notifications
+- **AI log summarization pipeline (implemented)**:
+  - Trigger: **CloudWatch Alarm State Change → EventBridge**
+  - Lambda pulls recent log lines from a CloudWatch log group
+  - Lambda calls OpenAI and writes a JSON summary to **S3**, metadata to **DynamoDB**, and publishes a short alert to **SNS**
 
-This layer provides the reliable base for application workloads.
+### Layer 2 — Application Delivery (Project 2)
+Core components:
+- Dockerized web app
+- ECR repository
+- ECS Fargate service behind an ALB
+- GitHub Actions workflow:
+  - build image
+  - push to ECR (SHA + `latest`)
+  - force new ECS deployment
 
----
+> Note: this pipeline triggers redeploys; it does not currently register a new task definition revision pinned to the SHA image.
 
-### 2. Application Delivery Layer (Project 2)
+### Layer 3 — Governance / Ops (Project 3)
+What’s in place:
+- Organization enabled and visible
+- IAM roles/policies related to governance and automation
+- GuardDuty / Security Hub / CloudTrail / AWS Config visibility screenshots
+- A simple governance dashboard site (S3 website)
 
-Folder: `infrastructure/project-2-ecs-cicd`
-
-Modernized application deployment:
-
-- Dockerized RSVP web application
-- Amazon ECR for container images
-- ECS Fargate service behind a load balancer
-- GitHub Actions CI/CD pipeline: build → test → scan → push → deploy
-- Rolling deployments for zero downtime
-
-This layer speeds up development cycles and standardizes deployment workflows.
-
----
-
-### 3. Enterprise Security & Operations Layer (Project 3)
-
-Folder: `infrastructure/project-3-cloud-governance`
-
-Governance and operations capabilities:
-
-- AWS Organizations with multiple accounts (Security, Dev, Prod)
-- Service Control Policies (SCPs) for guardrails
-- IAM Identity Center (SSO + permission sets)
-- GuardDuty, Security Hub, IAM Access Analyzer
-- AWS Budgets and Cost Anomaly Detection
-- AI Incident Assistant generating human-readable security summaries
-
-This layer represents the maturity expected of enterprise cloud operations.
+Planned next (not delivered yet):
+- member accounts (Security/Dev/Prod) + OU structure
+- SCP guardrails applied at OU/account scope
+- AI incident assistant pipeline (event → summary → storage/notifications)
 
 ---
 
-## How the Projects Work Together
+## How to run this repo
 
-| Layer | Project | What It Delivers | Why It Matters |
-|-------|---------|------------------|----------------|
-| Infrastructure | Project 1 | VPC, compute, database, observability, AI log summaries | Foundation for reliable, scalable workloads |
-| Application Delivery | Project 2 | Containers, ECS, CI/CD pipeline | Faster, safer deployments with modern tooling |
-| Enterprise Security | Project 3 | Multi-account structure, guardrails, budgets, AI incident analysis | Governance, compliance, operational readiness |
-
-The combined platform demonstrates both technical capability and business alignment, which is essential in cloud engineering roles.
+Each project has its own README with exact commands and verification steps:
+- Project 1 README: deploy/verify/destroy + AI summary evidence
+- Project 2 README: deploy/verify + workflow reference
+- Project 3 README: governance evidence + what is planned vs implemented
 
 ---
 
-## Failure Scenarios & Operational Response
+## Operational notes (what I’m optimizing for)
 
-This platform was designed with operational behavior in mind, focusing on how services fail, how issues are detected, and how recovery occurs with minimal impact.
-
-**Application Load Balancer (ALB) – Unhealthy Targets**
-- CloudWatch alarms trigger on target health degradation and elevated 5xx error rates.
-- Traffic is automatically routed away from unhealthy targets.
-- ECS services replace failed tasks to restore capacity.
-- Alerts notify operators for investigation and root cause analysis.
-
-**ECS Task Failures**
-- ECS automatically restarts failed or crashed tasks.
-- Repeated failures surface via CloudWatch alarms.
-- Centralized logging enables rapid diagnosis, with AI-assisted summaries accelerating triage.
-
-**NAT Gateway or Network Egress Issues**
-- Outbound connectivity failures primarily impact egress-dependent services.
-- Inbound application traffic remains available through the ALB.
-- Blast radius is limited to private subnet workloads requiring internet access.
-- Resolution focuses on route table validation and NAT recovery.
-
-**RDS Failover Events**
-- Multi-AZ RDS performs automatic failover during infrastructure failures.
-- Short-lived connection interruptions are expected.
-- Application retry logic mitigates user impact.
-- Monitoring confirms database availability post-failover.
-
-**CI/CD Deployment Failures**
-- Failed deployments do not promote unhealthy containers.
-- Rolling deployments maintain existing healthy tasks.
-- Rollback is performed by redeploying the last known good container image.
-- Deployment history and logs support fast recovery decisions.
-  
----
-
-## Architecture Tradeoffs
-
-This platform reflects deliberate engineering tradeoffs aligned with operational simplicity, reliability, and team efficiency.
-
-**ECS Fargate vs EKS**
-- ECS Fargate was selected to reduce operational overhead.
-- No Kubernetes control plane or worker node management is required.
-- Well-suited for small teams prioritizing reliability over platform complexity.
-
-**GitHub Actions vs AWS CodePipeline**
-- GitHub Actions integrates directly with source control.
-- Simplifies CI/CD workflows without introducing additional AWS services.
-- Provides sufficient flexibility while keeping pipelines easy to reason about.
-
-**Multi-Account Governance vs Single-Account Hardening**
-- Multi-account architecture limits blast radius and improves isolation.
-- Enables centralized visibility, auditing, and security enforcement.
-- Mirrors governance patterns used in enterprise AWS environments.
-
-**Terraform vs CloudFormation**
-- Terraform enables reusable modules and consistent infrastructure patterns.
-- Provides strong lifecycle management and state control.
-- Aligns with widely adopted Infrastructure as Code practices.
-  
----
-
-## Cost Awareness & Scaling Considerations
-
-Cost is treated as a first-class engineering concern rather than an afterthought.
-
-**Baseline Costs**
-- Primary baseline costs include ALB, ECS Fargate tasks, RDS, NAT Gateway, and CloudWatch.
-- Designed to operate at a low steady-state cost during normal usage.
-
-**Primary Cost Drivers**
-- ECS task count during peak traffic periods.
-- NAT Gateway hourly and data processing charges.
-- RDS instance class, storage, and backups.
-- Log ingestion volume and retention settings.
-
-**Scaling with Traffic**
-- ECS task count scales with application demand.
-- ALB and CloudWatch costs increase proportionally with usage.
-- Database load grows with concurrent user activity.
-
-**Scaling at 10× Usage**
-- Introduce autoscaling policies for ECS services.
-- Evaluate read replicas or Aurora for database scalability.
-- Reduce NAT dependency using VPC endpoints where applicable.
-- Optimize logging retention and sampling strategies.
+This platform is written with an operator mindset:
+- clear “verify health” checks (ALB target health, ECS service health, RDS status, alarms)
+- screenshots that prove the environment exists
+- destroy paths to prevent runaway spend
 
 ---
 
-## Cost Optimization Strategy
+## Cost awareness (high-level)
 
-This platform was designed to be realistic and cost-effective for a small-to-mid sized business:
-
-- Right-sized compute (EC2 Auto Scaling + minimal Fargate tasks)
-- RDS in private subnets for secure, managed storage
-- Infrastructure as Code enables creating/destroying environments on demand
-- Budgets and anomaly detection prevent runaway spend
-- NAT and data transfer minimized where possible
-
-Cost is treated as an engineering constraint from day one.
+Typical cost drivers in these projects:
+- NAT Gateway hourly + data processing
+- ALB hourly + LCUs
+- ECS task CPU/memory-hours
+- RDS instance + storage + backups
+- CloudWatch log ingestion + retention
+- AI summaries only run on alarm state changes (event-driven)
 
 ---
 
-## Future Enhancements
+## Future enhancements (kept separate on purpose)
 
-### Serverless Workflows and APIs
-
-- API Gateway + Lambda microservices
-- EventBridge event-driven architecture
-- Step Functions for workflow orchestration
-
-### Infrastructure Testing and Policy as Code
-
-- Terratest for infrastructure validation
-- Checkov or OPA for compliance enforcement
-- Pre-commit hooks to prevent misconfigurations
-
-### GitOps and Environment Automation
-
-- ArgoCD or Flux for declarative deployments
-- Git-driven promotion across dev → staging → prod
-- Automated drift detection
-
-### AI-Powered Cloud Operations Dashboard
-
-- Unified view of health, spend, alerts, and incidents
-- Natural language queries across logs and metrics
-- Integrated AI remediation suggestions
+- Task-definition pinning + rollback flow in CI/CD
+- Basic unit tests and container scans in the pipeline
+- Multi-account buildout with delegated admin + aggregation
+- Ticket/Slack integration for incident summaries
+- Policy-as-code and IaC testing
 
 ---
 
@@ -264,4 +141,5 @@ Josh Holman
 Infrastructure Engineer • Cloud Operations  
 
 LinkedIn: https://www.linkedin.com/in/jnholmanjr/  
-Email: jnholman@charter.net
+Email: jnholman@charter.net/
+
