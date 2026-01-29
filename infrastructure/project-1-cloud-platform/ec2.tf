@@ -177,6 +177,43 @@ cat >/var/www/html/index.html <<HTML
 </body>
 </html>
 HTML
+# Deterministic ALB health check endpoint
+
+echo "ok" >/var/www/html/health
+# App log file (so there is something real to ship)
+echo "$(date -Is) rsvp-app boot ok host=$HOSTNAME" >>/var/log/rsvp-app.log
+
+# Install CloudWatch Agent
+yum install -y amazon-cloudwatch-agent
+
+# CloudWatch Agent config: ship /var/log/rsvp-app.log to the Terraform-created log group
+cat >/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json <<'CW'
+{
+  "logs": {
+    "logs_collected": {
+      "files": {
+        "collect_list": [
+          {
+            "file_path": "/var/log/rsvp-app.log",
+            "log_group_name": "/${local.name_prefix}/app",
+            "log_stream_name": "{instance_id}",
+            "timezone": "UTC"
+          }
+        ]
+      }
+    }
+  }
+}
+CW
+
+/opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl \
+  -a fetch-config -m ec2 \
+  -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json \
+  -s
+
+# Keep writing a heartbeat so the log group is obviously alive during demos
+( while true; do echo "$(date -Is) rsvp-app heartbeat host=$HOSTNAME" >>/var/log/rsvp-app.log; sleep 30; done ) &
+
 EOF
 }
 
@@ -197,7 +234,7 @@ resource "aws_launch_template" "app_lt" {
   # Demo mode: put the app tier in public subnets (still only reachable from ALB via SG).
   network_interfaces {
     security_groups             = [aws_security_group.app_sg.id]
-    associate_public_ip_address = var.enable_nat_gateway ? false : true
+    associate_public_ip_address = <span class="value">Public + Private subnets, IGW (NAT optional)</span>
   }
 
   user_data = base64encode(local.user_data)
