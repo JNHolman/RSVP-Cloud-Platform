@@ -143,4 +143,21 @@ variable "alert_email" {
   type        = string
   default     = ""
 }
+variable "alarm_alb_5xx_threshold" {
+  description = "ALB 5XX count threshold per minute to trigger alarm"
+  type        = number
+  default     = 5
+}
+
+variable "alarm_asg_cpu_threshold" {
+  description = "ASG average CPU threshold (%) to trigger alarm"
+  type        = number
+  default     = 75
+}
+
+variable "enable_lambda_error_alarm" {
+  description = "Create an alarm on AI Lambda Errors metric"
+  type        = bool
+  default     = true
+}
 
