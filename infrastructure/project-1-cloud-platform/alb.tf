@@ -16,8 +16,9 @@ resource "aws_lb_target_group" "app_tg" {
   protocol = "HTTP"
   vpc_id   = aws_vpc.main.id
 
+  # Use a deterministic health endpoint for interviews (less flaky than "/")
   health_check {
-    path                = "/"
+    path                = "/health"
     port                = "traffic-port"
     protocol            = "HTTP"
     healthy_threshold   = 2
@@ -42,4 +43,3 @@ resource "aws_lb_listener" "http" {
     target_group_arn = aws_lb_target_group.app_tg.arn
   }
 }
-
