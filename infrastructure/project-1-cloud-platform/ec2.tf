@@ -180,6 +180,7 @@ HTML
 # Deterministic ALB health check endpoint
 
 echo "ok" >/var/www/html/health
+chmod 644 /var/www/html/health
 # App log file (so there is something real to ship)
 echo "$(date -Is) rsvp-app boot ok host=$HOSTNAME" >>/var/log/rsvp-app.log
 
