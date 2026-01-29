@@ -46,8 +46,7 @@ cat >/var/www/html/index.html <<HTML
     body {
       margin: 0;
       padding: 0;
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
-        sans-serif;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       background: #020617;
       color: #e5e7eb;
       min-height: 100vh;
@@ -84,59 +83,25 @@ cat >/var/www/html/index.html <<HTML
       background: #22c55e;
       box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.25);
     }
-    h1 {
-      margin: 0 0 6px 0;
-      font-size: 28px;
-      letter-spacing: 0.03em;
-    }
-    .subtitle {
-      margin: 0 0 28px 0;
-      font-size: 14px;
-      color: #9ca3af;
-    }
-    .layout {
-      display: grid;
-      grid-template-columns: 1.1fr 1.3fr;
-      gap: 40px;
-    }
+    h1 { margin: 0 0 6px 0; font-size: 28px; letter-spacing: 0.03em; }
+    .subtitle { margin: 0 0 28px 0; font-size: 14px; color: #9ca3af; }
+    .layout { display: grid; grid-template-columns: 1.1fr 1.3fr; gap: 40px; }
     .section-title {
-      font-size: 11px;
-      letter-spacing: 0.18em;
-      text-transform: uppercase;
-      color: #6b7280;
-      margin-bottom: 8px;
+      font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase;
+      color: #6b7280; margin-bottom: 8px;
     }
     .list { font-size: 13px; }
-    .row {
-      display: flex;
-      justify-content: space-between;
-      gap: 12px;
-      padding: 4px 0;
-    }
+    .row { display: flex; justify-content: space-between; gap: 12px; padding: 4px 0; }
     .label { color: #9ca3af; }
-    .value {
-      color: #e5e7eb;
-      text-align: right;
-      white-space: nowrap;
-    }
+    .value { color: #e5e7eb; text-align: right; white-space: nowrap; }
     .section { margin-bottom: 18px; }
     .divider {
-      height: 1px;
-      background: radial-gradient(circle at center, #1e293b, transparent);
-      margin: 18px 0 12px 0;
-      opacity: 0.6;
+      height: 1px; background: radial-gradient(circle at center, #1e293b, transparent);
+      margin: 18px 0 12px 0; opacity: 0.6;
     }
-    .footer {
-      font-size: 11px;
-      color: #6b7280;
-      margin-top: 10px;
-      text-align: center;
-    }
+    .footer { font-size: 11px; color: #6b7280; margin-top: 10px; text-align: center; }
     .footer strong { color: #e5e7eb; }
-    .value-highlight {
-      color: #a855f7;
-      font-weight: 500;
-    }
+    .value-highlight { color: #a855f7; font-weight: 500; }
     @media (max-width: 768px) {
       .layout { grid-template-columns: 1fr; gap: 24px; }
       .card { padding: 24px 18px; }
@@ -152,7 +117,7 @@ cat >/var/www/html/index.html <<HTML
 
     <h1>RSVP Cloud Platform</h1>
     <p class="subtitle">
-      Highly available, cost-optimized AWS stack for a small event-booking app.
+      Highly available, cost-aware AWS stack for a small event-booking app.
     </p>
 
     <div class="layout">
@@ -166,7 +131,7 @@ cat >/var/www/html/index.html <<HTML
             </div>
             <div class="row">
               <span class="label">VPC</span>
-              <span class="value">Public + Private subnets, NAT, IGW</span>
+              <span class="value">Public + Private subnets, IGW${var.enable_nat_gateway ? " + NAT" : ""}</span>
             </div>
             <div class="row">
               <span class="label">Frontend access</span>
@@ -182,7 +147,7 @@ cat >/var/www/html/index.html <<HTML
           <div class="list">
             <div class="row">
               <span class="label">Compute</span>
-              <span class="value">EC2 app servers in private subnets</span>
+              <span class="value">EC2 app tier behind ALB</span>
             </div>
             <div class="row">
               <span class="label">Database</span>
@@ -190,11 +155,11 @@ cat >/var/www/html/index.html <<HTML
             </div>
             <div class="row">
               <span class="label">Observability</span>
-              <span class="value">CloudWatch metrics, alarms &amp; dashboard</span>
+              <span class="value">CloudWatch metrics &amp; alarms</span>
             </div>
             <div class="row">
               <span class="label">AI layer</span>
-              <span class="value value-highlight">Log streams ready for AI summarization</span>
+              <span class="value value-highlight">Alarm-triggered incident summaries (stored in S3/DynamoDB)</span>
             </div>
           </div>
         </div>
@@ -206,11 +171,7 @@ cat >/var/www/html/index.html <<HTML
       Instance: <strong>$HOSTNAME</strong>
     </div>
     <div class="footer" style="margin-top: 6px;">
-      <a href="https://s3.console.aws.amazon.com/s3/buckets/rsvp-dev-ai-logs/summaries/"
-         style="color:#a855f7; text-decoration:none; font-weight:500;"
-         target="_blank">
-         View AI summaries →
-      </a>
+      Summaries are stored privately in S3 (no public console links).
     </div>
   </div>
 </body>
@@ -232,8 +193,11 @@ resource "aws_launch_template" "app_lt" {
     name = aws_iam_instance_profile.ec2_instance_profile.name
   }
 
+  # If NAT is disabled, instances must be able to reach yum repos.
+  # Demo mode: put the app tier in public subnets (still only reachable from ALB via SG).
   network_interfaces {
-    security_groups = [aws_security_group.app_sg.id]
+    security_groups             = [aws_security_group.app_sg.id]
+    associate_public_ip_address = var.enable_nat_gateway ? false : true
   }
 
   user_data = base64encode(local.user_data)
@@ -261,7 +225,9 @@ resource "aws_autoscaling_group" "app_asg" {
   health_check_type         = "EC2"
   health_check_grace_period = 120
 
-  vpc_zone_identifier = aws_subnet.private[*].id
+  # Private mode (NAT enabled): use private subnets
+  # Demo mode (NAT disabled): use public subnets so bootstrapping succeeds
+  vpc_zone_identifier = var.enable_nat_gateway ? aws_subnet.private[*].id : aws_subnet.public[*].id
 
   launch_template {
     id      = aws_launch_template.app_lt.id
