@@ -39,7 +39,6 @@ resource "aws_dynamodb_table" "ai_log_summaries" {
 #  CloudWatch Log Group (source logs)
 ##############################################
 
-# You can point this to your app logs (CloudWatch Agent) or ALB logs if you wire them
 resource "aws_cloudwatch_log_group" "app_logs" {
   name              = "/${local.name_prefix}/app"
   retention_in_days = 7
@@ -53,31 +52,32 @@ resource "aws_cloudwatch_log_group" "app_logs" {
 #  Lambda: AI Log Summarizer
 ##############################################
 
-# Inline Lambda code
 locals {
   ai_lambda_code = <<-PY
     import os
     import json
     import time
     import uuid
-    import base64
-    from datetime import datetime, timedelta, timezone
+    from datetime import datetime, timezone
     import urllib.request
 
     import boto3
 
     LOG_GROUP_NAME = os.environ.get("LOG_GROUP_NAME", "")
-    OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
-    S3_BUCKET      = os.environ.get("S3_BUCKET")
-    DDB_TABLE      = os.environ.get("DDB_TABLE")
-    SNS_TOPIC_ARN  = os.environ.get("SNS_TOPIC_ARN")
+    OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
+    S3_BUCKET      = os.environ.get("S3_BUCKET", "")
+    DDB_TABLE      = os.environ.get("DDB_TABLE", "")
+    SNS_TOPIC_ARN  = os.environ.get("SNS_TOPIC_ARN", "")
 
     logs_client = boto3.client("logs")
     s3_client   = boto3.client("s3")
     ddb_client  = boto3.client("dynamodb")
     sns_client  = boto3.client("sns")
 
-    def call_openai(summary_prompt):
+    def call_openai(summary_prompt: str) -> str:
+      if not OPENAI_API_KEY:
+        return "OpenAI key not configured (OPENAI_API_KEY missing)."
+
       url = "https://api.openai.com/v1/chat/completions"
       headers = {
         "Content-Type": "application/json",
@@ -88,7 +88,7 @@ locals {
         "messages": [
           {
             "role": "system",
-            "content": "You are an SRE assistant. Summarize logs into root-cause style explanations and remediation tips."
+            "content": "You are an SRE assistant. Summarize signals into likely root cause, user impact, and next troubleshooting steps. If logs are missing, say so explicitly and rely on alarm context only."
           },
           {
             "role": "user",
@@ -99,16 +99,22 @@ locals {
         "temperature": 0.2
       }
 
-      req = urllib.request.Request(url, data=json.dumps(body).encode("utf-8"), headers=headers, method="POST")
+      req = urllib.request.Request(
+        url,
+        data=json.dumps(body).encode("utf-8"),
+        headers=headers,
+        method="POST"
+      )
       with urllib.request.urlopen(req, timeout=30) as resp:
         data = json.loads(resp.read().decode("utf-8"))
       return data["choices"][0]["message"]["content"]
 
     def fetch_recent_logs():
+      # Returns last 5 minutes of log lines from LOG_GROUP_NAME.
+      # If there are no streams/events, returns [].
       if not LOG_GROUP_NAME:
         return []
 
-      # Last 5 minutes of logs
       end = int(time.time() * 1000)
       start = end - (5 * 60 * 1000)
 
@@ -122,30 +128,31 @@ locals {
       ):
         events.extend(page.get("events", []))
 
-      lines = [e.get("message", "") for e in events]
-      return lines
+      return [e.get("message", "") for e in events]
 
     def lambda_handler(event, context):
-      alarm_name = None
-      new_state  = None
-      reason     = None
-
-      detail = event.get("detail", {})
-      if detail:
-        alarm_name = detail.get("alarmName")
-        new_state  = detail.get("state", {}).get("value")
-        reason     = detail.get("state", {}).get("reason")
+      detail = event.get("detail", {}) or {}
+      alarm_name = detail.get("alarmName")
+      new_state  = (detail.get("state") or {}).get("value")
+      reason     = (detail.get("state") or {}).get("reason")
 
       logs = fetch_recent_logs()
-      joined_logs = "\\n".join(logs[:200])
+      has_logs = len(logs) > 0
+
+      if has_logs:
+        joined_logs = "\\n".join(logs[:200])
+      else:
+        joined_logs = f"<no log events found in {LOG_GROUP_NAME}; summary is based on alarm context only>"
 
       prompt = (
         f"Alarm: {alarm_name}\\n"
         f"State: {new_state}\\n"
         f"Reason: {reason}\\n"
-        "Here are recent logs (may be truncated):\\n"
+        f"LogGroup: {LOG_GROUP_NAME}\\n"
+        f"LogsAvailable: {has_logs}\\n"
+        "Recent logs (if available; may be truncated):\\n"
         f"{joined_logs}\\n\\n"
-        "Please summarize likely root cause, impact on users, and recommended next troubleshooting steps."
+        "Return: (1) likely root cause, (2) user impact, (3) concrete next checks/commands, (4) confidence level."
       )
 
       try:
@@ -156,7 +163,6 @@ locals {
       now = datetime.now(timezone.utc).isoformat()
       record_id = str(uuid.uuid4())
 
-      # Save full summary to S3
       s3_key = f"summaries/{record_id}.json"
       s3_body = {
         "id": record_id,
@@ -164,10 +170,14 @@ locals {
         "alarm_name": alarm_name,
         "state": new_state,
         "reason": reason,
+        "log_group": LOG_GROUP_NAME,
+        "logs_available": has_logs,
         "summary": summary,
         "log_lines_sample": logs[:50],
         "raw_event": event,
       }
+
+      # Save full summary to S3
       s3_client.put_object(
         Bucket=S3_BUCKET,
         Key=s3_key,
@@ -183,12 +193,14 @@ locals {
           "alarm_name": {"S": alarm_name or "unknown"},
           "state": {"S": new_state or "unknown"},
           "s3_key": {"S": s3_key},
+          "log_group": {"S": LOG_GROUP_NAME or "unknown"},
+          "logs_available": {"S": str(has_logs)},
         }
       )
 
-      # Short email summary via SNS
-      short_msg = f"[RSVP AI] Alarm {alarm_name} is {new_state}\\n\\n{summary[:600]}"
+      # Short notification via SNS (email if subscribed)
       if SNS_TOPIC_ARN:
+        short_msg = f"[RSVP AI] Alarm {alarm_name} => {new_state}\\n\\n{summary[:600]}"
         sns_client.publish(
           TopicArn=SNS_TOPIC_ARN,
           Message=short_msg,
@@ -197,7 +209,7 @@ locals {
 
       return {
         "statusCode": 200,
-        "body": json.dumps({"id": record_id})
+        "body": json.dumps({"id": record_id, "s3_key": s3_key, "logs_available": has_logs})
       }
   PY
 }
