@@ -18,9 +18,7 @@ resource "aws_vpc" "main" {
   enable_dns_hostnames = true
 
   tags = {
-    Name        = "${local.name_prefix}-vpc"
-    Environment = var.environment
-    Project     = var.project_name
+    Name = "${local.name_prefix}-vpc"
   }
 }
 
@@ -32,7 +30,11 @@ resource "aws_internet_gateway" "igw" {
   }
 }
 
-# Public subnets (for ALB, NAT)
+##############################################
+#  Subnets
+##############################################
+
+# Public subnets (ALB; NAT if enabled)
 resource "aws_subnet" "public" {
   count                   = length(var.public_subnet_cidrs)
   vpc_id                  = aws_vpc.main.id
@@ -46,7 +48,7 @@ resource "aws_subnet" "public" {
   }
 }
 
-# Private subnets (for app + DB)
+# Private subnets (app + DB)
 resource "aws_subnet" "private" {
   count             = length(var.private_subnet_cidrs)
   vpc_id            = aws_vpc.main.id
@@ -59,7 +61,11 @@ resource "aws_subnet" "private" {
   }
 }
 
-# Public route table
+##############################################
+#  Routing
+##############################################
+
+# Public route table → Internet Gateway
 resource "aws_route_table" "public" {
   vpc_id = aws_vpc.main.id
 
@@ -80,9 +86,10 @@ resource "aws_route_table_association" "public_assoc" {
   route_table_id = aws_route_table.public.id
 }
 
-# NAT Gateway for private subnets
+# NAT Gateway (optional; expensive)
 resource "aws_eip" "nat_eip" {
-  vpc = true
+  count = var.enable_nat_gateway ? 1 : 0
+  vpc   = true
 
   tags = {
     Name = "${local.name_prefix}-nat-eip"
@@ -90,7 +97,8 @@ resource "aws_eip" "nat_eip" {
 }
 
 resource "aws_nat_gateway" "nat" {
-  allocation_id = aws_eip.nat_eip.id
+  count         = var.enable_nat_gateway ? 1 : 0
+  allocation_id = aws_eip.nat_eip[0].id
   subnet_id     = aws_subnet.public[0].id
 
   tags = {
@@ -100,6 +108,7 @@ resource "aws_nat_gateway" "nat" {
   depends_on = [aws_internet_gateway.igw]
 }
 
+# Private route table → NAT (only when enabled)
 resource "aws_route_table" "private" {
   vpc_id = aws_vpc.main.id
 
@@ -109,9 +118,10 @@ resource "aws_route_table" "private" {
 }
 
 resource "aws_route" "private_nat_route" {
+  count                  = var.enable_nat_gateway ? 1 : 0
   route_table_id         = aws_route_table.private.id
   destination_cidr_block = "0.0.0.0/0"
-  nat_gateway_id         = aws_nat_gateway.nat.id
+  nat_gateway_id         = aws_nat_gateway.nat[0].id
 }
 
 resource "aws_route_table_association" "private_assoc" {
@@ -124,14 +134,14 @@ resource "aws_route_table_association" "private_assoc" {
 #  Security Groups
 ##############################################
 
-# ALB SG – allow HTTP in from the world
+# ALB SG – allow HTTP in
 resource "aws_security_group" "alb_sg" {
   name        = "${local.name_prefix}-alb-sg"
   description = "Security group for ALB"
   vpc_id      = aws_vpc.main.id
 
   ingress {
-    description = "HTTP from anywhere"
+    description = "HTTP from allowed CIDRs"
     from_port   = 80
     to_port     = 80
     protocol    = "tcp"
