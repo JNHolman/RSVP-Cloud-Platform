@@ -136,6 +136,7 @@ HTML
 cat >/var/www/html/health <<'HEALTH'
 OK
 HEALTH
+echo "ok" > /var/www/html/health
 chmod 644 /var/www/html/health
 
 EOF
