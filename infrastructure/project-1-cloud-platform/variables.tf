@@ -103,13 +103,10 @@ variable "db_username" {
 }
 
 variable "db_password" {
-  description = "Database master password (required; do not hardcode). Supply via TF_VAR_db_password or terraform.tfvars (gitignored)."
-  type        = string
-  sensitive   = true
-
+  # ...
   validation {
     condition     = length(var.db_password) >= 12
-    error_message = "db_password must be at least 12 characters."
+    error_message = "The db_password value must be at least 12 characters long."
   }
 }
 
@@ -124,13 +121,10 @@ variable "db_name" {
 ##############################################
 
 variable "openai_api_key" {
-  description = "OpenAI API key (required). Supply via TF_VAR_openai_api_key or terraform.tfvars (gitignored)."
-  type        = string
-  sensitive   = true
-
+  # ...
   validation {
-    condition     = length(var.openai_api_key) > 0
-    error_message = "openai_api_key is required."
+    condition     = var.openai_api_key != ""
+    error_message = "The openai_api_key value is required."
   }
 }
 
