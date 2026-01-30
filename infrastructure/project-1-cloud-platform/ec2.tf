@@ -19,7 +19,7 @@ data "aws_ami" "amazon_linux" {
 }
 
 ##############################################
-#  User Data – Apache + RSVP landing page
+#  User Data – Apache + RSVP landing page + /health
 ##############################################
 
 locals {
@@ -44,42 +44,29 @@ cat >/var/www/html/index.html <<HTML
   <style>
     * { box-sizing: border-box; }
     body {
-      margin: 0;
-      padding: 0;
+      margin: 0; padding: 0;
       font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: #020617;
-      color: #e5e7eb;
+      background: #020617; color: #e5e7eb;
       min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      display: flex; align-items: center; justify-content: center;
     }
     .card {
       background: #020617;
       border-radius: 20px;
       padding: 32px 40px;
-      max-width: 840px;
-      width: 90%;
-      box-shadow:
-        0 22px 45px rgba(15, 23, 42, 0.9),
-        0 0 0 1px rgba(148, 163, 184, 0.1);
+      max-width: 840px; width: 90%;
+      box-shadow: 0 22px 45px rgba(15, 23, 42, 0.9),
+                  0 0 0 1px rgba(148, 163, 184, 0.1);
     }
     .badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 4px 14px;
-      border-radius: 999px;
-      background: #022c22;
-      color: #bbf7d0;
-      font-size: 12px;
-      font-weight: 500;
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 4px 14px; border-radius: 999px;
+      background: #022c22; color: #bbf7d0;
+      font-size: 12px; font-weight: 500;
       margin-bottom: 18px;
     }
     .badge-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 999px;
+      width: 8px; height: 8px; border-radius: 999px;
       background: #22c55e;
       box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.25);
     }
@@ -94,7 +81,6 @@ cat >/var/www/html/index.html <<HTML
     .row { display: flex; justify-content: space-between; gap: 12px; padding: 4px 0; }
     .label { color: #9ca3af; }
     .value { color: #e5e7eb; text-align: right; white-space: nowrap; }
-    .section { margin-bottom: 18px; }
     .divider {
       height: 1px; background: radial-gradient(circle at center, #1e293b, transparent);
       margin: 18px 0 12px 0; opacity: 0.6;
@@ -122,98 +108,35 @@ cat >/var/www/html/index.html <<HTML
 
     <div class="layout">
       <div>
-        <div class="section">
-          <div class="section-title">Environment</div>
-          <div class="list">
-            <div class="row">
-              <span class="label">Region</span>
-              <span class="value">us-east-1</span>
-            </div>
-            <div class="row">
-              <span class="label">VPC</span>
-              <span class="value">Public + Private subnets, IGW${var.enable_nat_gateway ? " + NAT" : ""}</span>
-            </div>
-            <div class="row">
-              <span class="label">Frontend access</span>
-              <span class="value">Application Load Balancer (ALB)</span>
-            </div>
-          </div>
+        <div class="section-title">Environment</div>
+        <div class="list">
+          <div class="row"><span class="label">Region</span><span class="value">us-east-1</span></div>
+          <div class="row"><span class="label">Frontend</span><span class="value">ALB</span></div>
         </div>
       </div>
 
       <div>
-        <div class="section">
-          <div class="section-title">Workload</div>
-          <div class="list">
-            <div class="row">
-              <span class="label">Compute</span>
-              <span class="value">EC2 app tier behind ALB</span>
-            </div>
-            <div class="row">
-              <span class="label">Database</span>
-              <span class="value">Amazon RDS MySQL (dev-sized)</span>
-            </div>
-            <div class="row">
-              <span class="label">Observability</span>
-              <span class="value">CloudWatch metrics &amp; alarms</span>
-            </div>
-            <div class="row">
-              <span class="label">AI layer</span>
-              <span class="value value-highlight">Alarm-triggered incident summaries (stored in S3/DynamoDB)</span>
-            </div>
-          </div>
+        <div class="section-title">Workload</div>
+        <div class="list">
+          <div class="row"><span class="label">Compute</span><span class="value">EC2 (ASG)</span></div>
+          <div class="row"><span class="label">Database</span><span class="value">RDS MySQL</span></div>
+          <div class="row"><span class="label">AI layer</span><span class="value value-highlight">Alarm-triggered summaries</span></div>
         </div>
       </div>
     </div>
 
     <div class="divider"></div>
-    <div class="footer">
-      Instance: <strong>$HOSTNAME</strong>
-    </div>
-    <div class="footer" style="margin-top: 6px;">
-      Summaries are stored privately in S3 (no public console links).
-    </div>
+    <div class="footer">Instance: <strong>$HOSTNAME</strong></div>
   </div>
 </body>
 </html>
 HTML
-# Deterministic ALB health check endpoint
 
-echo "ok" >/var/www/html/health
+# Deterministic health endpoint (ALB/you can curl /health)
+cat >/var/www/html/health <<'HEALTH'
+OK
+HEALTH
 chmod 644 /var/www/html/health
-# App log file (so there is something real to ship)
-echo "$(date -Is) rsvp-app boot ok host=$HOSTNAME" >>/var/log/rsvp-app.log
-
-# Install CloudWatch Agent
-yum install -y amazon-cloudwatch-agent
-
-# CloudWatch Agent config: ship /var/log/rsvp-app.log to the Terraform-created log group
-cat >/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json <<'CW'
-{
-  "logs": {
-    "logs_collected": {
-      "files": {
-        "collect_list": [
-          {
-            "file_path": "/var/log/rsvp-app.log",
-            "log_group_name": "/${local.name_prefix}/app",
-            "log_stream_name": "{instance_id}",
-            "timezone": "UTC"
-          }
-        ]
-      }
-    }
-  }
-}
-CW
-
-/opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl \
-  -a fetch-config -m ec2 \
-  -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json \
-  -s
-
-# Keep writing a heartbeat so the log group is obviously alive during demos
-( while true; do echo "$(date -Is) rsvp-app heartbeat host=$HOSTNAME" >>/var/log/rsvp-app.log; sleep 30; done ) &
 
 EOF
 }
@@ -232,17 +155,16 @@ resource "aws_launch_template" "app_lt" {
   }
 
   # If NAT is disabled, instances must be able to reach yum repos.
-  # Demo mode: put the app tier in public subnets (still only reachable from ALB via SG).
+  # Demo mode: associate public IPs and place instances in public subnets.
   network_interfaces {
     security_groups             = [aws_security_group.app_sg.id]
-    associate_public_ip_address = <span class="value">Public + Private subnets, IGW (NAT optional)</span>
+    associate_public_ip_address = var.enable_nat_gateway ? false : true
   }
 
   user_data = base64encode(local.user_data)
 
   tag_specifications {
     resource_type = "instance"
-
     tags = {
       Name        = "${local.name_prefix}-app"
       Environment = var.environment
@@ -260,8 +182,8 @@ resource "aws_autoscaling_group" "app_asg" {
   max_size                  = 4
   min_size                  = 2
   desired_capacity          = 2
-  health_check_type         = "EC2"
-  health_check_grace_period = 120
+  health_check_type         = "ELB"
+  health_check_grace_period = 180
 
   # Private mode (NAT enabled): use private subnets
   # Demo mode (NAT disabled): use public subnets so bootstrapping succeeds
