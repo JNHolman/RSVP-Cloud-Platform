@@ -112,6 +112,7 @@ cat >/var/www/html/index.html <<HTML
         <div class="list">
           <div class="row"><span class="label">Region</span><span class="value">us-east-1</span></div>
           <div class="row"><span class="label">Frontend</span><span class="value">ALB</span></div>
+          <div class="row"><span class="label">Health</span><span class="value">/health</span></div>
         </div>
       </div>
 
@@ -132,11 +133,8 @@ cat >/var/www/html/index.html <<HTML
 </html>
 HTML
 
-# Deterministic health endpoint (ALB/you can curl /health)
-cat >/var/www/html/health <<'HEALTH'
-OK
-HEALTH
-echo "ok - $(hostname -f)" > /var/www/html/health
+# Deterministic health endpoint (ALB + manual curl)
+echo "ok" > /var/www/html/health
 chmod 644 /var/www/html/health
 
 EOF
