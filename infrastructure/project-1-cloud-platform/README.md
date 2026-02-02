@@ -107,8 +107,3 @@ Planned:
 Author: Josh Holman  
 Deployed: 2026-02-02 (us-east-1)
 ---
-
-**Author:** Josh Holman  
-**Date:** February 2, 2026  
-**Region:** us-east-1  
-**Terraform Version:** 1.x
