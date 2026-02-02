@@ -1,262 +1,60 @@
 # Project 1 — RSVP Cloud Platform (Infrastructure Layer)
 
-Project 1 builds the foundational AWS infrastructure for a small web application: networking, ingress, compute scaling, database, alerting, and an event-driven AI log summary workflow. This is a **production-style lab**: deployable, verifiable, and designed to be destroyed cleanly to control cost.
+Project 1 provisions a production-style AWS web stack using Terraform: multi-AZ networking, ALB, EC2 Auto Scaling, RDS MySQL, and CloudWatch/SNS alerting. It also includes an alarm-driven log summarizer (EventBridge → Lambda) that writes summaries to S3/DynamoDB.
 
 ---
 
-## Deployment Status
+## Deployment
 
-**Status:** ✅ **Live and Operational** (Deployed: February 2, 2026)
+Status: Live (deployed 2026-02-02)
 
-### Live Endpoints
-- **Application:** http://rsvp-dev-alb-1273619337.us-east-1.elb.amazonaws.com/
-- **Health Check:** http://rsvp-dev-alb-1273619337.us-east-1.elb.amazonaws.com/health
+Endpoints:
+- App: http://rsvp-dev-alb-1273619337.us-east-1.elb.amazonaws.com/
+- Health: http://rsvp-dev-alb-1273619337.us-east-1.elb.amazonaws.com/health
 
-### Deployed Resources
-| Resource | Identifier | Status |
-|----------|-----------|--------|
-| VPC | `vpc-06b57ae331224b367` | ✅ Active |
-| Public Subnets | 2 across us-east-1a/1b | ✅ Active |
-| Private Subnets | 2 across us-east-1a/1b | ✅ Active |
-| Application Load Balancer | `rsvp-dev-alb` | ✅ Active |
-| Auto Scaling Group | `rsvp-dev-asg` | ✅ 2 healthy instances |
-| RDS MySQL | `rsvp-dev-db` | ✅ Available |
-| Lambda (AI Summarizer) | `rsvp-dev-ai-log-summarizer` | ✅ Active |
-| S3 Bucket (AI Logs) | `rsvp-dev-ai-logs` | ✅ Active |
-| DynamoDB Table | `rsvp-dev-ai-log-summaries` | ✅ Active |
-| CloudWatch Alarms | Multiple | ✅ Configured |
-
-**Evidence:** See [`evidence/`](./evidence/) folder for deployment screenshots and outputs.
+Evidence: see [`./evidence/`](./evidence/) for screenshots and Terraform outputs.
 
 ---
 
 ## Overview
 
-This project provisions AWS infrastructure with **Terraform**:
+Provisioned with Terraform:
+- Networking: VPC across 2 AZs with public + private subnets, IGW/NAT, and routing
+- Ingress: ALB in public subnets routing to private instances
+- Compute: EC2 Auto Scaling Group (desired=2; health check: `/health`)
+- Data: RDS MySQL in private subnets (no public access)
+- Security: tiered security groups (ALB → app → DB)
+- Operations:
+  - CloudWatch alarms → SNS notifications
+  - Alarm state change → EventBridge → Lambda → LLM summary → S3 + DynamoDB → SNS
 
-- Multi-AZ VPC with public and private subnets
-- Application Load Balancer (ALB)
-- EC2 Auto Scaling Group for the web tier
-- RDS MySQL in private subnets
-- Internet Gateway + NAT Gateway + route tables
-- Security groups scoped by tier (ALB → app → DB)
-- CloudWatch alarms and log group (app logs)
-- SNS alerts topic (email subscription optional)
-- AI log summarization workflow:
-  - **CloudWatch alarm actions → SNS email alerts**
-  - **CloudWatch Alarm State Change → EventBridge → Lambda → OpenAI → S3 + DynamoDB → SNS**
-
-This is a common baseline pattern for teams moving off a single server into AWS with predictable operations and a clear failure/alert path.
-
----
-
-## Architecture diagram
+## Architecture
 
 ![Project 1 Network Architecture](./evidence/screenshots/project1-network-architecture.png)
 
----
+## Business context
+RSVP Society is an events/nightlife brand. The infrastructure needs to handle uneven traffic during promotions, support frequent updates, and make failures obvious quickly (alerts + actionable summaries).
 
-## Business problem
+## Architecture notes
+- VPC: `10.0.0.0/16` across 2 AZs
+- Public subnets: ALB + NAT egress
+- Private subnets: EC2 app tier + RDS
+- Security groups: ALB → app → DB (no public DB access)
+- ALB: HTTP :80, health check `/health`
+- ASG: min=2, desired=2, max=4 (t3.micro)
+- RDS: db.t3.micro, private only, backups enabled
+- Monitoring: CloudWatch alarms (ALB 5xx, ASG CPU) → SNS
 
-RSVP apps and event sites tend to spike during promos and major weekends. A single instance/VPS is a single point of failure. This project shows a baseline architecture that:
+## Alarm-driven log summaries
+On CloudWatch alarm state changes, EventBridge invokes a Lambda that:
+- pulls ~5 minutes of recent app logs from CloudWatch Logs (`/rsvp-dev/app`)
+- generates a short incident summary
+- stores the full record in S3 and metadata in DynamoDB
+- publishes a brief notification to SNS
 
-- scales the web tier horizontally
-- keeps the database isolated in private subnets
-- alerts on obvious failure signals (ALB 5xx, high CPU)
-- produces a short, human-readable summary when an alarm fires
-
----
-
-## Key design decisions
-
-- **Multi-AZ VPC** to reduce single-AZ blast radius
-- **ALB + Auto Scaling Group** instead of one EC2 instance
-- **RDS MySQL in private subnets** for managed storage and isolation
-- **Public subnets for ALB; private subnets for app/DB**
-- **CloudWatch alarms + SNS** for alerts (no silent failures)
-- **Event-driven AI summaries** only when alarms change state (no polling)
-
----
-
-## Architecture breakdown
-
-### Networking
-- 1 VPC (`10.0.0.0/16`)
-- Public subnets (`10.0.1.0/24`, `10.0.2.0/24`) - ALB, NAT
-- Private subnets (`10.0.3.0/24`, `10.0.4.0/24`) - app tier, DB tier
-- Internet Gateway attached to the VPC
-- NAT Gateway for private subnet egress
-- Separate route tables for public/private traffic flows
-
-### Compute & load balancing
-- ALB (HTTP listener on port 80)
-- Target group routes to instances in an Auto Scaling Group
-- ASG: min=2, max=4, desired=2 (t3.micro instances)
-- Health checks: `/health` endpoint
-
-### Database
-- RDS MySQL instance (db.t3.micro)
-- Private subnets only (no public access)
-- DB security group allows inbound only from the app tier security group
-- Automated backups handled by RDS
-
-### Monitoring & alerts
-- CloudWatch alarms:
-  - ALB 5xx high (threshold: 5 errors/minute)
-  - ASG average CPU high (threshold: 75%)
-  - Lambda errors (optional)
-- SNS topic for alerting (email subscription: jholman@charter.net)
-
----
-
-## AI log summarization (✅ Implemented)
-
-This project includes an event-driven summary workflow that turns an alarm + a short slice of recent logs into a stored JSON summary and a short notification.
-
-### Trigger paths (two things happen)
-1) **Alerting:** CloudWatch alarm actions publish to **SNS** (email subscription configured).  
-2) **Summaries:** CloudWatch alarm state changes are matched by an **EventBridge rule**, which invokes the summarizer Lambda.
-
-### Summary workflow
-**CloudWatch Alarm State Change → EventBridge → Lambda → OpenAI → S3 + DynamoDB → SNS**
-
-What the Lambda does:
-- Pulls the last ~5 minutes of log lines from the app log group (`/rsvp-dev/app`)
-- Calls OpenAI (gpt-4o-mini) with the alarm details + recent logs
-- Writes a full JSON record to S3: `summaries/<uuid>.json`
-- Writes metadata to DynamoDB (id, timestamp, alarm, state, s3_key)
-- Publishes a short message to SNS
-
-### Real-world example
-The system captured and processed an actual ALB alarm state change:
-- Alarm: `rsvp-dev-alb-5xx-high` changed to `OK`
-- Lambda executed successfully
-- Summary stored in S3: `summaries/c0651d8e-be49-4ac1-a75a-e03d9d7da8a3.json`
-- Metadata recorded in DynamoDB
-
-### Guardrails (what this does and does not do)
-- No auto-remediation. Output is summaries + suggestions only.
-- Scoped context: alarm metadata + recent logs only.
-- Fail-safe: if the model call fails, it records the error and still writes the record.
-- Event-driven: runs on alarm state changes, not continuously.
-
----
-
-## Quick Start
-
-### Prerequisites
-- Terraform >= 1.0
-- AWS CLI configured with credentials
-- OpenAI API key (for AI summarization)
-
-### Deploy
-
-```bash
-# 1. Configure variables
-cp terraform.tfvars.example terraform.tfvars
-# Edit: openai_api_key, alert_email, db_password
-
-# 2. Initialize Terraform
-terraform init
-
-# 3. Preview changes
-terraform plan
-
-# 4. Deploy
-terraform apply
-
-# 5. Get outputs
-terraform output
-```
-
-### Verify
-
-```bash
-# Check ALB health
-curl $(terraform output -raw alb_http_url)
-curl $(terraform output -raw alb_health_url)
-
-# Check target health
-aws elbv2 describe-target-health \
-  --target-group-arn $(aws elbv2 describe-target-groups \
-    --names rsvp-dev-tg \
-    --query 'TargetGroups[0].TargetGroupArn' \
-    --output text)
-
-# Check RDS status
-aws rds describe-db-instances \
-  --db-instance-identifier rsvp-dev-db \
-  --query 'DBInstances[0].DBInstanceStatus'
-```
-
-### Destroy
-
-```bash
-terraform destroy
-```
-
----
-
-## Verify (fast checks)
-
-**Infrastructure**
-- ✅ ALB target group shows **healthy** targets (2/2)
-- ✅ ASG instances are **InService** (2 instances running)
-- ✅ RDS status is **Available**
-- ✅ CloudWatch alarms exist and are **OK**
-
-**AI summaries**
-- ✅ EventBridge rule routing alarms to Lambda
-- ✅ Lambda successfully executing (Python 3.10)
-- ✅ S3 bucket contains summary objects
-- ✅ DynamoDB table contains summary metadata
-- ✅ SNS notifications configured
-
----
-
-## Cost strategy (practical)
-
-**Estimated monthly cost:** ~$80-90 (us-east-1, dev sizing)
-
-Primary cost drivers in this stack:
-- NAT Gateway: ~$32/month (hourly + data processing)
-- ALB: ~$16/month (hourly + LCUs)
-- EC2 instances: ~$14/month (t3.micro × 2)
-- RDS: ~$15/month (db.t3.micro + storage)
-- CloudWatch logs: ~$5/month (ingestion + retention)
-- Lambda/S3/DynamoDB: ~$5/month
-- AI calls: Minimal (only on alarm state changes)
-
-**Cost control:** Terraform makes it easy to spin the environment up for demos/tests and destroy it afterward with `terraform destroy`.
-
----
-
-## Security
-
-**Current implementation (development):**
-- HTTP only (no HTTPS)
-- Security groups follow least-privilege principle
-- RDS in private subnets (no public access)
-- DB password in terraform.tfvars (gitignored)
-
-**Production improvements:**
-- [ ] HTTPS termination with ACM certificate
-- [ ] WAF rules for application protection
-- [ ] Secrets Manager for DB credentials and API keys
-- [ ] Enhanced IAM roles (more specific resource ARNs)
-- [ ] VPN/Direct Connect for administrative access
-- [ ] Multi-region failover
-
----
-
-## Future enhancements (planned)
-- HTTPS termination on ALB using ACM
-- WAF rules for basic protections
-- SSM Parameter Store / Secrets Manager integration
-- Expand summaries to include trends (not just alarm events)
-- Slack/Teams notifications
-- Auto-scaling policies based on metrics
-- Enhanced monitoring dashboard
+Notes:
+- No auto-remediation; this is triage support only.
+- If the model call fails, the Lambda still writes an error record to S3/DynamoDB.
 
 ---
 
@@ -291,38 +89,23 @@ All screenshots and deployment artifacts are in the [`evidence/`](./evidence/) f
 
 ---
 
-## Technical Stack
+## Tech
+Terraform · VPC · ALB · EC2 Auto Scaling · RDS MySQL · CloudWatch/SNS · EventBridge · Lambda · S3 · DynamoDB
 
-- **Infrastructure as Code:** Terraform
-- **Compute:** AWS EC2 (Auto Scaling Group)
-- **Load Balancing:** AWS Application Load Balancer
-- **Database:** AWS RDS MySQL
-- **Networking:** AWS VPC, Subnets, NAT Gateway, Internet Gateway
-- **Monitoring:** AWS CloudWatch, SNS
-- **AI Integration:** AWS Lambda, EventBridge, OpenAI API
-- **Storage:** AWS S3, DynamoDB
+## Status
+Implemented:
+- Multi-AZ VPC (public/private) with ALB → ASG and private RDS
+- CloudWatch alarms → SNS notifications
+- Alarm-driven log summaries (EventBridge → Lambda → S3/DynamoDB)
 
----
+Planned:
+- HTTPS on ALB (ACM) + basic WAF protections
+- Secrets Manager for DB/LLM credentials
+- Auto scaling policies + dashboards
+- Multi-region DR (stretch)
 
-## What's Implemented vs Planned
-
-### ✅ Implemented
-- Multi-AZ VPC networking
-- ALB + Auto Scaling Group + RDS
-- CloudWatch alarms with SNS notifications
-- AI log summarization (Lambda + OpenAI + S3 + DynamoDB)
-- EventBridge alarm routing
-- Security groups (least privilege)
-- Complete infrastructure as code
-
-### 📋 Planned
-- HTTPS with ACM certificate
-- WAF rules
-- Secrets Manager integration
-- Multi-region DR
-- Enhanced dashboards
-- Auto-scaling policies
-
+Author: Josh Holman  
+Deployed: 2026-02-02 (us-east-1)
 ---
 
 **Author:** Josh Holman  
