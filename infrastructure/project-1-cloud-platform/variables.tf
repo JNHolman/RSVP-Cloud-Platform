@@ -109,7 +109,7 @@ variable "db_password" {
 
   validation {
     condition     = length(var.db_password) >= 12
-    error_message = "db_password must be at least 12 characters."
+    error_message = "Database password must be at least 12 characters."
   }
 }
 
@@ -130,7 +130,7 @@ variable "openai_api_key" {
 
   validation {
     condition     = length(var.openai_api_key) > 0
-    error_message = "openai_api_key is required."
+    error_message = "OpenAI API key is required."
   }
 }
 

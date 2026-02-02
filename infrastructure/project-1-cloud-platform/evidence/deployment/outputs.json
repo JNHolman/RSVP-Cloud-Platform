@@ -1,0 +1,23 @@
+{
+  "ai_lambda_function_name": "rsvp-dev-ai-log-summarizer",
+  "ai_lambda_log_group_name": "/aws/lambda/rsvp-dev-ai-log-summarizer",
+  "ai_log_summaries_table": "rsvp-dev-ai-log-summaries",
+  "ai_logs_bucket": "rsvp-dev-ai-logs",
+  "ai_logs_prefix": "summaries/",
+  "alb_dns_name": "rsvp-dev-alb-1273619337.us-east-1.elb.amazonaws.com",
+  "alb_health_url": "http://rsvp-dev-alb-1273619337.us-east-1.elb.amazonaws.com/health",
+  "alb_http_url": "http://rsvp-dev-alb-1273619337.us-east-1.elb.amazonaws.com/",
+  "alerts_topic_arn": "arn:aws:sns:us-east-1:852121054175:rsvp-dev-alerts",
+  "app_log_group_name": "/rsvp-dev/app",
+  "asg_name": "rsvp-dev-asg",
+  "private_subnet_ids": [
+    "subnet-0f8559726ebd85b7c",
+    "subnet-091320986dc45743d"
+  ],
+  "public_subnet_ids": [
+    "subnet-03d6d590c3dce9465",
+    "subnet-0d5865b3e54db3137"
+  ],
+  "rds_endpoint": "rsvp-dev-db.ci54im0c46uy.us-east-1.rds.amazonaws.com:3306",
+  "vpc_id": "vpc-06b57ae331224b367"
+}
