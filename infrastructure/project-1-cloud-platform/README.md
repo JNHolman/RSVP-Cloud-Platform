@@ -4,7 +4,7 @@ Project 1 builds the foundational AWS infrastructure for a small web application
 
 ---
 
-## 🚀 Deployment Status
+## Deployment Status
 
 **Status:** ✅ **Live and Operational** (Deployed: February 2, 2026)
 
@@ -52,7 +52,7 @@ This is a common baseline pattern for teams moving off a single server into AWS 
 
 ## Architecture diagram
 
-![Project 1 Network Architecture](./evidence/screenshots/vpc-overview.png)
+![Project 1 Network Architecture](.project1-network-architecture.png)
 
 ---
 
