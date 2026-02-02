@@ -52,7 +52,7 @@ This is a common baseline pattern for teams moving off a single server into AWS 
 
 ## Architecture diagram
 
-![Project 1 Network Architecture](.project1-network-architecture.png)
+![Project 1 Network Architecture](.evidence/screenshots/project1-network-architecture.png)
 
 ---
 
