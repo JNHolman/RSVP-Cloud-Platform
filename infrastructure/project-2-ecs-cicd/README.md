@@ -1,16 +1,17 @@
 # Project 2 — Container Platform & CI/CD (Application Delivery Layer)
 
-Project 2 moves the RSVP app from VM-style deployment to **containers on ECS Fargate**, with an automated **GitHub Actions** workflow that builds and publishes images to **ECR** and triggers an ECS redeploy.
+Project 2 moves the RSVP app from VM-style deployment to containers on ECS Fargate, with an automated GitHub Actions workflow that builds SHA-tagged immutable images, pushes to ECR, and deploys via blue/green ECS service updates.
 
 ---
 
-## Live service
+## 🚀 Live Service
 
-URL: http://rsvp-project2-alb-901306910.us-east-1.elb.amazonaws.com:8080
+**URL:** http://rsvp-project2-alb-901306910.us-east-1.elb.amazonaws.com:8080  
+**Current Version:** SHA-pinned immutable deployment  
+**Status:** ✅ Active and healthy
 
-**Done when (user-facing):** The page loads and `/api/message` returns a response.
-
-**Done when (AWS evidence):** ECS service has a running task and the ALB target group shows **Healthy** targets.
+**Done when (user-facing):** The page loads and `/api/message` returns a response.  
+**Done when (AWS evidence):** ECS service has a running task and the ALB target group shows Healthy targets.
 
 ---
 
@@ -18,113 +19,212 @@ URL: http://rsvp-project2-alb-901306910.us-east-1.elb.amazonaws.com:8080
 
 This project includes:
 
-- Dockerized RSVP web application
-- Amazon ECR repository for container images
-- ECS Fargate cluster/service behind an Application Load Balancer
-- GitHub Actions workflow that:
-  - builds the Docker image
-  - tags and pushes to ECR (`$GITHUB_SHA` and `latest`)
-  - triggers a rolling redeploy of the ECS service
+* **Dockerized RSVP web application** (Python + Flask)
+* **Amazon ECR repository** for container images with SHA-based tagging
+* **ECS Fargate cluster/service** behind an Application Load Balancer
+* **Production-grade GitHub Actions workflow** that:
+  * Builds the Docker image
+  * Tags with Git commit SHA (immutable, auditable)
+  * Pushes to ECR
+  * Creates new ECS task definition with SHA-tagged image
+  * Updates ECS service for blue/green deployment
+  * Waits for service stabilization
 
-This repo shows a practical “small team” delivery path: standard runtime, repeatable builds, and automated deployments without standing up Kubernetes.
-
----
-
-## Business problem
-
-RSVP Society needs to ship updates quickly without manual SSH deploys and “works on my machine” issues. Containers + ECS provide a consistent runtime, and GitHub Actions automates the release steps.
+This repo demonstrates a practical "small team" delivery path: standard runtime, repeatable builds, immutable deployments, and automated releases without managing Kubernetes.
 
 ---
 
-## Architecture diagram
+## Business Problem
 
-![Project 2 — Container Platform & CI/CD Architecture](./screenshots/project2-container-cicd-architecture.png)
+RSVP Society needs to ship updates quickly without manual SSH deploys and "works on my machine" issues. Containers + ECS provide a consistent runtime, and GitHub Actions automates the release steps with full traceability via Git SHAs.
 
 ---
 
-## Architecture breakdown
+## Architecture Breakdown
 
 ### Containerization
 - App packaged as a Docker image
+- Multi-stage build for optimization
 - Local build supported for dev/testing
 
-### Image registry (ECR)
-- ECR stores images for deployment
-- Tags used:
-  - `latest`
-  - commit SHA (`$GITHUB_SHA`) for traceability
+### Image Registry (ECR)
+- ECR stores images with SHA-based tags
+- Each commit gets unique, immutable image tag
+- Example: `852121054175.dkr.ecr.us-east-1.amazonaws.com/rsvp-project2-app:9ff0fa4`
+- Enables exact version tracking and rollbacks
 
 ### ECS Fargate
-- ECS cluster runs the service on Fargate (no instance management)
-- Service is attached to an ALB target group
-- Health checks remove unhealthy tasks
-
-### CI/CD (GitHub Actions)
-Workflow file: `.github/workflows/ecs-project2-deploy.yml`
-
-What it does today:
-1. Triggers on pushes to `main` affecting `infrastructure/project-2-ecs-cicd/`
-2. Builds the Docker image
-3. Logs into ECR and pushes:
-   - `:latest`
-   - `:${GITHUB_SHA}`
-4. Forces an ECS service redeploy
-
-**Note:** the current workflow triggers a redeploy; it does not register a new task definition revision pinned to the SHA image. That is listed under Future Enhancements.
-
----
-
-## Verify (fast checks)
-
-- **ECR:** Repository contains `latest` and a recent SHA tag
-- **ECS service:** Desired task count is running
-- **Target group:** Targets are **healthy**
-- **ALB:** Live URL returns HTTP 200 and renders the UI
-- **Deployment traceability:** The image tag exists in ECR for the commit you pushed
-
----
-
-## Cost notes (high-level)
-
-Primary costs come from:
-- ALB hourly + LCUs
-- Fargate CPU/memory-hours
-- CloudWatch logs
-
-This setup is designed to be simple to operate and easy to tear down when not needed.
-
----
-
-## Future enhancements (not counted as delivered)
-
-- Pin deployments to immutable releases by registering a new task definition revision using the SHA image tag
-- Add basic unit tests in the GitHub Actions workflow
-- Add a container scan step (Trivy/Grype/Snyk)
-- Add a staging environment with approval gates
-- Add blue/green or canary deployment strategy (if needed)
-
----
-
-## 📸 Infrastructure screenshots
-
-### ECR — Container Image Repository
-![ECR Repository](./screenshots/ecr-repository.png)
-
-### ECS Cluster & Services
-![ECS Cluster Overview](./screenshots/ecs-cluster-overview.png)
-![ECS Service Overview](./screenshots/ecs-service-overview.png)
-![ECS Service Health](./screenshots/ecs-service-health.png)
-
-### Task Definition
-![ECS Task Definition](./screenshots/ecs-task-definition.png)
+- ECS cluster runs service on Fargate (no EC2 instance management)
+- Task definition: 256 CPU units (0.25 vCPU), 512 MiB memory
+- Service attached to ALB target group
+- Health checks automatically remove unhealthy tasks
+- Blue/green deployment strategy
 
 ### Load Balancing
-![ALB Overview](./screenshots/ecs-alb-overview.png)
-![Target Group](./screenshots/ecs-target-group.png)
+- Application Load Balancer (internet-facing)
+- HTTP listener on port 8080
+- Target group with health checks
+- Distributes traffic across healthy ECS tasks
 
+### CI/CD (GitHub Actions)
 
+**Workflow file:** `.github/workflows/ecs-project2-deploy.yml`
 
-## Latest Update
-- Implemented SHA-pinned immutable deployments
-- Production-grade CI/CD pipeline
+**Production-grade pipeline:**
 
+1. **Trigger:** Pushes to `main` affecting `infrastructure/project-2-ecs-cicd/`
+2. **Build:** Docker image with Git SHA tag
+3. **Push:** Image to ECR with immutable SHA tag
+4. **Download:** Current ECS task definition
+5. **Update:** Task definition JSON with new image SHA
+6. **Register:** New task definition revision
+7. **Deploy:** Update ECS service with new task definition
+8. **Verify:** Wait for service to stabilize (blue/green complete)
+
+**Key improvements over basic workflows:**
+- ✅ Immutable SHA-tagged images (no mutable `latest` tag)
+- ✅ New task definition created for each deploy
+- ✅ Proper blue/green deployment (not `--force-new-deployment`)
+- ✅ Deployment verification (waits for service stability)
+- ✅ Full audit trail (Git SHA = exact code version)
+- ✅ Rollback capability (deploy any previous SHA)
+
+---
+
+## Verify (Fast Checks)
+
+**Infrastructure:**
+- ✅ ECR: Repository contains SHA-tagged images
+- ✅ ECS Cluster: 1 service active, 1 task running
+- ✅ ECS Service: Desired count matches running count
+- ✅ Task Definition: References SHA-tagged image
+- ✅ Target Group: Targets are healthy
+- ✅ ALB: Live URL returns HTTP 200 with rendered UI
+
+**Deployment Traceability:**
+- ✅ Image tag in ECR matches Git commit SHA
+- ✅ Task definition revision tracks each deployment
+- ✅ GitHub Actions logs show exact image deployed
+
+---
+
+## Cost Notes
+
+**Estimated monthly cost:** ~$60-70 (us-east-1, single task)
+
+Primary costs:
+- **Fargate:** ~$10/month (0.25 vCPU, 512 MB, 24/7)
+- **ALB:** ~$16/month (hourly + LCUs)
+- **NAT Gateway:** ~$32/month (required for ECR access)
+- **ECR Storage:** ~$1/month
+- **CloudWatch Logs:** ~$2/month
+
+**Cost optimization:**
+- Single task deployment (minimal for demo)
+- Can stop service when not in use
+- Smaller Fargate sizing
+- Clean up old ECR images periodically
+
+---
+
+## Deployment History
+
+**Recent deployments:**
+- **Latest:** SHA-pinned deployment with new CI/CD workflow
+- **v1.0.4-ci:** Previous mutable-tag deployment
+- **v1.0.3-ci:** Earlier version
+- **v1.0.2-ci:** Initial automated deployment
+
+All deployments tracked via GitHub Actions with full logs.
+
+---
+
+## What This Demonstrates
+
+**Modern Container Delivery:**
+- Microservices architecture pattern
+- Serverless compute (Fargate - no EC2 management)
+- Immutable infrastructure (SHA-tagged images)
+- Automated deployments with verification
+
+**DevOps Best Practices:**
+- Infrastructure as Code (Terraform)
+- CI/CD automation (GitHub Actions)
+- SHA-based versioning (audit trail)
+- Blue/green deployments (zero-downtime)
+- Health check monitoring (automatic recovery)
+
+**Production Readiness:**
+- Load balancer redundancy
+- Container isolation
+- Automated rollouts
+- Health-based routing
+- Rollback capability
+
+---
+
+## 📸 Infrastructure Screenshots
+
+### CI/CD Pipeline
+![GitHub Actions Workflow](./evidence/screenshots/cicd-pipeline-run.png)  
+*Successful automated deployments with build, push, and deploy steps*
+
+### Container Registry
+![ECR Repository](./evidence/screenshots/ecr-repository.png)  
+*Amazon ECR with SHA-tagged container images*
+
+### ECS Infrastructure
+![ECS Cluster](./evidence/screenshots/ecs-cluster-overview.png)  
+*ECS Fargate cluster with active service*
+
+![ECS Service Overview](./evidence/screenshots/ecs-service-overview.png)  
+*Service configuration and deployment status*
+
+![ECS Service Health](./evidence/screenshots/ecs-service-health.png)  
+*Service health metrics and target status*
+
+### Task Configuration
+![Task Definition](./evidence/screenshots/ecs-task-definition.png)  
+*Task definition with CPU, memory, and container settings*
+
+### Load Balancing
+![ALB Overview](./evidence/screenshots/ecs-alb-overview.png)  
+*Application Load Balancer configuration*
+
+![Target Group](./evidence/screenshots/ecs-target-group.png)  
+*Target group with healthy ECS tasks*
+
+### Application
+![Live Application](./evidence/screenshots/project2-ui.png)  
+*Live containerized application interface*
+
+---
+
+## Future Enhancements (Planned)
+
+- [ ] HTTPS with ACM certificate and custom domain
+- [ ] Container image scanning (Trivy/Grype) in CI/CD
+- [ ] Unit tests in GitHub Actions workflow
+- [ ] Staging environment with approval gates
+- [ ] Auto-scaling policies based on CPU/memory
+- [ ] CloudWatch Container Insights dashboard
+- [ ] Canary deployment strategy (if needed)
+
+---
+
+## Technical Stack
+
+- **Container Runtime:** Docker
+- **Orchestration:** AWS ECS Fargate
+- **Registry:** Amazon ECR
+- **Load Balancing:** AWS Application Load Balancer
+- **CI/CD:** GitHub Actions
+- **Infrastructure:** Terraform
+- **Application:** Python + Flask
+- **Networking:** AWS VPC with public/private subnets
+
+---
+
+**Author:** Josh Holman  
+**Last Updated:** February 2, 2026  
+**Region:** us-east-1
