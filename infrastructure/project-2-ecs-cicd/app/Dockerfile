@@ -21,3 +21,4 @@ ENV PORT=8080
 # Use gunicorn (production-style server)
 CMD ["gunicorn", "app:app", "-b", "0.0.0.0:8080", "--workers", "3"]
 
+# Updated workflow to use SHA-pinned deployments

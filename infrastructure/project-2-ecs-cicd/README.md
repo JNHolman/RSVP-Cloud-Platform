@@ -123,3 +123,8 @@ This setup is designed to be simple to operate and easy to tear down when not ne
 ![Target Group](./screenshots/ecs-target-group.png)
 
 
+
+## Latest Update
+- Implemented SHA-pinned immutable deployments
+- Production-grade CI/CD pipeline
+
