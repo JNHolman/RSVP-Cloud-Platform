@@ -104,6 +104,4 @@ Planned:
 - Auto scaling policies + dashboards
 - Multi-region DR (stretch)
 
-Author: Josh Holman  
-Deployed: 2026-02-02 (us-east-1)
 ---
