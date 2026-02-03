@@ -1,0 +1,16 @@
+{
+  "cluster_name": "rsvp-project2-cluster",
+  "service_name": "rsvp-project2-service",
+  "task_definition": "rsvp-project2-task:4",
+  "alb_dns_name": "rsvp-project2-alb-901306910.us-east-1.elb.amazonaws.com",
+  "alb_url": "http://rsvp-project2-alb-901306910.us-east-1.elb.amazonaws.com:8080",
+  "ecr_repository": "852121054175.dkr.ecr.us-east-1.amazonaws.com/rsvp-project2-app",
+  "vpc_id": "vpc-09569aec0c1b01114",
+  "target_group": "rsvp-project2-tg",
+  "current_version": "v1.0.4-ci",
+  "deployment_date": "2025-12-03T23:25:00Z",
+  "task_cpu": "256",
+  "task_memory": "512",
+  "desired_count": 1,
+  "running_count": 1
+}
