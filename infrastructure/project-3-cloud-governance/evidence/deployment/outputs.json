@@ -1,0 +1,11 @@
+{
+  "dashboard_url": "http://rsvp-cloud-governance-dashboard.s3-website-us-east-1.amazonaws.com/",
+  "api_url": "https://yzrmqj3ti7.execute-api.us-east-1.amazonaws.com",
+  "guardduty_detector": "1485729971444a2a9388f537bd26ae8a",
+  "security_hub_enabled": true,
+  "config_recorder": "rsvp-cloud-governance-config-recorder",
+  "ai_incident_lambda": "rsvp-cloud-governance-ai-incident-reporter",
+  "ai_cost_lambda": "rsvp-cloud-governance-ai-cost-analyzer",
+  "incidents_analyzed": 3,
+  "cost_reports_generated": 3
+}

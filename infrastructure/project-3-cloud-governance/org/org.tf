@@ -1,5 +1,5 @@
 # NOTE:
-# In a real multi-account setup, this is where you’d use:
+# In a real multi-account setup, this is where you'd use:
 #   aws_organizations_organization
 #   aws_organizations_policy (SCPs)
 #   aws_organizations_account
@@ -13,18 +13,22 @@ resource "aws_cloudformation_stack" "org-documentation" {
   {
     "AWSTemplateFormatVersion": "2010-09-09",
     "Description": "Metadata-only stack used as a placeholder for AWS Organization modeling for portfolio purposes.",
-    "Resources": {}
+    "Resources": {
+      "DummyWaitHandle": {
+        "Type": "AWS::CloudFormation::WaitConditionHandle"
+      }
+    }
   }
   EOT
 
   tags = merge(
     var.tags,
     {
-      "Component"        = "org"
-      "ManagementLabel"  = var.account_labels.management
-      "SecurityLabel"    = var.account_labels.security
-      "LoggingLabel"     = var.account_labels.logging
-      "WorkloadLabel"    = var.account_labels.workload
+      Purpose = "Portfolio Organization Modeling"
     }
   )
+}
+
+output "org_stack_id" {
+  value = aws_cloudformation_stack.org-documentation.id
 }

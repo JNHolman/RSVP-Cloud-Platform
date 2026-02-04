@@ -1,0 +1,5 @@
+Project 3 - Cloud Governance Platform
+Deployed: February 3, 2026
+Region: us-east-1
+Dashboard URL: http://rsvp-cloud-governance-dashboard.s3-website-us-east-1.amazonaws.com/
+API URL: https://yzrmqj3ti7.execute-api.us-east-1.amazonaws.com
