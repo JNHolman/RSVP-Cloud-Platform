@@ -6,7 +6,7 @@ Project 1 provisions a production-style AWS web stack using Terraform: multi-AZ 
 
 ## Deployment
 
-Status: Live (deployed 2026-02-02)
+Status: Live 
 
 Endpoints:
 - App: http://rsvp-dev-alb-1273619337.us-east-1.elb.amazonaws.com/
