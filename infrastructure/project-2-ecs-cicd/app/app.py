@@ -282,14 +282,19 @@ HTML_TEMPLATE = """
       })
         .then(function (res) { return res.json(); })
         .then(function (data) {
+          function esc(s) {
+            var d = document.createElement("div");
+            d.textContent = s || "";
+            return d.innerHTML;
+          }
           result.innerHTML =
-            "<strong>Echo:</strong> " + (data.echo || "") +
+            "<strong>Echo:</strong> " + esc(data.echo) +
             " &nbsp;&middot;&nbsp; " +
-            "<strong>Version:</strong> " + (data.version || "") +
+            "<strong>Version:</strong> " + esc(data.version) +
             " &nbsp;&middot;&nbsp; " +
-            "<strong>Env:</strong> " + (data.env || "") +
+            "<strong>Env:</strong> " + esc(data.env) +
             " &nbsp;&middot;&nbsp; " +
-            "<strong>Time:</strong> " + (data.timestamp || "");
+            "<strong>Time:</strong> " + esc(data.timestamp);
         })
         .catch(function (err) {
           console.error(err);

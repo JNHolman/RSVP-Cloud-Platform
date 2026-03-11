@@ -108,7 +108,9 @@ def get_cost_data():
         }
     except Exception as e:
         print(f"Error getting cost data from Cost Explorer: {e}")
-        # Return realistic sample data if Cost Explorer not enabled
+        # FALLBACK: Return sample data when Cost Explorer is unavailable (e.g.,
+        # CE not enabled, insufficient permissions, or new account without billing
+        # history). Callers should check for the 'note' field to detect this case.
         return {
             'period': f"{start_date.strftime('%b %d')} - {end_date.strftime('%b %d, %Y')}",
             'start_date': start_date.strftime('%Y-%m-%d'),

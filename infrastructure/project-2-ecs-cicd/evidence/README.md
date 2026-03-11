@@ -1,7 +1,7 @@
 # Project 2 — RSVP Cloud Service (ECS Container Platform)
 
 **Deployment Date:** December 3, 2025  
-**Status:** ✅ Successfully Deployed and Verified
+**Status:** Portfolio (torn down — evidence captured at time of deployment)
 
 ---
 
@@ -146,10 +146,10 @@ http://rsvp-project2-alb-901306910.us-east-1.elb.amazonaws.com:8080
 - Version tracking via Git commits
 - Automated rollout via GitHub Actions
 
-**Network Architecture:**
+**Network Architecture (demo mode):**
 - ALB in public subnets (internet-facing)
-- ECS tasks in private subnets
-- Outbound internet via NAT Gateway
+- ECS tasks in public subnets with public IP (no NAT Gateway needed)
+- Production mode would move tasks to private subnets behind NAT or VPC endpoints
 
 **CI/CD Automation:**
 - Build: Docker image creation
@@ -195,7 +195,7 @@ http://rsvp-project2-alb-901306910.us-east-1.elb.amazonaws.com:8080
 
 **CI/CD:**
 - GitHub Actions
-- Docker multi-stage builds
+- Docker single-stage builds
 - Automated deployments
 - SHA-based versioning
 
@@ -209,7 +209,6 @@ http://rsvp-project2-alb-901306910.us-east-1.elb.amazonaws.com:8080
 |---------|--------------|
 | ECS Fargate (1 task, 0.25 vCPU, 512 MB) | ~$10 |
 | ALB | ~$16 |
-| NAT Gateway | ~$32 |
 | ECR Storage | ~$1 |
 
 **Cost Optimization:**

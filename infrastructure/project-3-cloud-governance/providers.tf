@@ -8,6 +8,10 @@ terraform {
       # AWS provider 5.x needs newer Terraform, so use 4.x here
       version = "~> 4.0"
     }
+    archive = {
+      source  = "hashicorp/archive"
+      version = "~> 2.0"
+    }
   }
 
   # If/when you add an S3 backend, keep it here (commented for now)

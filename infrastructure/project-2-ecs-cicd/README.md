@@ -1,17 +1,14 @@
 # Project 2 — Container Platform & CI/CD (Application Delivery Layer)
 
-Project 2 moves the RSVP app from VM-style deployment to containers on ECS Fargate, with an automated GitHub Actions workflow that builds SHA-tagged immutable images, pushes to ECR, and deploys via blue/green ECS service updates.
+Project 2 moves the RSVP app from VM-style deployment to containers on ECS Fargate, with an automated GitHub Actions workflow that builds SHA-tagged immutable images, pushes to ECR, and deploys via ECS rolling service updates.
 
 ---
 
-## 🚀 Live Service
+## Deployment
 
-**URL:** http://rsvp-project2-alb-901306910.us-east-1.elb.amazonaws.com:8080  
-**Current Version:** SHA-pinned immutable deployment  
-**Status:** ✅ Active and healthy
+**Status:** Portfolio (torn down — originally deployed 2026-02-02)
 
-**Done when (user-facing):** The page loads and `/api/message` returns a response.  
-**Done when (AWS evidence):** ECS service has a running task and the ALB target group shows Healthy targets.
+Evidence: see [`./evidence/`](./evidence/) for screenshots, deployment outputs, and GitHub Actions logs.
 
 ---
 
@@ -26,9 +23,8 @@ This project includes:
   * Builds the Docker image
   * Tags with Git commit SHA (immutable, auditable)
   * Pushes to ECR
-  * Creates new ECS task definition with SHA-tagged image
-  * Updates ECS service for blue/green deployment
-  * Waits for service stabilization
+  * Downloads the current task definition and registers a new revision with the SHA-tagged image
+  * Updates the ECS service and waits for stabilization
 
 This repo demonstrates a practical "small team" delivery path: standard runtime, repeatable builds, immutable deployments, and automated releases without managing Kubernetes.
 
@@ -43,8 +39,7 @@ RSVP Society needs to ship updates quickly without manual SSH deploys and "works
 ## Architecture Breakdown
 
 ### Containerization
-- App packaged as a Docker image
-- Multi-stage build for optimization
+- App packaged as a single-stage Docker image (`python:3.12-slim` + gunicorn)
 - Local build supported for dev/testing
 
 ### Image Registry (ECR)
@@ -58,7 +53,11 @@ RSVP Society needs to ship updates quickly without manual SSH deploys and "works
 - Task definition: 256 CPU units (0.25 vCPU), 512 MiB memory
 - Service attached to ALB target group
 - Health checks automatically remove unhealthy tasks
-- Blue/green deployment strategy
+- Rolling deployment strategy (ECS replaces tasks in-place)
+
+### Network placement (demo mode)
+- ECS tasks run in **public subnets** with `assign_public_ip = true` so Fargate can pull images from ECR without a NAT Gateway
+- For production, tasks would move to private subnets behind a NAT Gateway or use VPC endpoints for ECR/CloudWatch/S3
 
 ### Load Balancing
 - Application Load Balancer (internet-facing)
@@ -70,7 +69,7 @@ RSVP Society needs to ship updates quickly without manual SSH deploys and "works
 
 **Workflow file:** `.github/workflows/ecs-project2-deploy.yml`
 
-**Production-grade pipeline:**
+**Pipeline steps:**
 
 1. **Trigger:** Pushes to `main` affecting `infrastructure/project-2-ecs-cicd/`
 2. **Build:** Docker image with Git SHA tag
@@ -79,15 +78,20 @@ RSVP Society needs to ship updates quickly without manual SSH deploys and "works
 5. **Update:** Task definition JSON with new image SHA
 6. **Register:** New task definition revision
 7. **Deploy:** Update ECS service with new task definition
-8. **Verify:** Wait for service to stabilize (blue/green complete)
+8. **Verify:** Wait for service to stabilize
 
-**Key improvements over basic workflows:**
+**Key features:**
 - ✅ Immutable SHA-tagged images (no mutable `latest` tag)
-- ✅ New task definition created for each deploy
-- ✅ Proper blue/green deployment (not `--force-new-deployment`)
+- ✅ New task definition revision per deploy
+- ✅ Rolling deployment with health-check gating (not `--force-new-deployment`)
 - ✅ Deployment verification (waits for service stability)
 - ✅ Full audit trail (Git SHA = exact code version)
 - ✅ Rollback capability (deploy any previous SHA)
+
+**Auth note:** Workflow currently uses static IAM keys via GitHub Secrets. Migrating to OIDC-based federation (`aws-actions/configure-aws-credentials` with `role-to-assume`) is a planned improvement.
+
+### Version traceability
+Docker images are SHA-pinned and each deploy creates a new task definition revision, so the deployed image is fully traceable to a Git commit. The in-app `APP_VERSION` environment variable is currently hardcoded to `v1.0.0` and does not reflect the deployed SHA — this is a known gap for the UI display.
 
 ---
 
@@ -110,20 +114,15 @@ RSVP Society needs to ship updates quickly without manual SSH deploys and "works
 
 ## Cost Notes
 
-**Estimated monthly cost:** ~$60-70 (us-east-1, single task)
+**Estimated monthly cost:** ~$30-40 (us-east-1, single task, demo mode)
 
 Primary costs:
 - **Fargate:** ~$10/month (0.25 vCPU, 512 MB, 24/7)
 - **ALB:** ~$16/month (hourly + LCUs)
-- **NAT Gateway:** ~$32/month (required for ECR access)
 - **ECR Storage:** ~$1/month
 - **CloudWatch Logs:** ~$2/month
 
-**Cost optimization:**
-- Single task deployment (minimal for demo)
-- Can stop service when not in use
-- Smaller Fargate sizing
-- Clean up old ECR images periodically
+Production mode would add NAT Gateway (~$32/month) or VPC endpoints for private subnet placement.
 
 ---
 
@@ -142,16 +141,15 @@ All deployments tracked via GitHub Actions with full logs.
 ## What This Demonstrates
 
 **Modern Container Delivery:**
-- Microservices architecture pattern
-- Serverless compute (Fargate - no EC2 management)
+- Serverless compute (Fargate — no EC2 management)
 - Immutable infrastructure (SHA-tagged images)
 - Automated deployments with verification
 
 **DevOps Best Practices:**
 - Infrastructure as Code (Terraform)
 - CI/CD automation (GitHub Actions)
-- SHA-based versioning (audit trail)
-- Blue/green deployments (zero-downtime)
+- SHA-based versioning (full audit trail)
+- Rolling deployments with health gating
 - Health check monitoring (automatic recovery)
 
 **Production Readiness:**
@@ -196,19 +194,21 @@ All deployments tracked via GitHub Actions with full logs.
 
 ### Application
 ![Live Application](./evidence/screenshots/project2-ui.png)  
-*Live containerized application interface*
+*Containerized application interface*
 
 ---
 
 ## Future Enhancements (Planned)
 
+- [ ] OIDC-based AWS auth in GitHub Actions (replace static keys)
 - [ ] HTTPS with ACM certificate and custom domain
+- [ ] Private subnet placement with NAT Gateway or VPC endpoints
 - [ ] Container image scanning (Trivy/Grype) in CI/CD
+- [ ] Multi-stage Docker build for smaller image
+- [ ] Surface deployed Git SHA in app UI
 - [ ] Unit tests in GitHub Actions workflow
 - [ ] Staging environment with approval gates
 - [ ] Auto-scaling policies based on CPU/memory
-- [ ] CloudWatch Container Insights dashboard
-- [ ] Canary deployment strategy (if needed)
 
 ---
 
@@ -221,7 +221,7 @@ All deployments tracked via GitHub Actions with full logs.
 - **CI/CD:** GitHub Actions
 - **Infrastructure:** Terraform
 - **Application:** Python + Flask
-- **Networking:** AWS VPC with public/private subnets
+- **Networking:** AWS VPC (public subnets in demo mode)
 
 ---
 

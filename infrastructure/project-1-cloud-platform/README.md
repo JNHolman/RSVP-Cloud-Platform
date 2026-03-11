@@ -6,11 +6,7 @@ Project 1 provisions a production-style AWS web stack using Terraform: multi-AZ 
 
 ## Deployment
 
-Status: Live 
-
-Endpoints:
-- App: http://rsvp-dev-alb-1273619337.us-east-1.elb.amazonaws.com/
-- Health: http://rsvp-dev-alb-1273619337.us-east-1.elb.amazonaws.com/health
+Status: Portfolio (torn down — originally deployed 2026-02-02)
 
 Evidence: see [`./evidence/`](./evidence/) for screenshots and Terraform outputs.
 
@@ -19,14 +15,25 @@ Evidence: see [`./evidence/`](./evidence/) for screenshots and Terraform outputs
 ## Overview
 
 Provisioned with Terraform:
-- Networking: VPC across 2 AZs with public + private subnets, IGW/NAT, and routing
-- Ingress: ALB in public subnets routing to private instances
+- Networking: VPC across 2 AZs with public + private subnets, IGW, and routing (NAT Gateway optional via toggle)
+- Ingress: ALB in public subnets routing to EC2 instances
 - Compute: EC2 Auto Scaling Group (desired=2; health check: `/health`)
 - Data: RDS MySQL in private subnets (no public access)
 - Security: tiered security groups (ALB → app → DB)
 - Operations:
   - CloudWatch alarms → SNS notifications
   - Alarm state change → EventBridge → Lambda → LLM summary → S3 + DynamoDB → SNS
+
+### Demo mode vs production mode
+
+The `enable_nat_gateway` variable (default: `false`) controls network placement:
+
+| Setting | EC2 placement | Public IP | Egress |
+|---------|--------------|-----------|--------|
+| `false` (demo) | Public subnets | Yes | Direct IGW |
+| `true` (production) | Private subnets | No | NAT Gateway |
+
+Demo mode keeps costs near zero while preserving the full ALB → ASG → RDS architecture. Production mode adds NAT Gateway (~$32/mo) for true private-subnet isolation.
 
 ## Architecture
 
@@ -37,8 +44,8 @@ RSVP Society is an events/nightlife brand. The infrastructure needs to handle un
 
 ## Architecture notes
 - VPC: `10.0.0.0/16` across 2 AZs
-- Public subnets: ALB + NAT egress
-- Private subnets: EC2 app tier + RDS
+- Public subnets: ALB (+ EC2 in demo mode)
+- Private subnets: RDS (+ EC2 when NAT enabled)
 - Security groups: ALB → app → DB (no public DB access)
 - ALB: HTTP :80, health check `/health`
 - ASG: min=2, desired=2, max=4 (t3.micro)
@@ -53,6 +60,8 @@ On CloudWatch alarm state changes, EventBridge invokes a Lambda that:
 - publishes a brief notification to SNS
 
 Notes:
+- The Lambda pipeline, IAM roles, EventBridge rule, log group, S3 bucket, and DynamoDB table are fully provisioned.
+- The EC2 bootstrap currently serves a static demo page and does not install the CloudWatch Agent or emit application logs. Full end-to-end flow requires adding agent configuration and log emission to the user data script.
 - No auto-remediation; this is triage support only.
 - If the model call fails, the Lambda still writes an error record to S3/DynamoDB.
 
@@ -95,13 +104,14 @@ Terraform · VPC · ALB · EC2 Auto Scaling · RDS MySQL · CloudWatch/SNS · Ev
 ## Status
 Implemented:
 - Multi-AZ VPC (public/private) with ALB → ASG and private RDS
+- Demo/production toggle for NAT + subnet placement
 - CloudWatch alarms → SNS notifications
-- Alarm-driven log summaries (EventBridge → Lambda → S3/DynamoDB)
+- Alarm-driven log summary pipeline (EventBridge → Lambda → S3/DynamoDB) — infrastructure complete, log source not yet wired
 
 Planned:
+- CloudWatch Agent bootstrap for end-to-end log flow
 - HTTPS on ALB (ACM) + basic WAF protections
 - Secrets Manager for DB/LLM credentials
 - Auto scaling policies + dashboards
-- Multi-region DR (stretch)
 
 ---

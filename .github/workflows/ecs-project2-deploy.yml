@@ -25,6 +25,11 @@ jobs:
         uses: actions/checkout@v4
       
       - name: Configure AWS credentials
+        # TODO: Migrate to OIDC federation for keyless auth:
+        #   uses: aws-actions/configure-aws-credentials@v4
+        #   with:
+        #     role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/github-actions-deploy
+        #     aws-region: ${{ env.AWS_REGION }}
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}

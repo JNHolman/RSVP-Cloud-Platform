@@ -1,164 +1,115 @@
-# Project 3 – Multi-Account Security, Governance & AI Incident Response (Enterprise Layer)
+# Project 3 – Security Governance & AI Incident Response Lab
 
-Project 3 takes the RSVP platform from “working in one account” to **enterprise-grade governance** using multiple AWS accounts, centralized security services, cost controls, and an AI-assisted incident response workflow.
+Project 3 builds a single-account security and governance layer with working AWS security services, AI-powered incident analysis, and a portfolio dashboard. It models multi-account concepts (Organizations, SCPs, Identity Center) via documentation and naming conventions while deploying real security tooling in a single AWS account.
+
+---
+
+## Deployment
+
+**Status:** Portfolio (torn down)
+
+Evidence: see [`./evidence/`](./evidence/) for screenshots, deployment outputs, and sample AI analysis results.
 
 ---
 
 ## Overview
 
-This project uses **Terraform** to define:
+This project uses **Terraform** to deploy:
 
-- An AWS Organization with multiple accounts (e.g., Security, Dev, Prod)
-- Service Control Policies (SCPs) as guardrails
-- IAM Identity Center (SSO + permission sets)
-- Centralized enablement of GuardDuty, Security Hub, and IAM Access Analyzer
-- AWS Budgets and Cost Anomaly Detection
-- An AI Incident Assistant:  
-  - Ingests GuardDuty/CloudWatch events  
-  - Processes them through an LLM  
-  - Produces human-readable incident summaries (what happened, impact, next steps)
+**Working security infrastructure:**
+- GuardDuty threat detection (enabled)
+- Security Hub (findings aggregation)
+- AWS Config with 3 managed rules (S3 public access, root MFA, IAM key rotation)
+- CloudTrail logging to a central S3 bucket
+- SNS alerting for security findings
 
-This is the “enterprise layer” that many companies layer on top of their workloads.
+**AI-powered analysis (two Lambda functions):**
+- **Incident Lambda:** Ingests GuardDuty findings via EventBridge, sends context to an LLM, stores human-readable summaries (impact, risk level, next steps) in DynamoDB
+- **Cost Lambda:** Runs on a weekly EventBridge schedule, pulls Cost Explorer data, generates AI-written cost analysis, stores in DynamoDB. Falls back to sample data if Cost Explorer is not enabled in the account.
 
-**Live Service URL:**  
-[rsvp-cloud-governance-dashboard](http://rsvp-cloud-governance-dashboard.s3-website-us-east-1.amazonaws.com/)
+**Dashboard API + static UI:**
+- API Gateway + Lambda serving incident and cost data from DynamoDB
+- Static React dashboard hosted on S3 (currently renders sample data for portfolio display)
+
+**Modeled (not deployed):**
+- AWS Organizations structure (represented as a CloudFormation metadata stack for documentation purposes)
+- Multi-account separation, SCPs, IAM Identity Center, Budgets, and Cost Anomaly Detection are described as architecture goals but are not provisioned as Terraform resources
 
 ---
 
 ## Business Problem
 
-As RSVP Society grows (or any SaaS/events platform grows), they face questions like:
-
-- How do we **separate environments** cleanly (dev vs prod)?  
-- How do we **keep security consistent** across accounts?  
-- How do we **prevent dangerous actions** (e.g., disabling CloudTrail, making buckets public)?  
-- How do we **control costs** as more teams deploy things?  
-- How do we **respond quickly** when security findings come in?
-
-Single-account setups don’t scale for this. Project 3 answers:  
-“How would a Cloud Engineer introduce structure, guardrails, and intelligence?”
+As any platform grows, teams face questions about environment separation, consistent security posture, cost visibility, and fast incident response. Project 3 demonstrates the building blocks a Cloud Engineer would use to answer those questions — with working security services and AI analysis in a lab setting, and a documented path to full multi-account governance.
 
 ---
 
-## Architecture Decisions
+## Architecture
 
-Key design choices:
+![Project 3 Architecture](./screenshots/project3-security-governance-architecture.png)
 
-- **Organizations + multiple accounts** instead of everything in one account  
-- **Security services centralized** where appropriate  
-- **SCPs for guardrails** instead of relying only on IAM  
-- **IAM Identity Center** for proper SSO and permission sets  
-- **Budgets + anomaly detection** as safeguards for cost  
-- **AI assistant** to reduce time spent deciphering raw findings  
+### What's deployed (single-account lab)
 
-This aligns with modern AWS best practices for mid-sized teams.
+| Layer | Resources | Status |
+|-------|-----------|--------|
+| Security services | GuardDuty, Security Hub, AWS Config (3 rules) | Provisioned |
+| Logging | CloudTrail → S3 bucket (versioned, lifecycle) | Provisioned |
+| AI incident response | EventBridge → Lambda → OpenAI → DynamoDB + SNS | Provisioned |
+| AI cost analysis | EventBridge (weekly) → Lambda → Cost Explorer → DynamoDB | Provisioned (falls back to sample data if CE unavailable) |
+| Dashboard API | API Gateway v2 → Lambda → DynamoDB | Provisioned |
+| Dashboard UI | S3 static website (React) | Deployed with sample data |
+| Alerting | SNS topic + email subscription | Provisioned |
+
+### What's modeled (documented, not provisioned)
+
+| Concept | How it's represented |
+|---------|---------------------|
+| AWS Organizations | CloudFormation metadata-only stack (`org/org.tf`) |
+| Multiple accounts (Security/Dev/Prod) | Terraform provider aliases all pointing to the same account |
+| SCPs | Described in architecture docs; no `aws_organizations_policy` resources |
+| IAM Identity Center | Described as a design goal; no SSO resources |
+| Budgets / Cost Anomaly Detection | Described as a design goal; no budget resources |
+
+The distinction matters: the security services and AI analysis are real working infrastructure. The organizational structure is a design blueprint showing how these components would be arranged across accounts at scale.
 
 ---
-## Architecture Diagram
 
-![Project 3 – Multi-Account Security & Governance Architecture](./screenshots/project3-security-governance-architecture.png)
+## AI Incident Assistant
 
-This diagram illustrates how AWS Organizations, multiple accounts, centralized security services, and an AI-assisted incident response workflow work together to enforce guardrails, monitor activity, and produce actionable security insights across the platform.
+1. GuardDuty detects a finding (e.g., unusual API calls, exposed credentials)
+2. EventBridge routes the finding to the incident Lambda
+3. Lambda collects context and sends it to an LLM (OpenAI)
+4. The LLM returns an incident summary: what triggered it, likely impact, risk level, recommended next steps
+5. Summary is stored in DynamoDB and a notification is sent via SNS
 
-## Architecture Breakdown
+This turns streams of raw JSON findings into actionable, human-readable analysis.
 
-### AWS Organization & Accounts
+## AI Cost Analysis
 
-- Organization root  
-- Dedicated accounts such as:
-  - **Security** (central guardrails, logging, security tools)
-  - **Dev** (experimentation, non-critical workloads)
-  - **Prod** (production RSVP workloads)  
+1. EventBridge fires on a weekly schedule
+2. Lambda calls AWS Cost Explorer for spend data
+3. LLM analyzes spending patterns and generates a written summary
+4. Summary is stored in DynamoDB
 
-### Guardrails (SCPs)
+**Note:** If Cost Explorer is not enabled or returns an error, the Lambda falls back to realistic sample data and continues. The evidence screenshots may reflect sample-data output rather than live Cost Explorer queries.
 
-Examples of policy goals (tuned in Terraform code):
+---
 
-- Prevent disabling critical security services  
-- Limit creation of internet-exposed resources without specific conditions  
-- Restrict actions that would bypass governance (e.g., leaving the organization)  
+## Dashboard
 
-SCPs don’t replace IAM but set **hard boundaries** for all accounts.
-
-### Identity & Access
-
-- IAM Identity Center as the SSO entry point  
-- Permission sets for:
-  - Cloud Engineer / Platform Engineer role  
-  - Read-only / auditor roles  
-  - Security operations roles  
-
-This creates a consistent, auditable access model.
-
-### Centralized Security Services
-
-- **GuardDuty** enabled across accounts, sending findings to a central Security account  
-- **Security Hub** aggregates security findings  
-- **IAM Access Analyzer** for detecting risky resource policies  
-
-These services provide visibility into misconfigurations and potential threats.
-
-### Cost Governance
-
-- AWS **Budgets** configured for accounts or services  
-- **Cost Anomaly Detection** to flag unexpected spend increases  
-
-This supports the business goal: “grow RSVP without financial surprises.”
-
-### AI Incident Assistant
-
-1. GuardDuty or CloudWatch events are generated (e.g., unusual API calls, public S3 bucket).
-2. Events are routed (via EventBridge / CloudWatch → SNS) to a Lambda function.
-3. Lambda collects relevant context and sends it to an LLM.
-4. The LLM returns an **incident summary**:
-   - What triggered the alert  
-   - Likely impact  
-   - Risk level  
-   - Recommended next steps  
-5. Summary is stored in S3 / DynamoDB and can be forwarded to email/Slack.
-
-This turns streams of raw findings into **actionable, human-readable insights**.
+The dashboard is a React single-page app hosted on S3. It currently renders **hardcoded sample data** for portfolio demonstration purposes. The API Gateway + Lambda backend is wired to DynamoDB and would serve real data when the AI Lambdas have processed findings.
 
 ---
 
 ## Cost Strategy
 
-While adding more accounts and services can increase complexity, Project 3 keeps cost in mind:
-
-- Use **lightweight, always-on** security services (GuardDuty, Security Hub) instead of heavy custom tooling.
-- Targeted use of AI only on **events/findings**, not continuous data streams.
-- Budgets and anomalies provide early warning before costs get out of control.
-- Clear separation of accounts helps track which environment or team is spending what.
+- Security services (GuardDuty, Security Hub, Config) are lightweight and low-cost
+- AI analysis runs only on events/findings and a weekly schedule, not continuous streams
+- Lambda + API Gateway pricing is effectively free at portfolio-demo volume
+- DynamoDB on-demand keeps storage costs proportional to actual findings
 
 ---
 
-## Business Outcomes
-
-With this layer in place, the RSVP platform gains:
-
-- Stronger security posture across all environments
-- Cleaner separation of dev vs prod work
-- Guardrails that prevent “dangerous by accident” actions
-- Clearer visibility into costs and potential anomalies
-- Faster, more informed incident response via AI summaries
-
----
-
-## Future Enhancements
-
-Potential upgrades:
-
-- Centralized logging account with S3 + CloudTrail + CloudWatch Logs aggregation
-- Automated ticket creation (Jira, ServiceNow) from AI incident summaries
-- Mapping incident severity to on-call schedules/pages
-- More granular SCPs and permission sets as the org expands
-- AI assistant for cost optimization recommendations in addition to security
-
----
-
-## 📸 Governance & Security Screenshots
-
-Below are visual references included for this project.
+## 📸 Screenshots
 
 ### AWS Organizations
 ![Organization Accounts](./screenshots/organizations-accounts.png)
@@ -180,3 +131,25 @@ Below are visual references included for this project.
 ![Project 3 UI](./screenshots/project3-ui.png)
 ![Project 3 UI - Page 2](./screenshots/project3-ui-2.png)
 
+---
+
+## Future Enhancements
+
+- [ ] Deploy actual AWS Organizations with member accounts
+- [ ] Implement SCPs for cross-account guardrails
+- [ ] Add IAM Identity Center with permission sets
+- [ ] Configure AWS Budgets and Cost Anomaly Detection
+- [ ] Wire dashboard to live API (replace sample data)
+- [ ] Automated ticket creation from AI incident summaries
+- [ ] Centralized cross-account logging aggregation
+
+---
+
+## Technical Stack
+
+Terraform · GuardDuty · Security Hub · AWS Config · CloudTrail · EventBridge · Lambda · OpenAI API · DynamoDB · API Gateway v2 · S3 · SNS
+
+---
+
+**Author:** Josh Holman  
+**Region:** us-east-1

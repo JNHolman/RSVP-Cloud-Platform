@@ -1,4 +1,4 @@
-# Project 3 — Multi-Account Security, Governance & AI Incident Response
+# Project 3 — Security Governance & AI Incident Response Lab
 
 **Deployed:** February 3, 2026  
 **Region:** us-east-1  
@@ -7,77 +7,59 @@
 
 ---
 
-## 🚀 Overview
+## Overview
 
-Project 3 demonstrates enterprise-grade cloud governance with centralized security monitoring, compliance automation, and AI-powered incident analysis. This is the "governance layer" that sits above workload accounts to provide security, cost optimization, and compliance guardrails.
+Project 3 deploys a single-account security governance layer with working AWS security services, AI-powered incident and cost analysis, and a portfolio dashboard. Multi-account organization concepts are modeled via documentation and naming conventions but are not provisioned as separate AWS accounts.
 
-**Key Achievement:** Full end-to-end AI-powered security operations - from GuardDuty finding detection → AI analysis → actionable incident reports → dashboard visualization.
-
----
-
-## ✅ What's Working
-
-### Security Automation
-- ✅ **GuardDuty** detecting real security findings
-- ✅ **EventBridge** routing findings to Lambda
-- ✅ **AI Incident Lambda** analyzing findings with OpenAI GPT-4
-- ✅ **DynamoDB** storing structured incident data
-- ✅ **SNS** for alert escalation
-- ✅ **Dashboard** displaying real-time AI analysis
-
-### Cost Optimization
-- ✅ **AI Cost Lambda** analyzing AWS spending patterns
-- ✅ **OpenAI integration** generating actionable recommendations
-- ✅ **Cost Explorer** data integration
-- ✅ **Weekly automated reports**
-
-### Compliance & Monitoring
-- ✅ **Security Hub** centralized security posture
-- ✅ **AWS Config** compliance rules and monitoring
-- ✅ **CloudTrail** centralized logging
-- ✅ **Multi-account organization** structure
+**Key Achievement:** End-to-end AI-powered security analysis — from GuardDuty finding detection → EventBridge → Lambda → OpenAI analysis → DynamoDB storage → API Gateway. The dashboard displays sample data for portfolio demonstration.
 
 ---
 
-## 📊 Live Metrics
+## What's Deployed
 
-**Current Status (as of Feb 3, 2026):**
-- **3 GuardDuty findings** analyzed by AI
-- **3 Cost optimization reports** generated
-- **100% incident processing** success rate
-- **Real-time dashboard** operational
+### Security Services
+- ✅ **GuardDuty** detecting security findings
+- ✅ **Security Hub** centralized findings aggregation
+- ✅ **AWS Config** with 3 compliance rules (S3 public access, root MFA, IAM key rotation)
+- ✅ **CloudTrail** centralized logging to S3
+- ✅ **SNS** alert topic with email subscription
 
-**AI-Analyzed Incidents:**
-1. **SSH Brute Force** (Severity 8) - EC2 instance under attack
-2. **S3 Public Access** (Severity 5) - Bucket policy misconfiguration
-3. **IAM Privilege Escalation** (Severity 7) - Suspicious policy attachment
+### AI Analysis
+- ✅ **AI Incident Lambda** analyzing GuardDuty findings via OpenAI GPT-4o-mini → DynamoDB
+- ✅ **AI Cost Lambda** generating spending analysis on weekly schedule → DynamoDB
+- ✅ **EventBridge** routing findings and schedules to Lambdas
 
-**Cost Optimization Reports:**
-1. NAT Gateway consolidation ($95-120/month savings)
-2. RDS automated scheduling ($82/month savings)
-3. ECR lifecycle policies ($15-20/month savings)
+### API & Dashboard
+- ✅ **API Gateway** serving `/incidents` and `/cost-summary` from DynamoDB
+- ✅ **S3 static dashboard** (React) — renders sample data for portfolio display
+- ⚠️ Dashboard is not wired to the live API; it uses hardcoded sample data
+
+### Modeled (not provisioned)
+- AWS Organizations multi-account structure (metadata-only CloudFormation stack)
+- SCPs, IAM Identity Center, Budgets, Cost Anomaly Detection (documented as goals)
 
 ---
 
-## 🏗️ Architecture
+## Architecture
 
-### Multi-Account Structure
+### Single-Account Lab Structure
 ```
-Management Account (us-east-1)
-├── Security Account
-│   ├── GuardDuty (detector: 1485729971444a2a9388f537bd26ae8a)
+Single AWS Account (us-east-1)
+├── Security resources
+│   ├── GuardDuty (detector enabled)
 │   ├── Security Hub (enabled)
-│   ├── AWS Config (recorder active)
-│   ├── AI Incident Lambda (rsvp-cloud-governance-ai-incident-reporter)
-│   └── AI Cost Lambda (rsvp-cloud-governance-ai-cost-analyzer)
-├── Logging Account
-│   ├── Central CloudTrail
-│   ├── Config logs
-│   └── S3 archival
-└── Workload Account
-    ├── Projects 1 & 2 (ECS, EC2, RDS, ALB)
-    └── EventBridge automation
+│   ├── AWS Config (recorder + 3 rules)
+│   ├── AI Incident Lambda
+│   └── AI Cost Lambda
+├── Logging resources
+│   ├── CloudTrail → S3
+│   └── Config logs → S3
+└── Workload resources
+    ├── Dashboard API (API Gateway + Lambda)
+    └── Dashboard UI (S3 static site)
 ```
+
+Note: Terraform uses provider aliases (security, logging, workload) to model account separation, but all aliases point to the same account and region.
 
 ### AI Incident Response Flow
 ```
@@ -86,13 +68,11 @@ GuardDuty Finding
 EventBridge Rule
     ↓
 AI Incident Lambda
-    ├→ OpenAI GPT-4 (analysis)
+    ├→ OpenAI GPT-4o-mini (analysis)
     ├→ DynamoDB (storage)
     └→ SNS (alerting)
     ↓
-API Gateway
-    ↓
-Dashboard (real-time display)
+API Gateway → Dashboard
 ```
 
 ### Cost Analysis Flow
@@ -100,191 +80,134 @@ Dashboard (real-time display)
 EventBridge Schedule (weekly)
     ↓
 AI Cost Lambda
-    ├→ Cost Explorer (data retrieval)
-    ├→ OpenAI GPT-4 (analysis)
+    ├→ Cost Explorer (data) — falls back to sample data if CE unavailable
+    ├→ OpenAI GPT-4o-mini (analysis)
     └→ DynamoDB (storage)
     ↓
-API Gateway
-    ↓
-Dashboard (insights display)
+API Gateway → Dashboard
 ```
 
 ---
 
-## 🔧 Infrastructure Components
+## AI-Analyzed Incidents (evidence)
 
-### Security Services
-- **GuardDuty**: Threat detection across EC2, S3, IAM
-- **Security Hub**: Centralized security findings aggregation
-- **AWS Config**: Compliance rules (root MFA, IAM key rotation, S3 public access)
-- **CloudTrail**: API activity logging and auditing
+The following findings were processed by the AI Incident Lambda:
+1. **SSH Brute Force** (Severity 8) — EC2 instance under attack
+2. **S3 Public Access** (Severity 5) — Bucket policy misconfiguration
+3. **IAM Privilege Escalation** (Severity 7) — Suspicious policy attachment
 
-### AI/Automation
-- **Lambda Functions**:
-  - `ai-incident-reporter`: Analyzes GuardDuty findings with GPT-4
-  - `ai-cost-analyzer`: Generates cost optimization recommendations
-  - `dashboard-api`: Serves data to frontend
-- **EventBridge**: Automated triggers for incident analysis and cost reports
-- **DynamoDB Tables**:
-  - `ai-incidents`: Stores analyzed security findings
-  - `ai-cost-summaries`: Stores optimization reports
+**Cost Optimization Reports** generated by the AI Cost Lambda:
+1. NAT Gateway consolidation ($95-120/month savings)
+2. RDS automated scheduling ($82/month savings)
+3. ECR lifecycle policies ($15-20/month savings)
 
-### API & Frontend
-- **API Gateway**: RESTful endpoints (`/incidents`, `/cost-summary`)
-- **S3 Static Website**: React-based dashboard
-- **Real-time data**: No caching, always current
+Note: Cost reports may reflect sample data if Cost Explorer was not enabled during the analysis run.
 
 ---
 
-## 📸 Evidence Screenshots
+## Evidence Screenshots
 
 ### Dashboard & UI
-1. **dashboard-overview.png** - Main governance platform interface
-2. **dashboard-insights.png** - Security and cost insights
-3. **incident-detail-modal.png** - Detailed AI incident analysis
+1. **dashboard-overview.png** — Governance platform interface (sample data)
+2. **dashboard-insights.png** — Security and cost insights (sample data)
+3. **incident-detail-modal.png** — AI incident analysis detail view
 
 ### AWS Security Services
-4. **guardduty-summary.png** - GuardDuty findings overview
-5. **security-hub-summary.png** - Security Hub posture
-6. **aws-config-dashboard.png** - Config compliance rules
+4. **guardduty-summary.png** — GuardDuty findings overview
+5. **security-hub-summary.png** — Security Hub posture
+6. **aws-config-dashboard.png** — Config compliance rules
 
 ### Governance & IAM
-7. **organizations-accounts.png** - Multi-account structure
-8. **iam-roles-overview.png** - Governance IAM roles
-9. **iam-role-config-detail.png** - Config service role
-10. **iam-role-config-trust.png** - Trust relationships
-11. **cloudtrail-event-history.png** - API activity logs
+7. **organizations-accounts.png** — Account structure
+8. **iam-roles-overview.png** — Governance IAM roles
+9. **iam-role-config-detail.png** — Config service role
+10. **iam-role-config-trust.png** — Trust relationships
+11. **cloudtrail-event-history.png** — API activity logs
 
 ---
 
-## 🎯 What This Demonstrates
+## What This Demonstrates
 
-### Enterprise Cloud Governance
-- Multi-account organization design
-- Centralized security monitoring
-- Compliance automation
-- Cost governance
+### Security Operations
+- Working security service deployment (GuardDuty, Security Hub, Config)
+- Event-driven incident processing
+- AI-powered triage and analysis
+- Structured incident storage and retrieval
 
 ### AI/ML Integration
-- Real-world OpenAI API usage
-- Intelligent incident triage
-- Automated cost optimization recommendations
-- Natural language insights from raw security data
+- Practical OpenAI API usage for security analysis
+- Intelligent incident triage from raw findings
+- Cost optimization analysis
+- Natural language insights from JSON security data
 
-### Modern DevOps Practices
+### Governance Design
+- Modeled multi-account structure with provider aliases
+- Centralized logging pattern
+- Compliance rule configuration
+- Path to full Organizations deployment documented
+
+### Modern Architecture
 - Infrastructure as Code (Terraform)
 - Event-driven architecture (EventBridge)
 - Serverless computing (Lambda)
 - API-first design (API Gateway)
 
-### Production Readiness
-- Error handling and graceful degradation
-- Structured logging
-- Immutable deployments
-- Audit trails
-
 ---
 
-## 💰 Cost Breakdown
+## Cost Breakdown
 
 **Estimated Monthly Cost:** ~$25-35
 
-- **GuardDuty**: ~$10/month (threat detection)
-- **Security Hub**: ~$5/month (findings ingestion)
+- **GuardDuty**: ~$10/month
+- **Security Hub**: ~$5/month
 - **Config**: ~$3/month (rules + recorder)
 - **Lambda**: ~$2/month (AI analysis + API)
 - **DynamoDB**: ~$1/month (on-demand)
-- **CloudTrail**: ~$2/month (logging)
+- **CloudTrail**: ~$2/month
 - **S3**: <$1/month (dashboard + logs)
-- **API Gateway**: <$1/month (low traffic)
-
-**OpenAI API:** ~$0.50/month (GPT-4o-mini for analysis)
-
----
-
-## 🔑 Key Technical Decisions
-
-### Why ECS over Kubernetes for Projects 1 & 2?
-Simpler operations, native AWS integration, sufficient for scale demonstrated.
-
-### Why GPT-4o-mini instead of GPT-4?
-Cost-effective for structured analysis tasks, sufficient reasoning capability for incident triage and cost optimization.
-
-### Why DynamoDB over RDS?
-Serverless, pay-per-use, perfect for intermittent workload (incident storage), no maintenance overhead.
-
-### Why EventBridge over direct Lambda triggers?
-Decoupled architecture, easier to add new consumers, built-in retry logic, better observability.
-
-### Why HTTP instead of HTTPS for dashboard?
-Cost optimization for demo - HTTPS requires domain ($12/year) + ACM certificate management. In production, would add HTTPS listener at ALB.
+- **API Gateway**: <$1/month
+- **OpenAI API**: ~$0.50/month (GPT-4o-mini)
 
 ---
 
-## 🚀 Future Enhancements
-
-**Security:**
-- [ ] Cross-region GuardDuty aggregation
-- [ ] Automated remediation workflows (Lambda → SSM)
-- [ ] Service Control Policies (SCPs) for preventive controls
-- [ ] IAM Access Analyzer integration
-
-**Cost:**
-- [ ] Reserved Instance recommendations
-- [ ] Savings Plans automation
-- [ ] Budget alerts with predictive analytics
-- [ ] Rightsizing recommendations
-
-**AI/Automation:**
-- [ ] Slack/Teams integration for incident notifications
-- [ ] AI-powered remediation suggestions
-- [ ] Trend analysis across incidents
-- [ ] Custom ML models for anomaly detection
-
-**Compliance:**
-- [ ] CIS AWS Foundations Benchmark automation
-- [ ] PCI-DSS compliance pack
-- [ ] Automated compliance reporting
-- [ ] Drift detection and alerts
-
----
-
-## 📚 Interview Talking Points
+## Interview Talking Points
 
 **Question: "How does the AI incident analysis work?"**
 
-*"When GuardDuty detects a security finding, EventBridge routes it to a Lambda function that sends the raw finding data to OpenAI's GPT-4o-mini API. The AI analyzes the finding and returns structured JSON with: a human-readable summary, root cause analysis, impacted resources, recommended remediation steps, escalation priority, and business impact assessment. This gets stored in DynamoDB and displayed on the dashboard in real-time. The whole flow takes about 2-3 seconds."*
+*"When GuardDuty detects a security finding, EventBridge routes it to a Lambda function that sends the raw finding data to OpenAI's GPT-4o-mini API. The AI analyzes the finding and returns structured JSON with: a human-readable summary, root cause analysis, impacted resources, recommended remediation steps, escalation priority, and business impact assessment. This gets stored in DynamoDB and is accessible via API Gateway. The whole flow takes about 2-3 seconds."*
 
 **Question: "Why use AI for this instead of predefined playbooks?"**
 
-*"AI provides context-aware analysis that adapts to new threat types without manual playbook updates. It can synthesize information from multiple fields in the finding and generate specific, actionable recommendations rather than generic templates. For example, it might suggest specific security group changes based on the exact IP addresses in the finding. It also explains the business impact in natural language, which helps with executive communication."*
+*"AI provides context-aware analysis that adapts to new threat types without manual playbook updates. It can synthesize information from multiple fields in the finding and generate specific, actionable recommendations rather than generic templates."*
 
 **Question: "How would you handle API key security in production?"**
 
-*"In production, I'd use AWS Secrets Manager for the OpenAI API key with automatic rotation. The Lambda would retrieve the key at runtime using IAM role credentials. I'd also implement request throttling to prevent unexpected API costs, add CloudWatch alarms for abnormal usage patterns, and use VPC endpoints to ensure the Lambda communicates securely with AWS services."*
+*"In production, I'd use AWS Secrets Manager for the OpenAI API key with automatic rotation. The Lambda would retrieve the key at runtime using IAM role credentials. I'd also implement request throttling and add CloudWatch alarms for abnormal usage."*
+
+**Question: "What would it take to make this truly multi-account?"**
+
+*"The Terraform already uses provider aliases to model account separation, so the migration path is: create member accounts via AWS Organizations, update provider aliases to assume roles into each account, deploy SCPs for guardrails, and add IAM Identity Center for SSO. The security services and AI analysis code would work as-is — it's the organizational structure that needs to be stood up."*
 
 ---
 
-## 📁 Project Structure
+## Project Structure
 ```
 project-3-cloud-governance/
 ├── evidence/
 │   ├── README.md (this file)
 │   ├── deployment/
-│   │   ├── outputs.json
-│   │   └── deployed_at.txt
-│   └── screenshots/ (15 images)
-├── org/ (AWS Organizations modeling)
+│   │   └── outputs.json
+│   └── screenshots/
+├── org/ (Organization modeling — metadata only)
 ├── logging/ (CloudTrail, Config logs)
-├── security/ (GuardDuty, Lambdas, DynamoDB)
-├── workload/ (EventBridge, API Gateway, Dashboard)
-├── dashboard/ (Static website HTML)
+├── security/ (GuardDuty, Security Hub, Config, AI Lambdas, DynamoDB)
+├── workload/ (API Gateway, Dashboard API Lambda)
+├── dashboard/ (Static website HTML — sample data)
 └── main.tf (Root module)
 ```
 
 ---
 
 **Author:** Josh Holman  
-**Portfolio:** https://github.com/djinfamousone/RSVP-Cloud-Platform  
-**Date:** February 3, 2026  
-**Status:** ✅ Production-ready demo
+**Portfolio:** https://github.com/JNHolman/RSVP-Cloud-Platform  
+**Date:** February 3, 2026

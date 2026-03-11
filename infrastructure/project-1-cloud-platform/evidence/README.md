@@ -1,7 +1,7 @@
 # Project 1 Deployment Evidence
 
 **Deployment Date:** February 2, 2026  
-**Status:** ✅ Successfully Deployed and Verified
+**Status:** Portfolio (torn down — evidence captured at time of deployment)
 
 ---
 
@@ -62,12 +62,12 @@ http://rsvp-dev-alb-1273619337.us-east-1.elb.amazonaws.com/health
 ### ✅ VPC & Networking
 - VPC created with DNS support enabled
 - 2 public subnets with internet gateway
-- 2 private subnets (for compute and database)
+- 2 private subnets (for RDS; EC2 uses these when NAT enabled)
 - Route tables properly configured
 
 ### ✅ Compute Layer
 - Application Load Balancer accepting HTTP traffic
-- 2 EC2 instances running in private subnets
+- 2 EC2 instances running (public subnets in demo mode; private when NAT enabled)
 - Both targets healthy and passing health checks
 - Auto Scaling Group maintaining desired capacity
 
@@ -81,7 +81,7 @@ http://rsvp-dev-alb-1273619337.us-east-1.elb.amazonaws.com/health
 - EventBridge rule routing CloudWatch alarms to Lambda
 - S3 bucket storing AI-generated summaries
 - DynamoDB table tracking summary metadata
-- Real alarms fired and processed
+- *Note: Pipeline infrastructure is complete. EC2 bootstrap does not yet install CloudWatch Agent or emit application logs to the target log group, so end-to-end flow requires additional wiring.*
 
 ### ✅ Security
 - Security groups follow least-privilege principle
@@ -99,9 +99,9 @@ http://rsvp-dev-alb-1273619337.us-east-1.elb.amazonaws.com/health
 - Provides high availability and fault tolerance
 
 **Network Segmentation:**
-- Public subnets: Internet-facing resources (ALB)
-- Private subnets: Application logic (EC2, RDS)
-- No direct internet access to compute or database
+- Public subnets: ALB (+ EC2 in demo mode)
+- Private subnets: RDS (+ EC2 when NAT Gateway enabled)
+- Demo mode places EC2 in public subnets for cost savings; production mode moves them to private subnets
 
 **AI-Powered Monitoring:**
 - CloudWatch alarms trigger EventBridge rules
@@ -117,11 +117,13 @@ http://rsvp-dev-alb-1273619337.us-east-1.elb.amazonaws.com/health
 | Service | Monthly Cost |
 |---------|--------------|
 | VPC/Networking | Free |
-| NAT Gateway | ~$32 |
+| NAT Gateway (if enabled) | ~$32 |
 | ALB | ~$16 |
 | EC2 (t3.micro × 2) | ~$14 |
 | RDS (db.t3.micro) | ~$15 |
 | Lambda/S3/DynamoDB | ~$5 |
+
+**Note:** Demo mode (default) skips NAT Gateway, reducing cost to ~$50-55/month.
 
 **Note:** Infrastructure can be torn down with `terraform destroy` when not in use.
 
