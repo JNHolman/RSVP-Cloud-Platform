@@ -1,11 +1,7 @@
 name: ECS Project 2 - Build & Deploy
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - "infrastructure/project-2-ecs-cicd/**"
+  workflow_dispatch:  # Manual trigger only — infrastructure is torn down
 
 jobs:
   build-and-deploy:
