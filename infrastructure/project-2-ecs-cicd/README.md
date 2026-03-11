@@ -87,11 +87,11 @@ RSVP Society needs to ship updates quickly without manual SSH deploys and "works
 - ✅ Deployment verification (waits for service stability)
 - ✅ Full audit trail (Git SHA = exact code version)
 - ✅ Rollback capability (deploy any previous SHA)
-
-**Auth note:** Workflow currently uses static IAM keys via GitHub Secrets. Migrating to OIDC-based federation (`aws-actions/configure-aws-credentials` with `role-to-assume`) is a planned improvement.
+- ✅ OIDC-based keyless AWS auth (no static IAM keys)
+- ✅ Git SHA injected into `APP_VERSION` env var at deploy time
 
 ### Version traceability
-Docker images are SHA-pinned and each deploy creates a new task definition revision, so the deployed image is fully traceable to a Git commit. The in-app `APP_VERSION` environment variable is currently hardcoded to `v1.0.0` and does not reflect the deployed SHA — this is a known gap for the UI display.
+Docker images are SHA-pinned and each deploy creates a new task definition revision. The CI/CD workflow injects the short Git SHA into the `APP_VERSION` environment variable at deploy time, so the version displayed in the app UI matches the exact commit that was deployed.
 
 ---
 
@@ -148,7 +148,8 @@ All deployments tracked via GitHub Actions with full logs.
 **DevOps Best Practices:**
 - Infrastructure as Code (Terraform)
 - CI/CD automation (GitHub Actions)
-- SHA-based versioning (full audit trail)
+- SHA-based versioning (full audit trail, reflected in app UI)
+- OIDC-based keyless AWS authentication
 - Rolling deployments with health gating
 - Health check monitoring (automatic recovery)
 
@@ -200,12 +201,10 @@ All deployments tracked via GitHub Actions with full logs.
 
 ## Future Enhancements (Planned)
 
-- [ ] OIDC-based AWS auth in GitHub Actions (replace static keys)
 - [ ] HTTPS with ACM certificate and custom domain
 - [ ] Private subnet placement with NAT Gateway or VPC endpoints
 - [ ] Container image scanning (Trivy/Grype) in CI/CD
 - [ ] Multi-stage Docker build for smaller image
-- [ ] Surface deployed Git SHA in app UI
 - [ ] Unit tests in GitHub Actions workflow
 - [ ] Staging environment with approval gates
 - [ ] Auto-scaling policies based on CPU/memory

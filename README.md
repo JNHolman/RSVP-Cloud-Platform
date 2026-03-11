@@ -27,21 +27,18 @@ The goal here is not to claim "enterprise scale." The goal is to show **real AWS
 - **Multi-AZ networking patterns** (public/private subnets, routing, demo/production toggle)
 - **EC2 + ALB + Auto Scaling + RDS** (Project 1)
 - **ECS Fargate delivery** with **ECR** and SHA-pinned immutable images (Project 2)
-- **GitHub Actions pipeline** that builds, pushes to ECR, registers a new task definition revision with the SHA-tagged image, and deploys via ECS rolling update (Project 2)
-- **Event-driven AI log summarization pipeline** (Project 1):
-  **CloudWatch Alarm State Change (EventBridge) → Lambda → OpenAI → S3 + DynamoDB → SNS**
-  *(infrastructure fully provisioned; EC2 log source not yet wired)*
+- **GitHub Actions pipeline** with OIDC auth that builds, pushes to ECR, registers a new task definition revision with the SHA-tagged image (injected into `APP_VERSION`), and deploys via ECS rolling update (Project 2)
+- **End-to-end AI log summarization pipeline** (Project 1):
+  **CloudWatch Agent → log group → Alarm State Change (EventBridge) → Lambda → OpenAI → S3 + DynamoDB → SNS**
 - **Working security services** (Project 3): GuardDuty, Security Hub, AWS Config (3 rules), CloudTrail
 - **AI incident response workflow** (Project 3): GuardDuty finding → EventBridge → Lambda → OpenAI → DynamoDB + SNS
 - **AI cost analysis** (Project 3): Weekly schedule → Lambda → Cost Explorer → OpenAI → DynamoDB
 - **Dashboard API** (Project 3): API Gateway + Lambda serving incident/cost data from DynamoDB
-- **Portfolio dashboard** (Project 3): S3 static site with sample data
+- **Portfolio dashboard** (Project 3): S3 static site with sample data (clearly labeled in UI)
 
 ### Planned / partial (not counted as delivered yet)
 - True **multi-account** structure (Security/Dev/Prod) with Organizations, SCPs, IAM Identity Center
-- CloudWatch Agent bootstrap for end-to-end log flow (Project 1)
 - Live data in dashboard (Project 3 — currently sample data)
-- OIDC-based AWS auth in CI/CD (Project 2 — currently static keys)
 - Tests/scans in CI/CD (Project 2)
 
 ---
@@ -71,21 +68,21 @@ Core components:
 - RDS MySQL (always private subnets)
 - CloudWatch alarms + SNS notifications
 - **AI log summarization pipeline**:
+  - EC2 instances ship Apache logs to CloudWatch via CloudWatch Agent
   - Trigger: CloudWatch Alarm State Change → EventBridge
-  - Lambda pulls recent log lines from a CloudWatch log group
+  - Lambda pulls recent log lines from the app log group
   - Lambda calls OpenAI and writes a JSON summary to S3, metadata to DynamoDB, and publishes a short alert to SNS
-  - *Note: Pipeline infrastructure is fully provisioned. EC2 bootstrap does not yet install CloudWatch Agent or emit application logs.*
 
 ### Layer 2 — Application Delivery (Project 2)
 Core components:
 - Dockerized web app (single-stage, Python + Flask + gunicorn)
 - ECR repository with SHA-tagged immutable images
 - ECS Fargate service behind an ALB (public subnets in demo mode)
-- GitHub Actions workflow:
+- GitHub Actions workflow (OIDC auth, `workflow_dispatch` trigger):
   - Build image with Git SHA tag
   - Push to ECR
-  - Download current task definition, update image, register new revision
-  - Update ECS service and wait for stability (rolling update)
+  - Download current task definition, update image + inject SHA into `APP_VERSION`
+  - Register new revision, update ECS service, wait for stability (rolling update)
 
 ### Layer 3 — Governance / Ops (Project 3)
 What's deployed (single-account lab):
@@ -132,13 +129,45 @@ Typical cost drivers in these projects:
 
 ---
 
+## Validation
+
+Checks run against this repo:
+
+```bash
+# Terraform formatting and syntax
+terraform fmt -check -recursive infrastructure/
+terraform validate                  # per-project (requires init)
+
+# Python syntax
+python3 -m py_compile infrastructure/project-1-cloud-platform/ai_log_summarizer.py
+python3 -m py_compile infrastructure/project-3-cloud-governance/security/ai_cost_lambda.py
+python3 -m py_compile infrastructure/project-3-cloud-governance/security/ai_incident_lambda.py
+python3 -m py_compile infrastructure/project-3-cloud-governance/workload/dashboard_api.py
+python3 -m py_compile infrastructure/project-2-ecs-cicd/app/app.py
+
+# Container build
+cd infrastructure/project-2-ecs-cicd/app && docker build -t rsvp-test .
+```
+
+---
+
+## Known limitations
+
+Documented here so reviewers see controlled scope, not gaps:
+
+- **Project 1:** Demo mode (default) places EC2 in public subnets. Set `enable_nat_gateway = true` for private-subnet production architecture.
+- **Project 2:** ECS tasks run in public subnets with public IPs in demo mode. Production would use private subnets with NAT or VPC endpoints.
+- **Project 3:** Multi-account organization, SCPs, IAM Identity Center, Budgets, and Cost Anomaly Detection are modeled and documented but not provisioned as Terraform resources. The dashboard renders sample data; live API integration is planned.
+- **Project 3:** AI cost Lambda falls back to sample data if Cost Explorer is not enabled in the AWS account.
+
+---
+
 ## Future enhancements (kept separate on purpose)
 
-- CloudWatch Agent bootstrap for end-to-end Project 1 log flow
-- OIDC-based AWS auth in GitHub Actions
-- Container image scanning in CI/CD
-- Multi-account Organizations buildout with SCPs and Identity Center
-- Wire dashboard to live API data
+- Multi-stage Docker build for smaller image (Project 2)
+- Container image scanning in CI/CD (Project 2)
+- Multi-account Organizations buildout with SCPs and Identity Center (Project 3)
+- Wire dashboard to live API data (Project 3)
 - Ticket/Slack integration for incident summaries
 - Policy-as-code and IaC testing
 

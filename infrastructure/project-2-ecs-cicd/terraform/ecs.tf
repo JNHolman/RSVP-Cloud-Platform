@@ -47,7 +47,7 @@ resource "aws_ecs_task_definition" "app" {
       environment = [
         {
           name  = "APP_VERSION"
-          value = "v1.0.0"
+          value = "initial"  # Overwritten at deploy time with Git SHA by CI/CD workflow
         },
         {
           name  = "SERVICE_NAME"

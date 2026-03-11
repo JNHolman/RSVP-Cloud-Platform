@@ -60,8 +60,7 @@ On CloudWatch alarm state changes, EventBridge invokes a Lambda that:
 - publishes a brief notification to SNS
 
 Notes:
-- The Lambda pipeline, IAM roles, EventBridge rule, log group, S3 bucket, and DynamoDB table are fully provisioned.
-- The EC2 bootstrap currently serves a static demo page and does not install the CloudWatch Agent or emit application logs. Full end-to-end flow requires adding agent configuration and log emission to the user data script.
+- EC2 instances ship Apache access and error logs to CloudWatch via the CloudWatch Agent (installed and configured in bootstrap).
 - No auto-remediation; this is triage support only.
 - If the model call fails, the Lambda still writes an error record to S3/DynamoDB.
 
@@ -106,10 +105,9 @@ Implemented:
 - Multi-AZ VPC (public/private) with ALB → ASG and private RDS
 - Demo/production toggle for NAT + subnet placement
 - CloudWatch alarms → SNS notifications
-- Alarm-driven log summary pipeline (EventBridge → Lambda → S3/DynamoDB) — infrastructure complete, log source not yet wired
+- End-to-end alarm-driven log summaries (CloudWatch Agent → log group → EventBridge → Lambda → S3/DynamoDB)
 
 Planned:
-- CloudWatch Agent bootstrap for end-to-end log flow
 - HTTPS on ALB (ACM) + basic WAF protections
 - Secrets Manager for DB/LLM credentials
 - Auto scaling policies + dashboards

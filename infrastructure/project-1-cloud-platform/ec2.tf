@@ -28,12 +28,45 @@ locals {
 set -xe
 
 yum update -y
-yum install -y httpd
+yum install -y httpd amazon-cloudwatch-agent
 
 systemctl enable httpd
 systemctl start httpd
 
 HOSTNAME=$(hostname -f)
+
+# ── CloudWatch Agent config ──────────────────────────────────
+# Ships Apache access + error logs to the app log group so the
+# AI summarizer Lambda has real log data to pull on alarm events.
+cat >/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json <<CWA
+{
+  "logs": {
+    "logs_collected": {
+      "files": {
+        "collect_list": [
+          {
+            "file_path": "/var/log/httpd/access_log",
+            "log_group_name": "/${local.name_prefix}/app",
+            "log_stream_name": "{instance_id}/access",
+            "retention_in_days": 7
+          },
+          {
+            "file_path": "/var/log/httpd/error_log",
+            "log_group_name": "/${local.name_prefix}/app",
+            "log_stream_name": "{instance_id}/error",
+            "retention_in_days": 7
+          }
+        ]
+      }
+    }
+  }
+}
+CWA
+/opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl \
+  -a fetch-config \
+  -m ec2 \
+  -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json \
+  -s
 
 cat >/var/www/html/index.html <<HTML
 <!DOCTYPE html>

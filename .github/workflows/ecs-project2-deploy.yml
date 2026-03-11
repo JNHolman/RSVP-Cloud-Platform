@@ -3,6 +3,10 @@ name: ECS Project 2 - Build & Deploy
 on:
   workflow_dispatch:  # Manual trigger only — infrastructure is torn down
 
+permissions:
+  id-token: write   # Required for OIDC token request
+  contents: read     # Required for actions/checkout
+
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
@@ -20,16 +24,10 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
       
-      - name: Configure AWS credentials
-        # TODO: Migrate to OIDC federation for keyless auth:
-        #   uses: aws-actions/configure-aws-credentials@v4
-        #   with:
-        #     role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/github-actions-deploy
-        #     aws-region: ${{ env.AWS_REGION }}
+      - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/github-actions-deploy
           aws-region: ${{ env.AWS_REGION }}
       
       - name: Login to Amazon ECR
@@ -64,14 +62,19 @@ jobs:
             --region $AWS_REGION \
             > task-definition.json
       
-      - name: Update task definition with new image
+      - name: Update task definition with new image and version
         run: |
           cat task-definition.json | jq \
             --arg IMAGE "$IMAGE_URI" \
             --arg CONTAINER "$CONTAINER_NAME" \
+            --arg SHA "${GITHUB_SHA::7}" \
             '.containerDefinitions |= map(
               if .name == $CONTAINER then
-                .image = $IMAGE
+                .image = $IMAGE |
+                .environment = [
+                  (.environment // [] | .[] | select(.name != "APP_VERSION")),
+                  { "name": "APP_VERSION", "value": $SHA }
+                ]
               else
                 .
               end
@@ -90,6 +93,8 @@ jobs:
           
           echo "New task definition with image:"
           cat new-task-definition.json | jq '.containerDefinitions[0].image'
+          echo "APP_VERSION set to:"
+          cat new-task-definition.json | jq '.containerDefinitions[0].environment[] | select(.name == "APP_VERSION")'
       
       - name: Register new task definition
         run: |

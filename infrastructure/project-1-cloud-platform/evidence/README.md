@@ -79,9 +79,10 @@ http://rsvp-dev-alb-1273619337.us-east-1.elb.amazonaws.com/health
 ### ✅ AI Log Summarization
 - Lambda function successfully deployed
 - EventBridge rule routing CloudWatch alarms to Lambda
+- CloudWatch Agent installed on EC2 instances, shipping Apache logs to app log group
 - S3 bucket storing AI-generated summaries
 - DynamoDB table tracking summary metadata
-- *Note: Pipeline infrastructure is complete. EC2 bootstrap does not yet install CloudWatch Agent or emit application logs to the target log group, so end-to-end flow requires additional wiring.*
+- End-to-end flow: Apache logs → CloudWatch → alarm → EventBridge → Lambda → S3/DynamoDB
 
 ### ✅ Security
 - Security groups follow least-privilege principle
