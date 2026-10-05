@@ -548,7 +548,7 @@ def test_ai_records_write_dynamodb_ttl(monkeypatch):
     }
     p1.s3_client = RecordingClient(); p1.ddb = RecordingClient(); p1.sns = RecordingClient(); p1.cloudwatch = RecordingClient()
     p1.lambda_handler({"id": "event-1", "detail": {"alarmName": "a", "state": {"value": "OK"}}}, None)
-    p1_item = [c for c in p1.ddb.calls if c[0] == "put_item"][0][2]["Item"]
+    p1_item = next(c for c in p1.ddb.calls if c[0] == "put_item")[2]["Item"]
     assert int(p1_item["expires_at"]["N"]) > 0
 
     security = _security_module()
@@ -558,7 +558,7 @@ def test_ai_records_write_dynamodb_ttl(monkeypatch):
     })
     security.ddb = RecordingClient(); security.sns = RecordingClient(); security.cw = RecordingClient()
     security.handler({"detail": {"findings": [{"Id": "f-1", "Severity": {"Label": "LOW"}, "Resources": []}]}}, None)
-    sec_item = [c for c in security.ddb.calls if c[0] == "put_item"][0][2]["Item"]
+    sec_item = next(c for c in security.ddb.calls if c[0] == "put_item")[2]["Item"]
     assert int(sec_item["expires_at"]["N"]) > 0
 
     finops = _finops_module()
@@ -566,5 +566,5 @@ def test_ai_records_write_dynamodb_ttl(monkeypatch):
     finops._analyze = lambda data: {"summary": "ok", "anomalies": [], "recommendations": [], "confidence": "low"}
     finops.ddb = RecordingClient(); finops.sns = RecordingClient()
     finops.handler({}, None)
-    fin_item = [c for c in finops.ddb.calls if c[0] == "put_item"][0][2]["Item"]
+    fin_item = next(c for c in finops.ddb.calls if c[0] == "put_item")[2]["Item"]
     assert int(fin_item["expires_at"]["N"]) > 0
