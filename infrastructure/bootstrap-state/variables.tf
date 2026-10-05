@@ -12,5 +12,5 @@ variable "state_bucket_name" {
 variable "lock_table_name" {
   description = "DynamoDB table used for Terraform state locking"
   type        = string
-  default     = "rsvp-terraform-locks"
+  default     = "rsvp-cloud-platform-terraform-locks"
 }
