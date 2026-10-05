@@ -102,7 +102,7 @@ def _validate(output):
     if output["confidence"] not in {"low", "medium", "high"}:
         raise ValueError("invalid confidence")
     if not isinstance(output["recommended_checks"], list) or not isinstance(output["evidence_used"], list):
-        raise ValueError("invalid arrays")
+        raise TypeError("invalid arrays")
     return output
 
 
@@ -204,7 +204,7 @@ def handler(event, context):
         try:
             analysis = _enforce_severity_floor(_analyze(evidence), evidence)
             status = "ai_generated"
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             analysis = _fallback(evidence, exc)
             status = "fallback"
 
@@ -239,7 +239,7 @@ def handler(event, context):
             Namespace="RSVP/AIOperations",
             MetricData=[{"MetricName": "SecurityFindingsAnalyzed", "Value": len(results), "Unit": "Count"}],
         )
-    except Exception:
+    except Exception:  # noqa: BLE001
         # Metrics are observability-only and must not turn a completed triage into a retry.
-        pass
+        pass  # noqa: S110
     return {"statusCode": 200, "body": json.dumps(results)}
