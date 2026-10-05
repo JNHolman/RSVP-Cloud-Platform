@@ -2,7 +2,7 @@ import json
 import os
 import re
 import urllib.request
-from datetime import date, datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone
 
 import boto3
 
@@ -52,7 +52,7 @@ def _text(payload):
 
 
 def _cost():
-    end = date.today()
+    end = datetime.now(timezone.utc).date()
     start = end - timedelta(days=7)
     request = {
         "TimePeriod": {"Start": start.isoformat(), "End": end.isoformat()},
@@ -94,13 +94,13 @@ def _cost():
 
 def _validate_analysis(out):
     if not isinstance(out, dict):
-        raise ValueError("invalid schema")
+        raise TypeError("invalid schema")
     if not isinstance(out.get("summary"), str):
-        raise ValueError("invalid summary")
+        raise TypeError("invalid summary")
     if not isinstance(out.get("anomalies"), list):
-        raise ValueError("invalid anomalies")
+        raise TypeError("invalid anomalies")
     if not isinstance(out.get("recommendations"), list):
-        raise ValueError("invalid recommendations")
+        raise TypeError("invalid recommendations")
     if out.get("confidence") not in {"low", "medium", "high"}:
         raise ValueError("invalid confidence")
     return out
@@ -154,7 +154,7 @@ def handler(event, context):
     data = _cost()
     try:
         analysis = _analyze(data)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         analysis = _fallback(data, exc)
 
     report_id = f"cost-{data['end_date']}"
