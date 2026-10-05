@@ -19,6 +19,8 @@ Terraform execution is intentionally **not automatic**. If Terraform validation 
 
 Use an **account-local state backend** for every AWS account that will run one of these Terraform roots. This avoids silently granting member accounts access to a management-account state bucket.
 
+Keep these backend resources dedicated to RSVP Cloud Platform. Do not reuse the RSVP Society state bucket, lock table, KMS resources, or other business infrastructure.
+
 At minimum, bootstrap `infrastructure/bootstrap-state` with local state in the management, Security, Log Archive, and workload/Prod accounts used by the deployment. Use a globally unique `state_bucket_name` in each account. Record these outputs for each account:
 
 - `state_bucket_name`
