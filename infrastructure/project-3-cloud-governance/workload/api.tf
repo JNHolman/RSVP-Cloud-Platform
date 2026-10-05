@@ -110,6 +110,10 @@ resource "aws_api_gateway_rest_api" "dashboard" {
   }
 
   minimum_compression_size = 1024
+
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 resource "aws_api_gateway_authorizer" "cognito" {
