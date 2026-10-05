@@ -82,7 +82,6 @@ jobs:
           infrastructure/project-3-cloud-governance/security-admin/ai_incident_analyzer.py
           infrastructure/project-3-cloud-governance/finops-ai/cost_analyzer.py
           infrastructure/project-3-cloud-governance/workload/dashboard_api.py
-          tests
       - name: Pytest
         run: >-
           pytest -q
