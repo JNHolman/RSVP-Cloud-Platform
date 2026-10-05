@@ -76,7 +76,7 @@ Traffic enters through a protected HTTPS endpoint. Application workloads remain 
 - service autoscaling and deployment circuit breaker
 - GitHub Actions authentication through AWS OIDC — no long-lived deployment keys
 - immutable Git SHA image releases
-- Terraform validation, TFLint, Checkov, Ruff, pytest, dependency auditing, Docker build checks, and Trivy scanning
+- automated Ruff, pytest, dependency-audit, Checkov, Docker-build, and Trivy gates; Terraform/TFLint validation remains manual-only
 - post-deployment HTTPS health verification
 - automatic rollback to the previous ECS task definition when validation fails
 
@@ -163,37 +163,11 @@ For a temporary demonstration environment, deploy only the controls needed for t
 
 At greater organizational scale, I would extend this design with account vending, reusable platform modules, standardized deployment templates, stronger workload ownership boundaries, regional disaster recovery, service-level objectives, and organization-wide policy automation rather than simply adding more AWS services.
 
-## First deployment sequence
+## Validation status
 
-Project 2 separates account-level delivery bootstrap from the ECS runtime so Terraform never depends on an image that does not exist yet.
+The repository has passed the local code and contract audit. Normal GitHub CI runs application tests, dependency/security checks, container build validation, and vulnerability scanning. Terraform execution is intentionally manual-only.
 
-1. Apply `infrastructure/project-2-ecs-cicd/bootstrap-delivery` once in the AWS account. This creates the single GitHub OIDC provider plus per-environment ECR repositories and deployment roles.
-2. Configure each GitHub Environment with the matching `AWS_DEPLOY_ROLE_ARN`. **GitHub Environment protection rules are an external deployment prerequisite** for production: restrict the `prod` environment to approved release branches/tags and require deployment approval where the repository plan supports it.
-3. Run **ECS Project 2 - Bootstrap First Image** for the target environment. The workflow tests, scans, and pushes an immutable Git-SHA image and prints its exact URI.
-4. Set that URI as `container_image` in the target runtime environment configuration and apply `infrastructure/project-2-ecs-cicd/terraform`.
-5. Future releases use **ECS Project 2 - Controlled Deploy** for normal rolling deployment and rollback.
-
-This sequence also prevents duplicate GitHub OIDC providers when dev, stage, and prod share one AWS account.
-
-## Validation and evidence status
-
-The code has completed local structural checks, Python compilation, workflow YAML parsing, shell validation, and packaging integrity checks.
-
-The following evidence must still be captured from a real deployment before the project is described as fully validated in AWS:
-
-- Terraform `fmt`, `init`, `validate`, TFLint, and Checkov results
-- successful GitHub Actions CI run
-- successful Docker build, dependency audit, and Trivy scan
-- private workload placement and HTTPS/WAF verification
-- healthy ECS service across Availability Zones
-- failed deployment / automatic rollback demonstration
-- RDS Multi-AZ, backup, and recovery verification
-- CloudWatch alarm and dashboard evidence
-- GuardDuty / Security Hub evidence
-- AI incident-analysis output based on real platform telemetry
-- measured recovery exercise results
-
-See [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) for the exact deployment, verification, recovery, and evidence order.
+Real AWS deployment evidence is still required before describing the platform as fully validated in production-like conditions. The deployment, recovery, and evidence procedure lives in [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md), not in this front-page overview.
 
 ## Known limitations
 
