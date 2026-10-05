@@ -1,13 +1,11 @@
-# Pre-Deployment Runbook
+# Deployment and Validation Guide
 
 This is the deterministic order for validating and deploying the RSVP Cloud Platform. Do not collect portfolio evidence until the corresponding verification step passes.
 
 ## 1. Run repository quality gates
 
-Push the candidate to a review branch and allow `CI - Validate, Test, and Scan` to run. Required jobs:
+Push the candidate to a review branch and allow `CI - Test and Scan` to run. Automatic CI covers:
 
-- Terraform fmt/init/validate for every stack
-- TFLint
 - Checkov
 - Ruff
 - pytest
@@ -15,7 +13,7 @@ Push the candidate to a review branch and allow `CI - Validate, Test, and Scan` 
 - Docker build
 - Trivy HIGH/CRITICAL scan
 
-Do not deploy if any required job fails.
+Terraform execution is intentionally **not automatic**. If Terraform validation is needed, manually run the CI workflow with `run_terraform=true`, or run the documented Terraform commands yourself in the intended AWS/account context. Do not treat skipped Terraform validation as a pass.
 
 ## 2. Bootstrap Terraform remote state
 
@@ -86,6 +84,8 @@ If `create_member_accounts=false`, the organization stack only references the su
 
 Security-control SCP exceptions are empty by default. If a break-glass or automation role must be exempted, supply only its explicit account-scoped IAM role ARN in `protected_admin_role_patterns`; wildcard account IDs are rejected.
 
+If StackSets delegated administration is enabled, activate CloudFormation StackSets trusted access (`ActivateOrganizationsAccess`) before enabling that delegated-admin path.
+
 Deploy the Project 3 stacks in dependency order:
 
 1. `organization` from the Organizations management account
@@ -113,7 +113,7 @@ Then perform one safe rollback exercise by deploying a deliberately unhealthy te
 
 ## 9. Validate operations and recovery
 
-Run the checks in `docs/DEPLOYMENT-EVIDENCE.md` and `ops/RELIABILITY.md`. At minimum prove:
+At minimum, prove:
 
 - CloudWatch dashboard and alarm transition
 - ECS rollback
@@ -128,6 +128,6 @@ Treat RTO/RPO values as targets until the recovery exercises produce measured re
 
 ## 10. Evidence and cleanup
 
-Capture only the 8-12 high-value screenshots listed in `docs/DEPLOYMENT-EVIDENCE.md`. Redact account identifiers or secrets where appropriate.
+Capture only a small set of high-value evidence: architecture, successful CI/security gates, private ECS placement, healthy service/rollback, RDS recovery, CloudWatch alarms, GuardDuty/Security Hub, and one AI-analysis example. Redact account identifiers or secrets where appropriate.
 
 After evidence is captured, destroy expendable demo workload resources that are not intended to remain running. Do not expect an unrestricted `terraform destroy` to remove the protected remote-state, centralized-audit, or Project 1 recovery KMS resources. Those resources use intentional Terraform destruction guards. For a complete teardown, first confirm that the dependent Terraform state, audit data, RDS snapshots, and AWS Backup recovery points no longer need to be recoverable, then deliberately remove the relevant guard as part of the teardown change.

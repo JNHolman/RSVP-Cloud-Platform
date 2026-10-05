@@ -109,7 +109,7 @@ Traffic enters through a protected HTTPS endpoint. Application workloads remain 
 - Project 1 recovery KMS keys have intentional Terraform destruction guards so retained snapshots and recovery points cannot be orphaned by routine stack teardown
 - RDS point-in-time recovery validation workflow
 - ECS resilience validation workflow
-- documented ECS degradation and RDS recovery runbooks
+- recovery validation scripts and a single deployment/validation guide
 - explicit RTO/RPO **targets** that must be measured during recovery testing before being claimed as achieved
 
 ### 7. AI-assisted operations
@@ -146,8 +146,8 @@ AI is deliberately a supporting capability rather than the platform's control pl
 | `infrastructure/project-3-cloud-governance/` | Organizations, security administration, log archive, Identity Center, secure API, and FinOps AI |
 | `infrastructure/bootstrap-state/` | Remote Terraform state foundation |
 | `.github/workflows/` | CI validation and controlled ECS deployment workflows |
-| `ops/` | Reliability targets, recovery validation, and operational runbooks |
-| `docs/` | Public architecture and deployment-evidence documentation |
+| `ops/` | Recovery validation scripts |
+| `docs/` | Architecture and deployment/validation guidance |
 
 ## Terraform environment model
 
@@ -193,9 +193,7 @@ The following evidence must still be captured from a real deployment before the 
 - AI incident-analysis output based on real platform telemetry
 - measured recovery exercise results
 
-See [`docs/DEPLOYMENT-EVIDENCE.md`](docs/DEPLOYMENT-EVIDENCE.md) for the evidence checklist.
-
-See [`docs/PREDEPLOY-RUNBOOK.md`](docs/PREDEPLOY-RUNBOOK.md) for the exact first-deployment and verification order.
+See [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) for the exact deployment, verification, recovery, and evidence order.
 
 ## Known limitations
 

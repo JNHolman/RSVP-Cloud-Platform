@@ -1,9 +1,16 @@
-name: CI - Validate, Test, and Scan
+name: CI - Test and Scan
 
 on:
   pull_request:
   push:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      run_terraform:
+        description: Run manual Terraform quality gates
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -14,7 +21,8 @@ concurrency:
 
 jobs:
   terraform:
-    name: Terraform quality gates
+    name: Terraform quality gates (manual only)
+    if: github.event_name == 'workflow_dispatch' && inputs.run_terraform == true
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false

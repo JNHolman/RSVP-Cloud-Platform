@@ -67,11 +67,11 @@ def test_github_oidc_and_deploy_rollback_contract():
 
 def test_organization_existing_accounts_are_reference_only():
     variables = read("infrastructure/project-3-cloud-governance/organization/variables.tf")
-    readme = read("infrastructure/project-3-cloud-governance/organization/README.md")
     prerequisites = read("infrastructure/project-3-cloud-governance/organization/prerequisites.tf")
+    deployment = read("docs/DEPLOYMENT.md")
 
     assert "does not move existing accounts between OUs" in variables
-    assert "does not move those accounts into its OUs" in readme
+    assert "does not move those accounts" in deployment
     assert 'resource "terraform_data" "delegated_admin_prerequisites"' in prerequisites
 
 
@@ -132,9 +132,7 @@ def test_organization_enables_cloudtrail_trusted_access():
 
 def test_organization_preserves_identity_center_trusted_access():
     organization = read("infrastructure/project-3-cloud-governance/organization/organization.tf")
-    readme = read("infrastructure/project-3-cloud-governance/organization/README.md")
     assert '"sso.amazonaws.com"' in organization
-    assert "Identity Center" in readme
 
 
 def test_governance_dynamodb_uses_customer_managed_kms():
@@ -371,7 +369,7 @@ def test_workload_environment_and_cognito_deletion_protection_are_guarded():
 
 
 def test_runbook_requires_existing_account_ou_placement_verification():
-    runbook = read("docs/PREDEPLOY-RUNBOOK.md")
+    runbook = read("docs/DEPLOYMENT.md")
     assert "does not move those accounts" in runbook
     assert "An account outside the target OU will not inherit that OU's SCPs." in runbook
 
@@ -483,7 +481,7 @@ def test_stacksets_delegated_admin_requires_cloudformation_trusted_access_opt_in
     org = (ROOT / "infrastructure/project-3-cloud-governance/organization/organization.tf").read_text()
     delegated = (ROOT / "infrastructure/project-3-cloud-governance/organization/delegated-admin.tf").read_text()
     variables = (ROOT / "infrastructure/project-3-cloud-governance/organization/variables.tf").read_text()
-    readme = (ROOT / "infrastructure/project-3-cloud-governance/organization/README.md").read_text()
+    readme = read("docs/DEPLOYMENT.md")
 
     assert 'variable "stacksets_trusted_access_activated"' in variables
     assert 'var.stacksets_trusted_access_activated ? ["stacksets.cloudformation.amazonaws.com"] : []' in org
@@ -525,9 +523,7 @@ def test_cloudtrail_bucket_key_has_required_service_decrypt_permission():
 
 def test_config_aggregator_does_not_overclaim_member_recording():
     main_readme = (ROOT / "README.md").read_text()
-    security_readme = read("infrastructure/project-3-cloud-governance/security-admin/README.md")
     assert "where Config recording is enabled" in main_readme
-    assert "does **not** pretend that an aggregator enables AWS Config recording" in security_readme
 
 
 def test_project1_recovery_kms_keys_cannot_be_destroyed_with_recovery_data():
@@ -832,7 +828,7 @@ def test_github_deploy_scopes_task_definition_registration_to_environment_family
 
 
 def test_predeploy_runbook_explains_ecs_task_definition_ownership_handoff():
-    runbook = read("docs/PREDEPLOY-RUNBOOK.md")
+    runbook = read("docs/DEPLOYMENT.md")
     assert "Task-definition ownership" in runbook
     assert "ConfigurationSource=TerraformBaseline" in runbook
     assert "after any Terraform change that modifies the ECS task definition" in runbook

@@ -52,7 +52,7 @@ The edge is public. Application compute is not.
 
 - CloudWatch metrics/logs/dashboards/alarms
 - SNS and EventBridge
-- recovery runbooks and validation scripts
+- recovery validation scripts and deployment guidance
 - AI-assisted SRE/security/FinOps analysis
 
 ## Trust boundaries
