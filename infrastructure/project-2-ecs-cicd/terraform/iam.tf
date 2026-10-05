@@ -1,20 +1,16 @@
-######################################################
-# IAM Role for ECS Task Execution (pulling from ECR, logs)
-######################################################
-
 resource "aws_iam_role" "ecs_task_execution" {
-  name = "${var.project_name}-task-execution-role"
+  name = "${local.name_prefix}-task-execution-role"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
       Effect = "Allow"
-      Principal = {
-        Service = "ecs-tasks.amazonaws.com"
-      }
+      Principal = { Service = "ecs-tasks.amazonaws.com" }
       Action = "sts:AssumeRole"
     }]
   })
+
+  tags = local.standard_tags
 }
 
 resource "aws_iam_role_policy_attachment" "ecs_task_execution_policy" {
@@ -22,21 +18,17 @@ resource "aws_iam_role_policy_attachment" "ecs_task_execution_policy" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
 
-######################################################
-# IAM Role for the ECS Task itself (app permissions later)
-######################################################
-
 resource "aws_iam_role" "ecs_task_role" {
-  name = "${var.project_name}-task-role"
+  name = "${local.name_prefix}-task-role"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
       Effect = "Allow"
-      Principal = {
-        Service = "ecs-tasks.amazonaws.com"
-      }
+      Principal = { Service = "ecs-tasks.amazonaws.com" }
       Action = "sts:AssumeRole"
     }]
   })
+
+  tags = local.standard_tags
 }

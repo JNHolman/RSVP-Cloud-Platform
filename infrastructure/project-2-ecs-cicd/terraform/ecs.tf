@@ -3,7 +3,7 @@
 ######################################################
 
 resource "aws_ecs_cluster" "this" {
-  name = "${var.project_name}-cluster"
+  name = "${local.name_prefix}-cluster"
 
   setting {
     name  = "containerInsights"
@@ -11,9 +11,9 @@ resource "aws_ecs_cluster" "this" {
   }
 
   tags = {
-    Name        = "${var.project_name}-cluster"
+    Name        = "${local.name_prefix}-cluster"
     Project     = var.project_name
-    Environment = "dev"
+    Environment = var.environment
   }
 }
 
@@ -22,9 +22,9 @@ resource "aws_ecs_cluster" "this" {
 ######################################################
 
 resource "aws_ecs_task_definition" "app" {
-  family                   = "${var.project_name}-task"
-  cpu                      = "256"        # 0.25 vCPU
-  memory                   = "512"        # 0.5 GB
+  family                   = "${local.name_prefix}-task"
+  cpu                      = "256"
+  memory                   = "512"
   network_mode             = "awsvpc"
   requires_compatibilities = ["FARGATE"]
   execution_role_arn       = aws_iam_role.ecs_task_execution.arn
@@ -35,6 +35,19 @@ resource "aws_ecs_task_definition" "app" {
       name      = "app"
       image     = var.container_image
       essential = true
+      user      = "app"
+
+      # Keep the application filesystem immutable at runtime. Gunicorn may use
+      # /tmp for worker heartbeat files, so only that path receives a writable
+      # task-scoped volume.
+      readonlyRootFilesystem = true
+      mountPoints = [
+        {
+          sourceVolume  = "tmp"
+          containerPath = "/tmp"
+          readOnly      = false
+        }
+      ]
 
       portMappings = [
         {
@@ -47,7 +60,7 @@ resource "aws_ecs_task_definition" "app" {
       environment = [
         {
           name  = "APP_VERSION"
-          value = "initial"  # Overwritten at deploy time with Git SHA by CI/CD workflow
+          value = "initial"
         },
         {
           name  = "SERVICE_NAME"
@@ -55,9 +68,20 @@ resource "aws_ecs_task_definition" "app" {
         },
         {
           name  = "ENV_NAME"
-          value = "dev"
+          value = var.environment
         }
       ]
+
+      healthCheck = {
+        command = [
+          "CMD-SHELL",
+          "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=2).read()\" || exit 1"
+        ]
+        interval    = 30
+        timeout     = 5
+        retries     = 3
+        startPeriod = 30
+      }
 
       logConfiguration = {
         logDriver = "awslogs"
@@ -69,4 +93,12 @@ resource "aws_ecs_task_definition" "app" {
       }
     }
   ])
+
+  volume {
+    name = "tmp"
+  }
+
+  tags = merge(local.standard_tags, {
+    ConfigurationSource = "TerraformBaseline"
+  })
 }

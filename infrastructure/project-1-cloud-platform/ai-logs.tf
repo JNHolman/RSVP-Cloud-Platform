@@ -1,274 +1,213 @@
-##############################################
-#  AI Log Analysis Storage
-##############################################
-
-# S3 bucket for detailed AI summaries
-resource "aws_s3_bucket" "ai_logs" {
-  bucket = "${local.name_prefix}-ai-logs"
-
-  tags = {
-    Name = "${local.name_prefix}-ai-logs"
-  }
+resource "aws_kms_key" "ai_logs" {
+  # Explicitly retain account-root administration so IAM policies in this
+  # account can delegate key use to approved AWS services and roles.
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Sid       = "EnableAccountAdministration"
+      Effect    = "Allow"
+      Principal = { AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root" }
+      Action    = "kms:*"
+      Resource  = "*"
+    }]
+  })
+  description             = "KMS key for AI operational evidence"
+  enable_key_rotation     = true
+  deletion_window_in_days = 30
 }
 
-resource "aws_s3_bucket_versioning" "ai_logs_versioning" {
+resource "aws_kms_alias" "ai_logs" {
+  name          = "alias/${local.name_prefix}-ai-logs"
+  target_key_id = aws_kms_key.ai_logs.key_id
+}
+
+resource "aws_s3_bucket" "ai_logs" {
+  bucket = "${local.name_prefix}-ai-logs-${data.aws_caller_identity.current.account_id}"
+}
+
+resource "aws_s3_bucket_ownership_controls" "ai_logs" {
   bucket = aws_s3_bucket.ai_logs.id
 
-  versioning_configuration {
-    status = "Enabled"
+  rule {
+    object_ownership = "BucketOwnerEnforced"
   }
 }
 
-# DynamoDB table for metadata
+resource "aws_s3_bucket_public_access_block" "ai_logs" {
+  bucket                  = aws_s3_bucket.ai_logs.id
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+resource "aws_s3_bucket_versioning" "ai_logs" {
+  bucket = aws_s3_bucket.ai_logs.id
+  versioning_configuration { status = "Enabled" }
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "ai_logs" {
+  bucket = aws_s3_bucket.ai_logs.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm     = "aws:kms"
+      kms_master_key_id = aws_kms_key.ai_logs.arn
+    }
+    bucket_key_enabled = true
+  }
+}
+
+data "aws_iam_policy_document" "ai_logs_bucket" {
+  statement {
+    sid     = "DenyInsecureTransport"
+    effect  = "Deny"
+    actions = ["s3:*"]
+
+    principals {
+      type        = "*"
+      identifiers = ["*"]
+    }
+
+    resources = [
+      aws_s3_bucket.ai_logs.arn,
+      "${aws_s3_bucket.ai_logs.arn}/*",
+    ]
+
+    condition {
+      test     = "Bool"
+      variable = "aws:SecureTransport"
+      values   = ["false"]
+    }
+  }
+}
+
+resource "aws_s3_bucket_policy" "ai_logs" {
+  bucket = aws_s3_bucket.ai_logs.id
+  policy = data.aws_iam_policy_document.ai_logs_bucket.json
+}
+
+resource "aws_s3_bucket_logging" "ai_logs" {
+  bucket        = aws_s3_bucket.ai_logs.id
+  target_bucket = aws_s3_bucket.alb_access_logs.id
+  target_prefix = "s3-access/ai-logs/"
+
+  depends_on = [aws_s3_bucket_policy.alb_access_logs]
+}
+
+resource "aws_s3_bucket_lifecycle_configuration" "ai_logs" {
+  bucket = aws_s3_bucket.ai_logs.id
+  rule {
+    id     = "expire-ai-evidence"
+    status = "Enabled"
+
+    filter {}
+
+    expiration { days = 90 }
+    noncurrent_version_expiration { noncurrent_days = 30 }
+
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 7
+    }
+  }
+}
+
 resource "aws_dynamodb_table" "ai_log_summaries" {
   name         = "${local.name_prefix}-ai-log-summaries"
   billing_mode = "PAY_PER_REQUEST"
   hash_key     = "id"
-
   attribute {
     name = "id"
     type = "S"
   }
+  point_in_time_recovery { enabled = true }
 
-  tags = {
-    Name = "${local.name_prefix}-ai-log-summaries"
+  ttl {
+    attribute_name = "expires_at"
+    enabled        = true
+  }
+
+  server_side_encryption {
+    enabled     = true
+    kms_key_arn = aws_kms_key.ai_logs.arn
   }
 }
-
-##############################################
-#  CloudWatch Log Group (source logs)
-##############################################
 
 resource "aws_cloudwatch_log_group" "app_logs" {
   name              = "/${local.name_prefix}/app"
-  retention_in_days = 7
-
-  tags = {
-    Name = "${local.name_prefix}-app-logs"
-  }
+  retention_in_days = 30
+  kms_key_id        = aws_kms_key.observability.arn
 }
 
-##############################################
-#  Lambda: AI Log Summarizer
-##############################################
-
-locals {
-  ai_lambda_code = <<-PY
-    import os
-    import json
-    import time
-    import uuid
-    from datetime import datetime, timezone
-    import urllib.request
-
-    import boto3
-
-    LOG_GROUP_NAME = os.environ.get("LOG_GROUP_NAME", "")
-    OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
-    S3_BUCKET      = os.environ.get("S3_BUCKET", "")
-    DDB_TABLE      = os.environ.get("DDB_TABLE", "")
-    SNS_TOPIC_ARN  = os.environ.get("SNS_TOPIC_ARN", "")
-
-    logs_client = boto3.client("logs")
-    s3_client   = boto3.client("s3")
-    ddb_client  = boto3.client("dynamodb")
-    sns_client  = boto3.client("sns")
-
-    def call_openai(summary_prompt: str) -> str:
-      if not OPENAI_API_KEY:
-        return "OpenAI key not configured (OPENAI_API_KEY missing)."
-
-      url = "https://api.openai.com/v1/chat/completions"
-      headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {OPENAI_API_KEY}",
-      }
-      body = {
-        "model": "gpt-4o-mini",
-        "messages": [
-          {
-            "role": "system",
-            "content": "You are an SRE assistant. Summarize signals into likely root cause, user impact, and next troubleshooting steps. If logs are missing, say so explicitly and rely on alarm context only."
-          },
-          {
-            "role": "user",
-            "content": summary_prompt
-          }
-        ],
-        "max_tokens": 400,
-        "temperature": 0.2
-      }
-
-      req = urllib.request.Request(
-        url,
-        data=json.dumps(body).encode("utf-8"),
-        headers=headers,
-        method="POST"
-      )
-      with urllib.request.urlopen(req, timeout=30) as resp:
-        data = json.loads(resp.read().decode("utf-8"))
-      return data["choices"][0]["message"]["content"]
-
-    def fetch_recent_logs():
-      # Returns last 5 minutes of log lines from LOG_GROUP_NAME.
-      # If there are no streams/events, returns [].
-      if not LOG_GROUP_NAME:
-        return []
-
-      end = int(time.time() * 1000)
-      start = end - (5 * 60 * 1000)
-
-      events = []
-      paginator = logs_client.get_paginator("filter_log_events")
-      for page in paginator.paginate(
-        logGroupName=LOG_GROUP_NAME,
-        startTime=start,
-        endTime=end,
-        limit=200
-      ):
-        events.extend(page.get("events", []))
-
-      return [e.get("message", "") for e in events]
-
-    def lambda_handler(event, context):
-      detail = event.get("detail", {}) or {}
-      alarm_name = detail.get("alarmName")
-      new_state  = (detail.get("state") or {}).get("value")
-      reason     = (detail.get("state") or {}).get("reason")
-
-      logs = fetch_recent_logs()
-      has_logs = len(logs) > 0
-
-      if has_logs:
-        joined_logs = "\\n".join(logs[:200])
-      else:
-        joined_logs = f"<no log events found in {LOG_GROUP_NAME}; summary is based on alarm context only>"
-
-      prompt = (
-        f"Alarm: {alarm_name}\\n"
-        f"State: {new_state}\\n"
-        f"Reason: {reason}\\n"
-        f"LogGroup: {LOG_GROUP_NAME}\\n"
-        f"LogsAvailable: {has_logs}\\n"
-        "Recent logs (if available; may be truncated):\\n"
-        f"{joined_logs}\\n\\n"
-        "Return: (1) likely root cause, (2) user impact, (3) concrete next checks/commands, (4) confidence level."
-      )
-
-      try:
-        summary = call_openai(prompt)
-      except Exception as e:
-        summary = f"Failed to call OpenAI: {e}"
-
-      now = datetime.now(timezone.utc).isoformat()
-      record_id = str(uuid.uuid4())
-
-      s3_key = f"summaries/{record_id}.json"
-      s3_body = {
-        "id": record_id,
-        "timestamp": now,
-        "alarm_name": alarm_name,
-        "state": new_state,
-        "reason": reason,
-        "log_group": LOG_GROUP_NAME,
-        "logs_available": has_logs,
-        "summary": summary,
-        "log_lines_sample": logs[:50],
-        "raw_event": event,
-      }
-
-      # Save full summary to S3
-      s3_client.put_object(
-        Bucket=S3_BUCKET,
-        Key=s3_key,
-        Body=json.dumps(s3_body, default=str).encode("utf-8")
-      )
-
-      # Save metadata to DynamoDB
-      ddb_client.put_item(
-        TableName=DDB_TABLE,
-        Item={
-          "id": {"S": record_id},
-          "timestamp": {"S": now},
-          "alarm_name": {"S": alarm_name or "unknown"},
-          "state": {"S": new_state or "unknown"},
-          "s3_key": {"S": s3_key},
-          "log_group": {"S": LOG_GROUP_NAME or "unknown"},
-          "logs_available": {"S": str(has_logs)},
-        }
-      )
-
-      # Short notification via SNS (email if subscribed)
-      if SNS_TOPIC_ARN:
-        short_msg = f"[RSVP AI] Alarm {alarm_name} => {new_state}\\n\\n{summary[:600]}"
-        sns_client.publish(
-          TopicArn=SNS_TOPIC_ARN,
-          Message=short_msg,
-          Subject=f"[RSVP AI] {alarm_name} => {new_state}"
-        )
-
-      return {
-        "statusCode": 200,
-        "body": json.dumps({"id": record_id, "s3_key": s3_key, "logs_available": has_logs})
-      }
-  PY
-}
-
-# Write code to a local file that archive_file can zip
-resource "local_file" "ai_lambda_py" {
-  filename = "${path.module}/ai_log_summarizer.py"
-  content  = local.ai_lambda_code
+resource "aws_cloudwatch_log_group" "ai_lambda" {
+  name              = "/aws/lambda/${local.name_prefix}-ai-log-summarizer"
+  retention_in_days = 30
+  kms_key_id        = aws_kms_key.observability.arn
 }
 
 data "archive_file" "ai_lambda_zip" {
   type        = "zip"
-  source_file = local_file.ai_lambda_py.filename
+  source_file = "${path.module}/ai_log_summarizer.py"
   output_path = "${path.module}/ai_log_summarizer.zip"
 }
 
+resource "aws_sqs_queue" "ai_analysis_dlq" {
+  name                      = "${local.name_prefix}-ai-analysis-dlq"
+  message_retention_seconds = 1209600
+  sqs_managed_sse_enabled   = true
+}
+
 resource "aws_lambda_function" "ai_log_summarizer" {
+  #checkov:skip=CKV_AWS_117:This function only needs public AWS/OpenAI endpoints; VPC attachment would add NAT dependency without protecting a private data path.
   function_name = "${local.name_prefix}-ai-log-summarizer"
-  runtime       = "python3.10"
+  runtime       = "python3.12"
   handler       = "ai_log_summarizer.lambda_handler"
   role          = aws_iam_role.ai_lambda_role.arn
-
   filename         = data.archive_file.ai_lambda_zip.output_path
   source_code_hash = data.archive_file.ai_lambda_zip.output_base64sha256
+  timeout          = 45
+  memory_size      = 256
+  reserved_concurrent_executions = 2
+  kms_key_arn                    = aws_kms_key.observability.arn
 
-  timeout     = 60
-  memory_size = 256
-
-  environment {
-    variables = {
-      LOG_GROUP_NAME = aws_cloudwatch_log_group.app_logs.name
-      OPENAI_API_KEY = var.openai_api_key
-      S3_BUCKET      = aws_s3_bucket.ai_logs.bucket
-      DDB_TABLE      = aws_dynamodb_table.ai_log_summaries.name
-      SNS_TOPIC_ARN  = aws_sns_topic.alerts.arn
-    }
+  tracing_config {
+    mode = "Active"
   }
 
   depends_on = [
+    aws_cloudwatch_log_group.ai_lambda,
+    aws_iam_role_policy_attachment.lambda_basic_execution,
+    aws_iam_role_policy_attachment.lambda_xray,
     aws_iam_role_policy_attachment.ai_lambda_policy_attach,
-    aws_iam_role_policy_attachment.lambda_basic_execution
   ]
-}
 
-##############################################
-#  EventBridge Rule: trigger Lambda on alarms
-##############################################
+  dead_letter_config { target_arn = aws_sqs_queue.ai_analysis_dlq.arn }
+
+  environment {
+    variables = {
+      LOG_GROUP_NAME   = aws_cloudwatch_log_group.app_logs.name
+      OPENAI_SECRET_ARN = var.openai_secret_arn
+      OPENAI_MODEL      = var.ai_model
+      S3_BUCKET         = aws_s3_bucket.ai_logs.bucket
+      DDB_TABLE         = aws_dynamodb_table.ai_log_summaries.name
+      SNS_TOPIC_ARN     = aws_sns_topic.alerts.arn
+      RETENTION_DAYS    = "90"
+    }
+  }
+}
 
 resource "aws_cloudwatch_event_rule" "ai_alarm_rule" {
   name        = "${local.name_prefix}-ai-alarm-rule"
-  description = "Trigger AI log summarizer on CloudWatch alarm state changes"
-
+  description = "Send production alarm state changes for advisory AI analysis"
   event_pattern = jsonencode({
-    "source" : ["aws.cloudwatch"],
-    "detail-type" : ["CloudWatch Alarm State Change"],
-    "detail" : {
-      "alarmName" : [
+    source = ["aws.cloudwatch"]
+    "detail-type" = ["CloudWatch Alarm State Change"]
+    detail = {
+      alarmName = [
         aws_cloudwatch_metric_alarm.alb_5xx_high.alarm_name,
-        aws_cloudwatch_metric_alarm.asg_cpu_high.alarm_name
+        aws_cloudwatch_metric_alarm.asg_cpu_high.alarm_name,
+        aws_cloudwatch_metric_alarm.rds_cpu_high.alarm_name,
+        aws_cloudwatch_metric_alarm.rds_free_storage_low.alarm_name
       ]
     }
   })
@@ -278,6 +217,11 @@ resource "aws_cloudwatch_event_target" "ai_alarm_target" {
   rule      = aws_cloudwatch_event_rule.ai_alarm_rule.name
   target_id = "ai-log-summarizer"
   arn       = aws_lambda_function.ai_log_summarizer.arn
+  retry_policy {
+    maximum_event_age_in_seconds = 3600
+    maximum_retry_attempts       = 2
+  }
+  dead_letter_config { arn = aws_sqs_queue.ai_analysis_dlq.arn }
 }
 
 resource "aws_lambda_permission" "allow_eventbridge_invoke" {
@@ -286,4 +230,31 @@ resource "aws_lambda_permission" "allow_eventbridge_invoke" {
   function_name = aws_lambda_function.ai_log_summarizer.function_name
   principal     = "events.amazonaws.com"
   source_arn    = aws_cloudwatch_event_rule.ai_alarm_rule.arn
+}
+
+
+data "aws_iam_policy_document" "ai_analysis_dlq_eventbridge" {
+  statement {
+    sid     = "AllowEventBridgeToSend"
+    effect  = "Allow"
+    actions = ["sqs:SendMessage"]
+
+    principals {
+      type        = "Service"
+      identifiers = ["events.amazonaws.com"]
+    }
+
+    resources = [aws_sqs_queue.ai_analysis_dlq.arn]
+
+    condition {
+      test     = "ArnEquals"
+      variable = "aws:SourceArn"
+      values   = [aws_cloudwatch_event_rule.ai_alarm_rule.arn]
+    }
+  }
+}
+
+resource "aws_sqs_queue_policy" "ai_analysis_dlq_eventbridge" {
+  queue_url = aws_sqs_queue.ai_analysis_dlq.id
+  policy    = data.aws_iam_policy_document.ai_analysis_dlq_eventbridge.json
 }

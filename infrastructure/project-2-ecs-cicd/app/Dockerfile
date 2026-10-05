@@ -1,24 +1,19 @@
-# Use a lightweight Python image
-FROM python:3.12-slim
+FROM python:3.12.15-slim-bookworm
 
-# Set working directory inside the container
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PORT=8080
+
 WORKDIR /app
 
-# Make Python a bit cleaner in containers
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
+RUN addgroup --system app && adduser --system --ingroup app app
 
-# Copy dependency list and install them
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the rest of the app code
-COPY . .
+COPY --chown=app:app app.py .
 
-# Default port our app listens on
-ENV PORT=8080
+USER app
+EXPOSE 8080
 
-# Use gunicorn (production-style server)
-CMD ["gunicorn", "app:app", "-b", "0.0.0.0:8080", "--workers", "3"]
-
-# Updated workflow to use SHA-pinned deployments
+CMD ["gunicorn", "app:app", "-b", "0.0.0.0:8080", "--workers", "3", "--access-logfile", "-", "--error-logfile", "-"]

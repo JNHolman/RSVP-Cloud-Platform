@@ -1,30 +1,39 @@
-# Terraform state & local cache
+# Terraform local state/cache
 .terraform/
-.terraform.lock.hcl
 *.tfstate
 *.tfstate.*
 crash.log
 crash.*.log
+*.tfplan
 
-# Local variables
+# Local Terraform values; commit only *.example templates
 terraform.tfvars
-*.tfvars
+*.auto.tfvars
+*.tfvars.json
+backend.hcl
 
 # Python / Lambda build artifacts
-*.zip
 __pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+*.zip
 
-# OS artifacts
+# Local environment/secrets
+.env
+.env.*
+!.env.example
+
+# OS/editor artifacts
 .DS_Store
 __MACOSX/
+.vscode/
+.idea/
 
-# Include override files you do wish to add to version control using negated pattern
-# !example_override.tf
-
-# Include tfplan files to ignore the plan output of command: terraform plan -out=tfplan
-# example: *tfplan*
-
-# Ignore CLI configuration files
+# Terraform CLI configuration
 .terraformrc
 terraform.rc
 *.backup
+
+
+# Local validation caches

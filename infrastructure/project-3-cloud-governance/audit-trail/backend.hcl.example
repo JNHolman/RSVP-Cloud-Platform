@@ -1,0 +1,8 @@
+# Use a state bucket in the same AWS account as this Terraform root unless
+# you have deliberately configured a cross-account backend role and bucket policy.
+bucket         = "REPLACE_WITH_ACCOUNT_LOCAL_TERRAFORM_STATE_BUCKET"
+key            = "project-3/audit-trail/terraform.tfstate"
+region         = "us-east-1"
+dynamodb_table = "rsvp-terraform-locks"
+encrypt        = true
+kms_key_id     = "REPLACE_WITH_TERRAFORM_STATE_KMS_KEY_ARN"

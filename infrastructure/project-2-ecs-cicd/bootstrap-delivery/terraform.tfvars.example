@@ -1,0 +1,4 @@
+aws_region        = "us-east-1"
+project_name      = "rsvp-project2"
+github_repository = "JNHolman/RSVP-Cloud-Platform"
+environments      = ["dev", "stage", "prod"]
