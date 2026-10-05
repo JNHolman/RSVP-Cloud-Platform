@@ -47,8 +47,9 @@ def _metric(name, value=1):
             Namespace="RSVP/AIOperations",
             MetricData=[{"MetricName": name, "Value": value, "Unit": "Count"}],
         )
-    except Exception:
-        pass
+    except Exception:  # noqa: BLE001
+        # Metrics are best-effort telemetry; failure must not break incident processing.
+        return
 
 
 def _get_api_key():
@@ -80,7 +81,7 @@ def _validated_analysis(value):
         "confidence": str,
     }
     if not isinstance(value, dict):
-        raise ValueError("AI output must be a JSON object")
+        raise TypeError("AI output must be a JSON object")
     for key, expected_type in required.items():
         if key not in value or not isinstance(value[key], expected_type):
             raise ValueError(f"AI output missing/invalid field: {key}")
@@ -177,7 +178,7 @@ def lambda_handler(event, context):
             logs = _fetch_recent_logs()
         else:
             logs = _fetch_recent_logs(end_ms=event_time_ms)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         # Alarm context is still useful if CloudWatch Logs is temporarily unavailable.
         # Keep the workflow alive and make the missing evidence explicit.
         logs = []
@@ -216,7 +217,7 @@ def lambda_handler(event, context):
         analysis = _call_openai(evidence)
         analysis_status = "ai_generated"
         _metric("AnalysisSuccess")
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         # AI is advisory. Secrets Manager, network, model, or schema failures must
         # degrade to deterministic evidence rather than drop the incident record.
         analysis = _fallback(_redact_text(str(exc)), evidence)
