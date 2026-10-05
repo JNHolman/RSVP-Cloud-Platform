@@ -30,8 +30,30 @@ resource "aws_wafv2_web_acl" "app" {
   }
 
   rule {
-    name     = "AWSManagedRulesAmazonIpReputationList"
+    name     = "AWSManagedRulesKnownBadInputsRuleSet"
     priority = 20
+
+    override_action {
+      none {}
+    }
+
+    statement {
+      managed_rule_group_statement {
+        name        = "AWSManagedRulesKnownBadInputsRuleSet"
+        vendor_name = "AWS"
+      }
+    }
+
+    visibility_config {
+      cloudwatch_metrics_enabled = true
+      metric_name                = "${local.name_prefix}-known-bad-inputs"
+      sampled_requests_enabled   = true
+    }
+  }
+
+  rule {
+    name     = "AWSManagedRulesAmazonIpReputationList"
+    priority = 30
 
     override_action {
       none {}
@@ -53,7 +75,7 @@ resource "aws_wafv2_web_acl" "app" {
 
   rule {
     name     = "RateLimit"
-    priority = 30
+    priority = 40
 
     action {
       block {}
