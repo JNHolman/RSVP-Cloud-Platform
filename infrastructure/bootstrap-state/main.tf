@@ -39,7 +39,7 @@ resource "aws_kms_key" "terraform_state" {
       Resource  = "*"
     }]
   })
-  description             = "KMS key for RSVP Terraform remote state"
+  description             = "KMS key for RSVP Cloud Platform Terraform remote state"
   deletion_window_in_days = 30
   enable_key_rotation     = true
 
@@ -49,7 +49,7 @@ resource "aws_kms_key" "terraform_state" {
 }
 
 resource "aws_kms_alias" "terraform_state" {
-  name          = "alias/rsvp-terraform-state"
+  name          = "alias/rsvp-cloud-platform-terraform-state"
   target_key_id = aws_kms_key.terraform_state.key_id
 }
 
@@ -69,7 +69,7 @@ data "aws_caller_identity" "current" {}
 resource "aws_s3_bucket" "state_access_logs" {
   #checkov:skip=CKV_AWS_18:This bucket is the dedicated S3 server-access-log destination; recursively logging a log destination is not recommended by AWS.
   #checkov:skip=CKV_AWS_145:S3 server-access-log destination buckets use SSE-S3; SSE-KMS can prevent usable log delivery.
-  bucket = "rsvp-tf-access-${data.aws_caller_identity.current.account_id}-${var.aws_region}"
+  bucket = "rsvp-cloud-platform-tf-access-${data.aws_caller_identity.current.account_id}-${var.aws_region}"
 }
 
 resource "aws_s3_bucket_ownership_controls" "state_access_logs" {
