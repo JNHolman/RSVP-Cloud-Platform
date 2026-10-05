@@ -324,7 +324,20 @@ def test_project3_has_explicit_account_local_backend_examples():
     for stack in stacks:
         example = (base / stack / "backend.hcl.example").read_text()
         assert "REPLACE_WITH_ACCOUNT_LOCAL_TERRAFORM_STATE_BUCKET" in example
-        assert 'dynamodb_table = \"rsvp-terraform-locks\"' in example
+        assert 'dynamodb_table = \"rsvp-cloud-platform-terraform-locks\"' in example
+
+
+def test_cloud_platform_state_names_are_isolated_from_rsvp_society():
+    state = read("infrastructure/bootstrap-state/main.tf")
+    variables = read("infrastructure/bootstrap-state/variables.tf")
+    backend_examples = list((ROOT / "infrastructure").glob("**/backend.hcl.example"))
+
+    assert 'default     = "rsvp-cloud-platform-terraform-locks"' in variables
+    assert 'name          = "alias/rsvp-cloud-platform-terraform-state"' in state
+    assert 'bucket = "rsvp-cloud-platform-tf-access-${data.aws_caller_identity.current.account_id}-${var.aws_region}"' in state
+    for path in backend_examples:
+        content = path.read_text()
+        assert 'dynamodb_table = "rsvp-terraform-locks"' not in content, path
 
 
 def test_security_control_scp_blocks_reconfiguration_bypasses():
