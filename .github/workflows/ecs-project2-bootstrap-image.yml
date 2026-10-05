@@ -1,0 +1,104 @@
+name: ECS Project 2 - Bootstrap First Image
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        required: true
+        type: choice
+        options: [dev, stage, prod]
+        default: dev
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: ecs-project2-bootstrap-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      PROJECT_NAME: ${{ vars.PROJECT_NAME }}
+    steps:
+      - name: Resolve deployment configuration
+        run: |
+          REGION="${AWS_REGION:-us-east-1}"
+          PROJECT="${PROJECT_NAME:-rsvp-project2}"
+          test -n "$REGION"
+          test -n "$PROJECT"
+          case "$PROJECT" in
+            *[!a-z0-9-]*|''|-*|*-) echo "PROJECT_NAME must use lowercase letters/numbers/hyphens and start/end with a letter or number" >&2; exit 1 ;;
+          esac
+          if [ "${#PROJECT}" -gt 22 ]; then
+            echo "PROJECT_NAME must be 22 characters or fewer" >&2
+            exit 1
+          fi
+          echo "AWS_REGION=$REGION" >> "$GITHUB_ENV"
+          echo "PROJECT_NAME=$PROJECT" >> "$GITHUB_ENV"
+          echo "ECR_REPOSITORY=$PROJECT-${{ inputs.environment }}-app" >> "$GITHUB_ENV"
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.12'
+
+      - name: Test application before bootstrap image
+        run: |
+          pip install -r infrastructure/project-2-ecs-cicd/app/requirements.txt
+          pip install pytest==9.1.1
+          pytest -q infrastructure/project-2-ecs-cicd/app/tests
+
+      - name: Configure AWS credentials with OIDC
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Resolve AWS account
+        id: aws
+        run: echo "account_id=$(aws sts get-caller-identity --query Account --output text)" >> "$GITHUB_OUTPUT"
+
+      - uses: aws-actions/amazon-ecr-login@03f1aad4c6c7ffd436567f42f9384779290529bd # v2
+
+      - name: Resolve immutable first image
+        env:
+          AWS_ACCOUNT_ID: ${{ steps.aws.outputs.account_id }}
+        run: |
+          IMAGE_URI="$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPOSITORY:$GITHUB_SHA"
+          echo "IMAGE_URI=$IMAGE_URI" >> "$GITHUB_ENV"
+          if OUTPUT=$(aws ecr describe-images --repository-name "$ECR_REPOSITORY" --image-ids imageTag="$GITHUB_SHA" 2>&1); then
+            echo "IMAGE_EXISTS=true" >> "$GITHUB_ENV"
+            docker pull "$IMAGE_URI"
+          elif printf '%s' "$OUTPUT" | grep -q 'ImageNotFoundException'; then
+            echo "IMAGE_EXISTS=false" >> "$GITHUB_ENV"
+            docker build -t "$IMAGE_URI" infrastructure/project-2-ecs-cicd/app
+          else
+            printf '%s\n' "$OUTPUT" >&2
+            exit 1
+          fi
+
+      - name: Scan immutable image
+        uses: aquasecurity/trivy-action@915b19bbe73b92a6cf82a1bc12b087c9a19a5fe2 # v0.28.0
+        with:
+          image-ref: ${{ env.IMAGE_URI }}
+          format: table
+          exit-code: '1'
+          ignore-unfixed: true
+          severity: HIGH,CRITICAL
+
+      - name: Push new immutable image
+        if: env.IMAGE_EXISTS != 'true'
+        run: docker push "$IMAGE_URI"
+
+      - name: Publish immutable image URI
+        run: |
+          echo "First image is ready for the runtime Terraform apply:"
+          echo "$IMAGE_URI"
+          echo "Set container_image to this exact URI in the target environment tfvars."

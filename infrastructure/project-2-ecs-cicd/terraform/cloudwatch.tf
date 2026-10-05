@@ -1,10 +1,11 @@
 resource "aws_cloudwatch_log_group" "ecs_app" {
-  name              = "/ecs/${var.project_name}-app"
-  retention_in_days = 7
+  name              = "/ecs/${local.name_prefix}-app"
+  retention_in_days = var.log_retention_days
+  kms_key_id        = aws_kms_key.observability.arn
 
   tags = {
-    Name        = "${var.project_name}-log-group"
+    Name        = "${local.name_prefix}-log-group"
     Project     = var.project_name
-    Environment = "dev"
+    Environment = var.environment
   }
 }

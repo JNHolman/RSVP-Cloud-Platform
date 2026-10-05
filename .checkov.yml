@@ -1,0 +1,6 @@
+# Intentional policy exception: centralized CloudTrail audit logs are retained
+# for seven years in the dedicated Log Archive bucket, while operational
+# CloudWatch logs use 30/90-day retention to control cost and data exposure.
+# All other Checkov findings remain blocking.
+skip-check:
+  - CKV_AWS_338

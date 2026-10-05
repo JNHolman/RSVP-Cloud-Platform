@@ -1,16 +1,10 @@
-# In the full version, this module will:
-# - Define EventBridge rules (e.g. forward specific events to Security)
-# - Define IAM roles that Security account can assume
-# - Define CloudWatch alarms for workload metrics
+resource "aws_cloudwatch_log_group" "api_access" {
+  name              = "/aws/apigateway/${var.project_name}-${var.environment}-dashboard"
+  retention_in_days = 90
+  kms_key_id        = aws_kms_key.observability.arn
 
-resource "aws_cloudwatch_log_group" "workload_app_logs" {
-  name              = "/${var.project_name}/workload/app"
-  retention_in_days = 30
-
-  tags = merge(
-    var.tags,
-    {
-      "Component" = "workload"
-    }
-  )
+  tags = merge(var.tags, {
+    Component = "workload"
+    Service   = "DashboardAPI"
+  })
 }

@@ -22,6 +22,16 @@ resource "aws_vpc" "main" {
   }
 }
 
+# Explicitly neutralize the VPC default security group so workloads cannot
+# accidentally inherit broad default east-west access.
+resource "aws_default_security_group" "default" {
+  vpc_id = aws_vpc.main.id
+
+  tags = {
+    Name = "${local.name_prefix}-default-sg-deny-all"
+  }
+}
+
 resource "aws_internet_gateway" "igw" {
   vpc_id = aws_vpc.main.id
 
@@ -34,12 +44,11 @@ resource "aws_internet_gateway" "igw" {
 #  Subnets
 ##############################################
 
-# Public subnets (ALB; NAT if enabled)
 resource "aws_subnet" "public" {
   count                   = length(var.public_subnet_cidrs)
   vpc_id                  = aws_vpc.main.id
   cidr_block              = var.public_subnet_cidrs[count.index]
-  map_public_ip_on_launch = true
+  map_public_ip_on_launch = false
   availability_zone       = count.index == 0 ? local.az1 : local.az2
 
   tags = {
@@ -48,12 +57,12 @@ resource "aws_subnet" "public" {
   }
 }
 
-# Private subnets (app + DB)
 resource "aws_subnet" "private" {
-  count             = length(var.private_subnet_cidrs)
-  vpc_id            = aws_vpc.main.id
-  cidr_block        = var.private_subnet_cidrs[count.index]
-  availability_zone = count.index == 0 ? local.az1 : local.az2
+  count                   = length(var.private_subnet_cidrs)
+  vpc_id                  = aws_vpc.main.id
+  cidr_block              = var.private_subnet_cidrs[count.index]
+  map_public_ip_on_launch = false
+  availability_zone       = count.index == 0 ? local.az1 : local.az2
 
   tags = {
     Name = "${local.name_prefix}-private-${count.index + 1}"
@@ -62,10 +71,9 @@ resource "aws_subnet" "private" {
 }
 
 ##############################################
-#  Routing
+#  Public routing
 ##############################################
 
-# Public route table → Internet Gateway
 resource "aws_route_table" "public" {
   vpc_id = aws_vpc.main.id
 
@@ -86,128 +94,155 @@ resource "aws_route_table_association" "public_assoc" {
   route_table_id = aws_route_table.public.id
 }
 
-# NAT Gateway (optional; expensive)
-resource "aws_eip" "nat_eip" {
-  count = var.enable_nat_gateway ? 1 : 0
-  vpc   = true
+##############################################
+#  Production private-subnet egress
+#  One NAT Gateway per AZ avoids an AZ-level
+#  dependency and keeps each private subnet's
+#  egress local to its AZ.
+##############################################
+
+resource "aws_eip" "nat" {
+  count = length(aws_subnet.public)
+  domain = "vpc"
 
   tags = {
-    Name = "${local.name_prefix}-nat-eip"
+    Name = "${local.name_prefix}-nat-eip-${count.index + 1}"
   }
 }
 
 resource "aws_nat_gateway" "nat" {
-  count         = var.enable_nat_gateway ? 1 : 0
-  allocation_id = aws_eip.nat_eip[0].id
-  subnet_id     = aws_subnet.public[0].id
+  count         = length(aws_subnet.public)
+  allocation_id = aws_eip.nat[count.index].id
+  subnet_id     = aws_subnet.public[count.index].id
 
   tags = {
-    Name = "${local.name_prefix}-nat"
+    Name = "${local.name_prefix}-nat-${count.index + 1}"
   }
 
   depends_on = [aws_internet_gateway.igw]
 }
 
-# Private route table → NAT (only when enabled)
 resource "aws_route_table" "private" {
+  count  = length(aws_subnet.private)
   vpc_id = aws_vpc.main.id
 
   tags = {
-    Name = "${local.name_prefix}-private-rt"
+    Name = "${local.name_prefix}-private-rt-${count.index + 1}"
   }
 }
 
-resource "aws_route" "private_nat_route" {
-  count                  = var.enable_nat_gateway ? 1 : 0
-  route_table_id         = aws_route_table.private.id
+resource "aws_route" "private_nat" {
+  count                  = length(aws_subnet.private)
+  route_table_id         = aws_route_table.private[count.index].id
   destination_cidr_block = "0.0.0.0/0"
-  nat_gateway_id         = aws_nat_gateway.nat[0].id
+  nat_gateway_id         = aws_nat_gateway.nat[count.index % length(aws_nat_gateway.nat)].id
 }
 
 resource "aws_route_table_association" "private_assoc" {
   count          = length(aws_subnet.private)
   subnet_id      = aws_subnet.private[count.index].id
-  route_table_id = aws_route_table.private.id
+  route_table_id = aws_route_table.private[count.index].id
 }
 
 ##############################################
 #  Security Groups
+#  Rules are separate resources so SG-to-SG references do not create
+#  Terraform dependency cycles.
 ##############################################
 
-# ALB SG – allow HTTP in
 resource "aws_security_group" "alb_sg" {
   name        = "${local.name_prefix}-alb-sg"
-  description = "Security group for ALB"
+  description = "Public ingress to RSVP ALB"
   vpc_id      = aws_vpc.main.id
-
-  ingress {
-    description = "HTTP from allowed CIDRs"
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = var.allowed_http_cidrs
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
 
   tags = {
     Name = "${local.name_prefix}-alb-sg"
   }
 }
 
-# App SG – only HTTP from ALB
 resource "aws_security_group" "app_sg" {
   name        = "${local.name_prefix}-app-sg"
-  description = "Security group for app instances"
+  description = "Private application instances; ingress only from ALB"
   vpc_id      = aws_vpc.main.id
-
-  ingress {
-    description     = "HTTP from ALB"
-    from_port       = 80
-    to_port         = 80
-    protocol        = "tcp"
-    security_groups = [aws_security_group.alb_sg.id]
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
 
   tags = {
     Name = "${local.name_prefix}-app-sg"
   }
 }
 
-# DB SG – only MySQL from App SG
 resource "aws_security_group" "db_sg" {
   name        = "${local.name_prefix}-db-sg"
-  description = "Security group for RDS"
+  description = "RDS ingress only from application tier"
   vpc_id      = aws_vpc.main.id
-
-  ingress {
-    description     = "MySQL from app instances"
-    from_port       = 3306
-    to_port         = 3306
-    protocol        = "tcp"
-    security_groups = [aws_security_group.app_sg.id]
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
 
   tags = {
     Name = "${local.name_prefix}-db-sg"
   }
+}
+
+resource "aws_vpc_security_group_ingress_rule" "alb_http" {
+  for_each = toset(var.allowed_http_cidrs)
+
+  security_group_id = aws_security_group.alb_sg.id
+  description       = "HTTP redirect to HTTPS"
+  cidr_ipv4         = each.value
+  from_port         = 80
+  to_port           = 80
+  ip_protocol       = "tcp"
+}
+
+resource "aws_vpc_security_group_ingress_rule" "alb_https" {
+  for_each = toset(var.allowed_http_cidrs)
+
+  security_group_id = aws_security_group.alb_sg.id
+  description       = "HTTPS"
+  cidr_ipv4         = each.value
+  from_port         = 443
+  to_port           = 443
+  ip_protocol       = "tcp"
+}
+
+resource "aws_vpc_security_group_egress_rule" "alb_to_app" {
+  security_group_id            = aws_security_group.alb_sg.id
+  description                  = "HTTP only to application instances"
+  referenced_security_group_id = aws_security_group.app_sg.id
+  from_port                    = 80
+  to_port                      = 80
+  ip_protocol                  = "tcp"
+}
+
+resource "aws_vpc_security_group_ingress_rule" "app_from_alb" {
+  security_group_id            = aws_security_group.app_sg.id
+  description                  = "HTTP from ALB"
+  referenced_security_group_id = aws_security_group.alb_sg.id
+  from_port                    = 80
+  to_port                      = 80
+  ip_protocol                  = "tcp"
+}
+
+resource "aws_vpc_security_group_egress_rule" "app_to_db" {
+  security_group_id            = aws_security_group.app_sg.id
+  description                  = "MySQL to RDS only"
+  referenced_security_group_id = aws_security_group.db_sg.id
+  from_port                    = 3306
+  to_port                      = 3306
+  ip_protocol                  = "tcp"
+}
+
+resource "aws_vpc_security_group_egress_rule" "app_https" {
+  security_group_id = aws_security_group.app_sg.id
+  description       = "HTTPS for OS updates and AWS service APIs through NAT"
+  cidr_ipv4         = "0.0.0.0/0"
+  from_port         = 443
+  to_port           = 443
+  ip_protocol       = "tcp"
+}
+
+resource "aws_vpc_security_group_ingress_rule" "db_from_app" {
+  security_group_id            = aws_security_group.db_sg.id
+  description                  = "MySQL from app instances"
+  referenced_security_group_id = aws_security_group.app_sg.id
+  from_port                    = 3306
+  to_port                      = 3306
+  ip_protocol                  = "tcp"
 }

@@ -1,0 +1,29 @@
+aws_region = "us-east-1"
+project_name = "rsvp-enterprise"
+owner = "Josh Holman"
+
+# Existing Organization mode: reference known account IDs. This does not move accounts into these OUs.
+create_member_accounts = false
+configure_delegated_admins = true
+
+# StackSets is intentionally separate. Activate trusted access from the
+# CloudFormation StackSets console/API first, then change this to true.
+stacksets_trusted_access_activated = false
+
+existing_account_ids = {
+  security        = "111111111111"
+  log_archive     = "222222222222"
+  shared_services = "333333333333"
+  nonprod         = "444444444444"
+  prod            = "555555555555"
+}
+
+# If creating accounts instead, set create_member_accounts=true and provide
+# unique root email addresses. Do not commit real root-account emails.
+member_account_emails = {
+  security        = ""
+  log_archive     = ""
+  shared_services = ""
+  nonprod         = ""
+  prod            = ""
+}

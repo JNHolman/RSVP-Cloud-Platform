@@ -1,182 +1,220 @@
-# Cloud Engineering Portfolio — RSVP Multi-Project AWS Platform
+# RSVP Enterprise Cloud Platform
 
-A three-part AWS portfolio built with **Terraform** to show how I approach cloud infrastructure, application delivery, and governance/ops. It's a **production-style lab**: deployable, verifiable, and designed to be torn down cleanly to control cost.
+**A secure, automated AWS application platform built with Terraform, GitHub Actions, centralized governance, observability, recovery controls, and AI-assisted operations.**
 
-This repo is organized as:
+This project demonstrates how I would move a workload from basic cloud infrastructure to a repeatable operating model that can be deployed, secured, monitored, and recovered with less manual work.
 
-**Build → Deploy → Operate**
+It is designed as a **portfolio-scale implementation of enterprise patterns**. The goal is not to claim hyperscale production traffic; the goal is to show the architecture, automation, security controls, tradeoffs, and operational thinking behind a production AWS platform.
 
----
+## What problem does it solve?
 
-## Business context (why this platform exists)
+A modern application needs more than servers and a database. It needs a consistent way to answer questions such as:
 
-RSVP Society is an events/nightlife brand. A platform like this needs to handle:
-- traffic spikes around promos and event drops
-- frequent application updates
-- clear visibility into outages and errors
-- basic security hygiene and cost awareness
+- How do we keep workloads private while still serving users securely?
+- How do we deploy changes without using long-lived AWS credentials?
+- What happens when a bad release reaches production?
+- How do security teams enforce controls across multiple AWS accounts?
+- How do operators know when the application, database, or infrastructure is unhealthy?
+- How do we recover from failures and prove that backups work?
+- Where can AI reduce triage effort without being allowed to make risky infrastructure changes?
 
-The goal here is not to claim "enterprise scale." The goal is to show **real AWS patterns**, with **proof in Terraform, workflows, and screenshots**.
+RSVP Enterprise Cloud Platform addresses those concerns as one connected platform rather than as isolated AWS demos.
 
----
+## Platform at a glance
 
-## What this portfolio demonstrates (implemented vs planned)
+```mermaid
+flowchart LR
+    U[Users] --> DNS[Route 53 / DNS]
+    DNS --> WAF[AWS WAF]
+    WAF --> ALB[HTTPS Application Load Balancer]
 
-### Implemented in this repo
-- **Terraform IaC** for AWS infrastructure
-- **Multi-AZ networking patterns** (public/private subnets, routing, demo/production toggle)
-- **EC2 + ALB + Auto Scaling + RDS** (Project 1)
-- **ECS Fargate delivery** with **ECR** and SHA-pinned immutable images (Project 2)
-- **GitHub Actions pipeline** with OIDC auth that builds, pushes to ECR, registers a new task definition revision with the SHA-tagged image (injected into `APP_VERSION`), and deploys via ECS rolling update (Project 2)
-- **End-to-end AI log summarization pipeline** (Project 1):
-  **CloudWatch Agent → log group → Alarm State Change (EventBridge) → Lambda → OpenAI → S3 + DynamoDB → SNS**
-- **Working security services** (Project 3): GuardDuty, Security Hub, AWS Config (3 rules), CloudTrail
-- **AI incident response workflow** (Project 3): GuardDuty finding → EventBridge → Lambda → OpenAI → DynamoDB + SNS
-- **AI cost analysis** (Project 3): Weekly schedule → Lambda → Cost Explorer → OpenAI → DynamoDB
-- **Dashboard API** (Project 3): API Gateway + Lambda serving incident/cost data from DynamoDB
-- **Portfolio dashboard** (Project 3): S3 static site with sample data (clearly labeled in UI)
+    ALB --> APP[Private EC2 / ECS Workloads]
+    APP --> DB[(Private Multi-AZ RDS)]
 
-### Planned / partial (not counted as delivered yet)
-- True **multi-account** structure (Security/Dev/Prod) with Organizations, SCPs, IAM Identity Center
-- Live data in dashboard (Project 3 — currently sample data)
-- Tests/scans in CI/CD (Project 2)
+    GH[GitHub Actions] -->|OIDC + SHA releases| APP
 
----
+    CW[CloudWatch / EventBridge] --> OPS[Operational Alerts]
+    GD[GuardDuty / Security Hub] --> SEC[Central Security Operations]
+    OPS --> AI[AI-assisted Analysis]
+    SEC --> AI
+    CE[Cost Explorer] --> AI
 
-## Project index
-
-| Project | Folder | Focus | What it does |
-|---|---|---|---|
-| Project 1 — RSVP Cloud Platform | [`infrastructure/project-1-cloud-platform`](./infrastructure/project-1-cloud-platform) | Infrastructure | VPC, ALB, EC2 Auto Scaling, RDS, CloudWatch alarms + AI log summary pipeline |
-| Project 2 — Container Platform & CI/CD | [`infrastructure/project-2-ecs-cicd`](./infrastructure/project-2-ecs-cicd) | Delivery | Docker + ECR + ECS Fargate behind ALB + GitHub Actions (SHA-pinned rolling deploys) |
-| Project 3 — Security Governance & AI Lab | [`infrastructure/project-3-cloud-governance`](./infrastructure/project-3-cloud-governance) | Governance/Ops | Security services + AI incident/cost analysis + dashboard (single-account lab) |
-
-Each project stands alone, but together they show a realistic progression from **infrastructure** → **delivery** → **governance/ops**.
-
----
-
-## Architecture overview
-
-![Platform Architecture Overview](platform-architecture-overview.png)
-
-### Layer 1 — Infrastructure (Project 1)
-Core components:
-- VPC across 2 AZs (public + private subnets)
-- Internet Gateway + optional NAT Gateway (`enable_nat_gateway` toggle)
-- ALB + target groups
-- EC2 Auto Scaling Group (public subnets in demo mode, private with NAT enabled)
-- RDS MySQL (always private subnets)
-- CloudWatch alarms + SNS notifications
-- **AI log summarization pipeline**:
-  - EC2 instances ship Apache logs to CloudWatch via CloudWatch Agent
-  - Trigger: CloudWatch Alarm State Change → EventBridge
-  - Lambda pulls recent log lines from the app log group
-  - Lambda calls OpenAI and writes a JSON summary to S3, metadata to DynamoDB, and publishes a short alert to SNS
-
-### Layer 2 — Application Delivery (Project 2)
-Core components:
-- Dockerized web app (single-stage, Python + Flask + gunicorn)
-- ECR repository with SHA-tagged immutable images
-- ECS Fargate service behind an ALB (public subnets in demo mode)
-- GitHub Actions workflow (OIDC auth, `workflow_dispatch` trigger):
-  - Build image with Git SHA tag
-  - Push to ECR
-  - Download current task definition, update image + inject SHA into `APP_VERSION`
-  - Register new revision, update ECS service, wait for stability (rolling update)
-
-### Layer 3 — Governance / Ops (Project 3)
-What's deployed (single-account lab):
-- GuardDuty, Security Hub, AWS Config (3 rules), CloudTrail → S3
-- AI incident Lambda: GuardDuty → EventBridge → Lambda → OpenAI → DynamoDB + SNS
-- AI cost Lambda: Weekly EventBridge → Lambda → Cost Explorer → OpenAI → DynamoDB
-- Dashboard API: API Gateway v2 + Lambda → DynamoDB
-- Static portfolio dashboard on S3 (sample data)
-
-What's modeled (not provisioned):
-- Multi-account Organizations structure (metadata-only CloudFormation stack)
-- SCPs, IAM Identity Center, Budgets, Cost Anomaly Detection
-
----
-
-## How to run this repo
-
-Each project has its own README with exact commands and verification steps:
-- Project 1 README: deploy/verify/destroy + AI summary evidence
-- Project 2 README: deploy/verify + workflow reference
-- Project 3 README: what's deployed vs modeled + evidence
-
----
-
-## Operational notes (what I'm optimizing for)
-
-This platform is written with an operator mindset:
-- clear "verify health" checks (ALB target health, ECS service health, RDS status, alarms)
-- screenshots that prove the environment exists
-- destroy paths to prevent runaway spend
-
----
-
-## Cost awareness (high-level)
-
-Typical cost drivers in these projects:
-- NAT Gateway hourly + data processing (only when enabled)
-- ALB hourly + LCUs
-- ECS task CPU/memory-hours
-- RDS instance + storage + backups
-- CloudWatch log ingestion + retention
-- GuardDuty, Security Hub, Config (Project 3)
-- AI analysis runs only on events and schedules (event-driven, minimal cost)
-
----
-
-## Validation
-
-Checks run against this repo:
-
-```bash
-# Terraform formatting and syntax
-terraform fmt -check -recursive infrastructure/
-terraform validate                  # per-project (requires init)
-
-# Python syntax
-python3 -m py_compile infrastructure/project-1-cloud-platform/ai_log_summarizer.py
-python3 -m py_compile infrastructure/project-3-cloud-governance/security/ai_cost_lambda.py
-python3 -m py_compile infrastructure/project-3-cloud-governance/security/ai_incident_lambda.py
-python3 -m py_compile infrastructure/project-3-cloud-governance/workload/dashboard_api.py
-python3 -m py_compile infrastructure/project-2-ecs-cicd/app/app.py
-
-# Container build
-cd infrastructure/project-2-ecs-cicd/app && docker build -t rsvp-test .
+    ORG[AWS Organizations / SCPs / Identity Center] --> SEC
+    ORG --> LOG[Central Log Archive]
+    ORG --> APP
 ```
 
----
+### The design in plain English
+
+Traffic enters through a protected HTTPS endpoint. Application workloads remain in private subnets and reach a private, encrypted database. Software is deployed through GitHub Actions using short-lived AWS credentials and immutable image versions. Security and audit controls are centralized across AWS accounts. CloudWatch, GuardDuty, Security Hub, backups, and recovery procedures provide the operating layer. AI analyzes approved evidence and recommends actions, but **does not autonomously modify infrastructure**.
+
+## What is implemented
+
+### 1. Production network and application foundation
+
+- Multi-AZ VPC design with public edge subnets and private workload subnets
+- EC2 Auto Scaling and ECS Fargate workloads without public IP addresses
+- NAT Gateway per Availability Zone for resilient private egress
+- HTTPS with ACM certificates and HTTP-to-HTTPS redirect
+- AWS WAF managed rules and rate limiting
+- Security groups that restrict application access to the load balancer path
+
+### 2. Resilient data layer
+
+- Private Amazon RDS MySQL
+- Multi-AZ deployment
+- KMS encryption and key rotation
+- AWS-managed master password in Secrets Manager
+- point-in-time recovery and backup retention
+- deletion protection and required final snapshots
+- storage autoscaling and database monitoring
+
+### 3. Container delivery and CI/CD
+
+- Dockerized Python/Flask application running as a non-root container
+- ECS Fargate service distributed across Availability Zones
+- service autoscaling and deployment circuit breaker
+- GitHub Actions authentication through AWS OIDC — no long-lived deployment keys
+- immutable Git SHA image releases
+- Terraform validation, TFLint, Checkov, Ruff, pytest, dependency auditing, Docker build checks, and Trivy scanning
+- post-deployment HTTPS health verification
+- automatic rollback to the previous ECS task definition when validation fails
+
+### 4. Multi-account governance
+
+- AWS Organizations with Security, Infrastructure, Workloads, NonProd, and Prod organizational units
+- optional account creation with a safe default that does not automatically create AWS accounts
+- root-level member-account protection plus Service Control Policies protecting CloudTrail, Config, GuardDuty, and Security Hub
+- delegated GuardDuty, Security Hub, AWS Config, and CloudFormation StackSets administration
+- dedicated Security and Log Archive account patterns
+- organization-wide multi-Region CloudTrail with log-file validation
+- organization AWS Config aggregation for member accounts where Config recording is enabled
+- IAM Identity Center permission sets for administrators, operators, and read-only engineering access
+
+### 5. API and edge security
+
+- Regional API Gateway REST API protected by AWS WAF
+- Amazon Cognito authentication with software-token MFA
+- restrictive CORS configuration
+- throttling and bounded Lambda concurrency
+- X-Ray tracing and structured API access logging
+- scoped cross-account read roles and Lambda permissions
+
+### 6. Observability and recovery
+
+- CloudWatch dashboards for application, ECS, EC2, ALB, and RDS health
+- alarms for 5XX errors, unhealthy targets, CPU, memory, and database storage
+- SNS operational notifications
+- customer-managed KMS key on the AWS Backup vault plus scheduled RDS backups; RDS recovery points inherit the database encryption key
+- Project 1 recovery KMS keys have intentional Terraform destruction guards so retained snapshots and recovery points cannot be orphaned by routine stack teardown
+- RDS point-in-time recovery validation workflow
+- ECS resilience validation workflow
+- documented ECS degradation and RDS recovery runbooks
+- explicit RTO/RPO **targets** that must be measured during recovery testing before being claimed as achieved
+
+### 7. AI-assisted operations
+
+AI is deliberately a supporting capability rather than the platform's control plane.
+
+- SRE analysis uses bounded CloudWatch evidence and returns likely cause, impact, recommended checks, evidence used, and confidence
+- Security triage consumes centralized Security Hub findings and assigns operational priority
+- FinOps analysis uses real AWS Cost Explorer data
+- OpenAI credentials are stored in AWS Secrets Manager
+- deterministic fallback behavior exists when AI is unavailable
+- retries, dead-letter queues, concurrency controls, evidence storage, and operational metrics are included
+- AI has no permissions to terminate, resize, purchase, or autonomously remediate AWS infrastructure
+
+## Why these choices matter
+
+| Decision | Reason |
+|---|---|
+| Private application subnets | Reduces direct internet exposure and creates a controlled network path. |
+| NAT per AZ | Costs more than a single NAT Gateway, but removes a single-AZ egress dependency for production workloads. |
+| Multi-AZ RDS | Accepts additional database cost in exchange for higher availability. |
+| OIDC for GitHub Actions | Avoids storing long-lived AWS deployment credentials in GitHub. |
+| Immutable SHA image tags | Makes every release traceable and prevents accidental reuse of `latest`. |
+| ECS circuit breaker + health validation | Makes failed deployments detectable and recoverable. |
+| Separate security/logging responsibilities | Reduces the blast radius of one compromised workload account. |
+| AI advisory only | Uses AI to reduce human analysis time without allowing probabilistic output to control infrastructure. |
+
+## Repository structure
+
+| Area | Purpose |
+|---|---|
+| `infrastructure/project-1-cloud-platform/` | EC2, ALB, RDS, networking, monitoring, backups, and SRE AI workflow |
+| `infrastructure/project-2-ecs-cicd/` | Container application, ECS platform, autoscaling, WAF, and deployment automation |
+| `infrastructure/project-3-cloud-governance/` | Organizations, security administration, log archive, Identity Center, secure API, and FinOps AI |
+| `infrastructure/bootstrap-state/` | Remote Terraform state foundation |
+| `.github/workflows/` | CI validation and controlled ECS deployment workflows |
+| `ops/` | Reliability targets, recovery validation, and operational runbooks |
+| `docs/` | Public architecture and deployment-evidence documentation |
+
+## Terraform environment model
+
+The infrastructure is separated into `dev`, `stage`, and `prod` configuration examples with remote S3 state, an explicit customer-managed KMS key for backend writes, and DynamoDB locking. Multi-account governance roots use account-local state backends by default so member accounts are not implicitly granted access to a management-account state bucket. The environments share the same engineering patterns while allowing capacity, protection, and cost settings to differ.
+
+The governance layer is intentionally deployed in stages because AWS Organizations should not be treated as if one Terraform execution can safely create an organization, create accounts, and immediately administer every new account.
+
+## Cost and scale considerations
+
+This design chooses production resilience over minimum lab cost in several areas. NAT Gateways, Multi-AZ RDS, WAF, GuardDuty, Security Hub, AWS Config recording where enabled, CloudWatch, and multiple running ECS tasks all create real AWS charges.
+
+For a temporary demonstration environment, deploy only the controls needed for the evidence being captured and remove expendable workload resources afterward. Remote-state, centralized audit, and Project 1 recovery KMS keys have intentional Terraform destruction guards; do not treat them as disposable demo resources. A complete teardown requires deliberate operator action only after the dependent state, snapshots, and recovery points have been removed or no longer need to be recoverable. For production, the high-value security, logging, backup, and availability controls should remain enabled.
+
+At greater organizational scale, I would extend this design with account vending, reusable platform modules, standardized deployment templates, stronger workload ownership boundaries, regional disaster recovery, service-level objectives, and organization-wide policy automation rather than simply adding more AWS services.
+
+## First deployment sequence
+
+Project 2 separates account-level delivery bootstrap from the ECS runtime so Terraform never depends on an image that does not exist yet.
+
+1. Apply `infrastructure/project-2-ecs-cicd/bootstrap-delivery` once in the AWS account. This creates the single GitHub OIDC provider plus per-environment ECR repositories and deployment roles.
+2. Configure each GitHub Environment with the matching `AWS_DEPLOY_ROLE_ARN`. **GitHub Environment protection rules are an external deployment prerequisite** for production: restrict the `prod` environment to approved release branches/tags and require deployment approval where the repository plan supports it.
+3. Run **ECS Project 2 - Bootstrap First Image** for the target environment. The workflow tests, scans, and pushes an immutable Git-SHA image and prints its exact URI.
+4. Set that URI as `container_image` in the target runtime environment configuration and apply `infrastructure/project-2-ecs-cicd/terraform`.
+5. Future releases use **ECS Project 2 - Controlled Deploy** for normal rolling deployment and rollback.
+
+This sequence also prevents duplicate GitHub OIDC providers when dev, stage, and prod share one AWS account.
+
+## Validation and evidence status
+
+The code has completed local structural checks, Python compilation, workflow YAML parsing, shell validation, and packaging integrity checks.
+
+The following evidence must still be captured from a real deployment before the project is described as fully validated in AWS:
+
+- Terraform `fmt`, `init`, `validate`, TFLint, and Checkov results
+- successful GitHub Actions CI run
+- successful Docker build, dependency audit, and Trivy scan
+- private workload placement and HTTPS/WAF verification
+- healthy ECS service across Availability Zones
+- failed deployment / automatic rollback demonstration
+- RDS Multi-AZ, backup, and recovery verification
+- CloudWatch alarm and dashboard evidence
+- GuardDuty / Security Hub evidence
+- AI incident-analysis output based on real platform telemetry
+- measured recovery exercise results
+
+See [`docs/DEPLOYMENT-EVIDENCE.md`](docs/DEPLOYMENT-EVIDENCE.md) for the evidence checklist.
+
+See [`docs/PREDEPLOY-RUNBOOK.md`](docs/PREDEPLOY-RUNBOOK.md) for the exact first-deployment and verification order.
 
 ## Known limitations
 
-Documented here so reviewers see controlled scope, not gaps:
+- This is a portfolio-scale implementation of enterprise AWS patterns, not a claim that the environment has served enterprise production traffic.
+- Multi-account AWS services create real cost, so account-level controls may be provisioned only during controlled validation exercises.
+- RTO/RPO values are engineering targets until a timed recovery exercise proves them.
+- IAM Identity Center must exist before Terraform can create permission sets and account assignments.
+- Existing AWS accounts should be imported or migrated deliberately; the Terraform code does not silently move accounts between OUs.
+- Production access, approvals, domain names, account IDs, and alert destinations must be supplied for the target environment rather than committed to the repository.
 
-- **Project 1:** Demo mode (default) places EC2 in public subnets. Set `enable_nat_gateway = true` for private-subnet production architecture.
-- **Project 2:** ECS tasks run in public subnets with public IPs in demo mode. Production would use private subnets with NAT or VPC endpoints.
-- **Project 3:** Multi-account organization, SCPs, IAM Identity Center, Budgets, and Cost Anomaly Detection are modeled and documented but not provisioned as Terraform resources. The dashboard renders sample data; live API integration is planned.
-- **Project 3:** AI cost Lambda falls back to sample data if Cost Explorer is not enabled in the AWS account.
 
----
+## Positioning
 
-## Future enhancements (kept separate on purpose)
+**Primary story:** cloud architecture, infrastructure automation, security, reliability, observability, and recovery.
 
-- Multi-stage Docker build for smaller image (Project 2)
-- Container image scanning in CI/CD (Project 2)
-- Multi-account Organizations buildout with SCPs and Identity Center (Project 3)
-- Wire dashboard to live API data (Project 3)
-- Ticket/Slack integration for incident summaries
-- Policy-as-code and IaC testing
+**Supporting differentiator:** AI-assisted operations built on top of deterministic AWS controls.
 
 ---
 
-## Contact
-
-Josh Holman
-Infrastructure Engineer • Cloud Operations
-
-LinkedIn: https://www.linkedin.com/in/jnholmanjr/
-Email: jnholman@charter.net
+**Josh Holman**  
+Network / Cloud Infrastructure Engineer  
+AWS • Terraform • Python • GitHub Actions • Cisco • Palo Alto

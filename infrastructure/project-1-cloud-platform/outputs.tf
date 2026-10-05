@@ -18,15 +18,14 @@ output "alb_dns_name" {
   value       = aws_lb.app_alb.dns_name
 }
 
-# Added: direct URLs for verification/evidence
-output "alb_http_url" {
-  description = "HTTP URL for the ALB (landing page)"
-  value       = "http://${aws_lb.app_alb.dns_name}/"
+output "application_url" {
+  description = "Production HTTPS URL"
+  value       = "https://${var.domain_name}/"
 }
 
 output "alb_health_url" {
-  description = "HTTP health endpoint (target group health check)"
-  value       = "http://${aws_lb.app_alb.dns_name}/health"
+  description = "HTTPS health endpoint"
+  value       = "https://${var.domain_name}/health"
 }
 
 output "rds_endpoint" {
@@ -49,7 +48,6 @@ output "ai_logs_bucket" {
   value       = aws_s3_bucket.ai_logs.bucket
 }
 
-# Added: stable prefix for evidence scripts
 output "ai_logs_prefix" {
   description = "S3 prefix where summaries are stored"
   value       = "summaries/"
@@ -65,7 +63,6 @@ output "ai_lambda_function_name" {
   value       = aws_lambda_function.ai_log_summarizer.function_name
 }
 
-# Added: log group names for evidence/verification
 output "app_log_group_name" {
   description = "CloudWatch log group intended for app logs"
   value       = aws_cloudwatch_log_group.app_logs.name
@@ -74,4 +71,25 @@ output "app_log_group_name" {
 output "ai_lambda_log_group_name" {
   description = "CloudWatch log group for the AI summarizer Lambda"
   value       = "/aws/lambda/${aws_lambda_function.ai_log_summarizer.function_name}"
+}
+
+output "rds_master_secret_arn" {
+  description = "Secrets Manager ARN containing the RDS-managed master credential"
+  value       = aws_db_instance.app_db.master_user_secret[0].secret_arn
+  sensitive   = true
+}
+
+output "rds_kms_key_arn" {
+  description = "KMS key ARN protecting RDS storage, credentials, and Performance Insights"
+  value       = aws_kms_key.rds.arn
+}
+
+output "operations_dashboard_name" {
+  description = "CloudWatch operations dashboard"
+  value       = aws_cloudwatch_dashboard.operations.dashboard_name
+}
+
+output "backup_vault_name" {
+  description = "AWS Backup vault used for independent RDS recovery points"
+  value       = aws_backup_vault.production.name
 }

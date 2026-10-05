@@ -1,0 +1,9 @@
+aws_region         = "us-east-1"
+project_name       = "rsvp-enterprise"
+openai_secret_arn  = "arn:aws:secretsmanager:us-east-1:111111111111:secret:rsvp/openai-REPLACE"
+
+# Cross-account dashboard access can be configured before the workload role exists.
+# Trust is granted to the workload account and narrowed to this exact future role ARN
+# through aws:PrincipalArn, avoiding a circular deployment dependency.
+dashboard_reader_account_id = "555555555555"
+dashboard_reader_role_name   = "rsvp-enterprise-prod-dashboard-api-role"

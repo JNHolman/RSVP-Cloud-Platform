@@ -1,0 +1,22 @@
+aws_region   = "us-east-1"
+project_name = "rsvp-enterprise"
+environment  = "prod"
+
+ai_incidents_table_name      = "rsvp-enterprise-ai-security-incidents"
+ai_cost_summaries_table_name = "rsvp-enterprise-ai-cost-reports"
+
+security_data_read_role_arn = "arn:aws:iam::111111111111:role/rsvp-enterprise-security-dashboard-read"
+finops_data_read_role_arn   = "arn:aws:iam::000000000000:role/rsvp-enterprise-finops-dashboard-read"
+
+dashboard_allowed_origin = "https://dashboard.example.com"
+
+api_throttle_rate_limit  = 20
+api_throttle_burst_limit = 40
+api_rate_limit_per_5m    = 1000
+
+tags = {
+  Project     = "rsvp-enterprise"
+  Environment = "prod"
+  ManagedBy   = "Terraform"
+  Owner       = "platform-engineering"
+}

@@ -1,0 +1,7 @@
+aws_region        = "us-east-1"
+project_name      = "rsvp-enterprise"
+openai_secret_arn = "arn:aws:secretsmanager:us-east-1:000000000000:secret:rsvp/openai-REPLACE"
+
+# Workload account/role allowed to assume the read-only FinOps reporting role.
+dashboard_reader_account_id = "555555555555"
+dashboard_reader_role_name   = "rsvp-enterprise-prod-dashboard-api-role"
