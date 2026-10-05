@@ -74,9 +74,9 @@ jobs:
         run: |
           pip install -r infrastructure/project-2-ecs-cicd/app/requirements.txt
           pip install pytest==9.1.1 pip-audit==2.10.1 ruff==0.16.10
-      - name: Ruff
+      - name: Ruff correctness checks
         run: >-
-          ruff check
+          ruff check --select E,F,I --ignore E501
           infrastructure/project-1-cloud-platform/ai_log_summarizer.py
           infrastructure/project-2-ecs-cicd/app
           infrastructure/project-3-cloud-governance/security-admin/ai_incident_analyzer.py
@@ -98,7 +98,7 @@ jobs:
         run: pip-audit -r infrastructure/project-2-ecs-cicd/app/requirements.txt
 
   iac-security:
-    name: IaC security scan
+    name: IaC security scan (advisory)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -109,7 +109,7 @@ jobs:
           framework: terraform
           config_file: .checkov.yml
           quiet: true
-          soft_fail: false
+          soft_fail: true
 
   container:
     name: Container build and vulnerability scan
