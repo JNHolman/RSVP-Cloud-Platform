@@ -102,6 +102,7 @@ def test_dashboard_cors_origin_is_a_single_explicit_https_origin():
 
 
 def test_cleanup_docs_do_not_claim_protected_recovery_keys_are_disposable():
+    readme = Path("README.md").read_text(encoding="utf-8")
     runbook = Path("docs/DEPLOYMENT.md").read_text(encoding="utf-8")
     assert "Project 1 recovery KMS keys have intentional Terraform destruction guards" in readme
     assert "do not expect an unrestricted `terraform destroy`" in runbook.lower()
@@ -124,7 +125,6 @@ def test_project3_runbook_requires_state_kms_backend_placeholder_replacement():
 
 def test_prod_oidc_runbook_requires_github_environment_protection():
     runbook = Path("docs/DEPLOYMENT.md").read_text(encoding="utf-8")
-    readme = Path("README.md").read_text(encoding="utf-8")
     assert "GitHub Environment protection rules for `prod`" in runbook
     assert "restrict deployment branches/tags" in runbook
     assert "production authorization boundary" in runbook
