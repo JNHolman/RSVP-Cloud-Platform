@@ -1,6 +1,6 @@
 bucket         = "REPLACE_WITH_TERRAFORM_STATE_BUCKET"
 key            = "project-2-ecs-cicd/dev/terraform.tfstate"
 region         = "us-east-1"
-dynamodb_table = "rsvp-terraform-locks"
+dynamodb_table = "rsvp-cloud-platform-terraform-locks"
 encrypt        = true
 kms_key_id     = "REPLACE_WITH_TERRAFORM_STATE_KMS_KEY_ARN"
