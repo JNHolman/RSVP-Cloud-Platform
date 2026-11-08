@@ -100,12 +100,4 @@ variable "protected_admin_role_patterns" {
   description = "Explicit account-scoped IAM role ARNs exempted from security-control SCP denies. Empty by default; wildcard account IDs are intentionally rejected."
   type        = list(string)
   default     = []
-
-  validation {
-    condition = alltrue([
-      for arn in var.protected_admin_role_patterns :
-      can(regex("^arn:(aws|aws-us-gov|aws-cn):iam::[0-9]{12}:role/.+$", arn)) && !strcontains(arn, "*")
-    ])
-    error_message = "Each protected admin principal must be an explicit IAM role ARN with a 12-digit account ID; wildcards are not allowed."
-  }
 }

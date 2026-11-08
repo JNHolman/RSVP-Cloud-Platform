@@ -33,11 +33,11 @@ resource "aws_lambda_function" "dashboard_api" {
 
   environment {
     variables = {
-      INCIDENTS_TABLE      = var.ai_incidents_table_name
-      COST_SUMMARIES_TABLE = var.ai_cost_summaries_table_name
-      APP_REGION           = var.aws_region
-      MAX_ITEMS            = "50"
-      ALLOWED_ORIGINS      = var.dashboard_allowed_origin
+      INCIDENTS_TABLE        = var.ai_incidents_table_name
+      COST_SUMMARIES_TABLE   = var.ai_cost_summaries_table_name
+      APP_REGION             = var.aws_region
+      MAX_ITEMS              = "50"
+      ALLOWED_ORIGINS        = var.dashboard_allowed_origin
       SECURITY_READ_ROLE_ARN = var.security_data_read_role_arn
       FINOPS_READ_ROLE_ARN   = var.finops_data_read_role_arn
     }
@@ -273,7 +273,7 @@ resource "aws_api_gateway_stage" "dashboard" {
 }
 
 resource "aws_api_gateway_method_settings" "all" {
-  depends_on = [aws_api_gateway_account.this]
+  depends_on  = [aws_api_gateway_account.this]
   rest_api_id = aws_api_gateway_rest_api.dashboard.id
   stage_name  = aws_api_gateway_stage.dashboard.stage_name
   method_path = "*/*"
@@ -288,7 +288,7 @@ resource "aws_api_gateway_method_settings" "all" {
 }
 
 output "dashboard_api_url" {
-  value = "${aws_api_gateway_stage.dashboard.invoke_url}"
+  value = aws_api_gateway_stage.dashboard.invoke_url
 }
 
 output "dashboard_user_pool_id" {

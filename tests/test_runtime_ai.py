@@ -568,3 +568,37 @@ def test_ai_records_write_dynamodb_ttl(monkeypatch):
     finops.handler({}, None)
     fin_item = [c for c in finops.ddb.calls if c[0] == "put_item"][0][2]["Item"]
     assert int(fin_item["expires_at"]["N"]) > 0
+
+
+def test_security_fallback_handles_invalid_normalized_critical_finding():
+    result = _security_module()._fallback({"severity": {"Normalized": "invalid", "Label": "CRITICAL"}}, "unavailable")
+    assert result["triage_priority"] == "P1"
+    assert result["confidence"] == "low"
+
+
+def test_finops_fallback_uses_measured_cost_without_inventing_savings():
+    module = _finops_module()
+    assert module._fallback({"top_services": []}, "offline")["recommendations"] == []
+    result = module._fallback({"top_services": [{"service": "S3", "cost": 2.75}]}, "offline")
+    recommendation, = result["recommendations"]
+    assert "S3" in recommendation["recommendation"]
+    assert "$2.75" in recommendation["evidence"]
+    assert recommendation["estimate"] is False
+
+
+def test_guardduty_finding_imported_by_security_hub_survives_model_outage():
+    module = _security_module(topic="arn:aws:sns:us-east-1:111111111111:alerts")
+
+    def unavailable(_evidence):
+        raise RuntimeError("model unavailable")
+
+    module._analyze = unavailable
+    module.ddb = RecordingClient()
+    module.sns = RecordingClient()
+    event = {"source": "aws.securityhub", "detail-type": "Security Hub Findings - Imported",
+             "detail": {"findings": [{"Id": "gd-import-test", "ProductName": "GuardDuty",
+                                      "Severity": {"Label": "CRITICAL"}, "Resources": []}]}}
+    result = module.handler(event, None)
+    assert json.loads(result["body"])[0]["priority"] == "P1"
+    assert any(name == "put_item" for name, _, _ in module.ddb.calls)
+    assert any(name == "publish" for name, _, _ in module.sns.calls)

@@ -20,6 +20,21 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  project3-offline:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infrastructure/project-3-cloud-governance/modules/scp-policies
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3
+        with:
+          terraform_version: 1.6.6
+      - run: terraform fmt -check -recursive
+      - run: terraform init -backend=false -input=false
+      - run: terraform validate
+      - run: terraform test
+
   terraform:
     name: Terraform quality gates (manual only)
     if: github.event_name == 'workflow_dispatch' && inputs.run_terraform == true

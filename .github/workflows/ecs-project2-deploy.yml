@@ -188,6 +188,7 @@ jobs:
         if: steps.deploy.outcome == 'success'
         continue-on-error: true
         env:
+          EXPECTED_ENV: ${{ inputs.environment }}
           SERVICE_URL: ${{ vars.SERVICE_URL }}
         run: |
           test -n "$SERVICE_URL"
@@ -198,10 +199,13 @@ jobs:
           curl --proto '=https' --tlsv1.2 --fail --silent --show-error --retry 5 --retry-delay 5 "$SERVICE_URL/health" | tee health.json
           python - <<'PY'
           import json
+          import os
           with open('health.json') as f:
               data=json.load(f)
           if data.get('status') != 'ok':
               raise SystemExit('health endpoint did not return status=ok')
+          if data.get('version') != os.environ['GITHUB_SHA'][:7] or data.get('env') != os.environ['EXPECTED_ENV']:
+              raise SystemExit('health endpoint returned the wrong release or environment')
           PY
 
       - name: Roll back failed deployment

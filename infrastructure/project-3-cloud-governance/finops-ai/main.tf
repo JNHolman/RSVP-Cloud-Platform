@@ -83,7 +83,7 @@ resource "aws_iam_role_policy" "lambda" {
       { Effect = "Allow", Action = ["dynamodb:PutItem"], Resource = aws_dynamodb_table.cost_reports.arn },
       { Effect = "Allow", Action = ["secretsmanager:GetSecretValue"], Resource = var.openai_secret_arn },
       { Effect = "Allow", Action = ["sqs:SendMessage"], Resource = aws_sqs_queue.dlq.arn }
-    ], var.alert_topic_arn == "" ? [] : [
+      ], var.alert_topic_arn == "" ? [] : [
       { Effect = "Allow", Action = ["sns:Publish"], Resource = var.alert_topic_arn }
     ])
   })
@@ -216,8 +216,8 @@ resource "aws_iam_role_policy" "dashboard_read" {
     Version = "2012-10-17"
     Statement = [
       {
-        Effect   = "Allow"
-        Action   = ["dynamodb:Query"]
+        Effect = "Allow"
+        Action = ["dynamodb:Query"]
         Resource = [
           aws_dynamodb_table.cost_reports.arn,
           "${aws_dynamodb_table.cost_reports.arn}/index/*",

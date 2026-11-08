@@ -14,8 +14,8 @@ def test_dynamodb_runtime_roles_do_not_receive_unnecessary_kms_or_extra_read_per
     # Writers only put records; the cross-account dashboard readers only query them.
     assert '{ Effect = "Allow", Action = ["dynamodb:PutItem"], Resource = aws_dynamodb_table.ai_incidents.arn }' in security
     assert '{ Effect = "Allow", Action = ["dynamodb:PutItem"], Resource = aws_dynamodb_table.cost_reports.arn }' in finops
-    assert 'Action   = ["dynamodb:Query"]' in security
-    assert 'Action   = ["dynamodb:Query"]' in finops
+    assert 'Action = ["dynamodb:Query"]' in security
+    assert 'Action = ["dynamodb:Query"]' in finops
     assert 'dynamodb:Scan' not in security
     assert 'dynamodb:GetItem' not in security
     assert 'dynamodb:Scan' not in finops
