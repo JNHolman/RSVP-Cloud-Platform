@@ -1,30 +1,34 @@
 # RSVP Cloud Platform
 
-**One AWS engineering project, developed from a real business decision.**
+**One cloud engineering portfolio, built from a real business decision.**
 
-RSVP Cloud Platform shows how I approach cloud infrastructure as a network engineer: understand the workload, build secure systems, automate changes, investigate failures, and prove that recovery works. It has three connected parts—**Foundation, Delivery, and Governance**—that follow the same engineering principles at increasing scale.
+I built [RSVP Society](https://github.com/JNHolman/rsvp-society) to manage private events: membership approvals, invitation waves, text-message RSVPs, guest limits, and check-in. Building that application forced me to make a decision I encounter in infrastructure engineering: **what does the business actually need, and what is unnecessary complexity?**
 
-## It started with RSVP Society
+## Why the architecture changed
 
-[RSVP Society](https://github.com/JNHolman/rsvp-society) is the private-event platform I built to manage an approved member community, invitation waves, text-message RSVPs, +1s, capacity, and guest check-in. It solves a practical problem: keeping the guest list accurate while invitations, cancellations, and event-day changes happen.
+My first AWS design used familiar enterprise components: a VPC, an Application Load Balancer, EC2 servers, and a relational database. It was a reasonable model for a service with steady demand. But RSVP Society gets busy around invitations and event days, not around the clock.
 
-My first AWS design followed a traditional enterprise model: a VPC, load-balanced EC2 servers, and a relational database. That could support a continuously active application, but it meant paying for infrastructure even between events. RSVP Society's workload is different. Invitations and event days create spikes of activity, with much less demand in between.
+I moved the live business toward serverless services so the infrastructure matched that pattern.
 
-I changed the business architecture to fit that reality. The application now uses **API Gateway and Lambda** for requests, **DynamoDB** for application data, **EventBridge** for scheduled work, and **CloudFront** for delivery. Instead of keeping servers running for occasional bursts, the business uses managed services that do work when it is needed.
+| Original enterprise approach | RSVP Society's serverless direction | Why it changed |
+| --- | --- | --- |
+| Always-available EC2 application tier | API Gateway + AWS Lambda | Process requests when they arrive instead of running application servers continuously |
+| Managed relational database infrastructure | DynamoDB | Use managed, on-demand capacity for members, invitations, and event activity |
+| Load-balanced server delivery and scheduled server-side work | CloudFront + EventBridge-driven scheduling | Deliver the frontend efficiently and run event tasks when needed |
 
-That pivot wasn't a rejection of enterprise infrastructure. It was a judgment about **which architecture belonged in the business**. I kept the original engineering direction and developed it into this separate cloud platform portfolio.
+The pivot wasn't because traditional infrastructure is wrong. **It was the wrong operating model for this business.** I kept that engineering work and expanded it into RSVP Cloud Platform to explore the security, delivery, and governance needs of a larger AWS environment. The business application and this portfolio are separate.
 
 ## One platform, three connected parts
 
-| Part | The problem it addresses | What it contains |
+| Part | Engineering focus | Question it answers |
 | --- | --- | --- |
-| **[01 · Cloud Foundation](project-1-cloud-foundation/README.md)** | How do I protect and recover a traditional application? | AWS networking, private EC2, HTTPS/WAF, encrypted RDS, monitoring, backup, incident analysis |
-| **[02 · ECS & CI/CD](project-2-ecs-cicd/README.md)** | How do I deliver changes reliably? | Private ECS Fargate, ECR, GitHub Actions, OIDC, image scanning, release validation, rollback |
-| **[03 · Cloud Governance](project-3-cloud-governance/README.md)** | How would these standards scale across an organization? | AWS Organizations, SCPs, IAM Identity Center, central security, audit logging, cost visibility |
+| [**01 · Cloud Foundation**](project-1-cloud-foundation/README.md) | Private networking, EC2, encrypted RDS, WAF, monitoring and recovery | Can I make a traditional application secure, observable, and recoverable? |
+| [**02 · ECS & CI/CD**](project-2-ecs-cicd/README.md) | Private Fargate services, GitHub Actions, OIDC, ECR and deployment rollback | Can I ship software changes without losing control of the running service? |
+| [**03 · Cloud Governance**](project-3-cloud-governance/README.md) | Organization guardrails, identity, centralized security, logging and costs | How would those standards be applied across teams and accounts? |
 
-**Foundation** establishes the security, networking, and recovery pattern. **Delivery** carries those principles into containers and application releases. **Governance** models the organizational controls around both.
+Foundation establishes the network and recovery design. Delivery applies the same security and reliability approach to containers and releases. Governance takes the question beyond a single application account.
 
-They form **one engineering story**, but not one continuously deployed AWS environment. The EC2 and ECS exercises were deployed and tested separately. Governance is an offline-tested multi-account design. The diagram distinguishes those boundaries.
+This is a **progression in engineering scope**, not a claim that all three environments were deployed as one live system. Foundation and ECS were exercised independently. The six-account governance design has been tested offline.
 
 ```mermaid
 flowchart TB
@@ -45,56 +49,51 @@ flowchart TB
     G1["Organizations · SCPs · Identity Center"] --> G2["Security and audit accounts"]
     G2 --> G3["Incident visibility · cost analysis"]
   end
-  F -. "reuse security and reliability principles" .-> D
-  D -. "model controls at organizational scale" .-> G
+  F -. "network and reliability approach" .-> D
+  D -. "organization-wide design" .-> G
 ```
 
-## What I built, tested, and learned
+## What I actually demonstrated
 
-### 01 · Cloud Foundation — make the network and recovery observable
+### Foundation — private infrastructure and database recovery
 
 ![Live EC2 application page from the foundation exercise](project-1-cloud-foundation/evidence/live-homepage.png)
 
-The public entry point is an HTTPS load balancer protected by AWS WAF. Application servers live in private subnets across two Availability Zones; the database is private and encrypted. Security groups restrict the traffic between tiers, while application logs, flow logs, and CloudWatch alarms provide the evidence needed to investigate problems.
+In the November 8, 2026 exercise, two private EC2 instances in separate Availability Zones served traffic through an HTTPS load balancer. I verified WAF blocking and a CloudWatch alarm entering and leaving its alarm state.
 
-The November 8 AWS exercise confirmed **two healthy private targets**, working HTTPS, a blocked WAF test request, and an alarm moving from ALARM back to OK. I restored a snapshot to a separate RDS instance and read the original test record over TLS in **10 minutes 2 seconds**.
+I also restored an encrypted RDS snapshot to a separate private database and read back a known record over TLS in **10 minutes 2 seconds**. The webpage and database were tested separately; an application-to-database request was **not** verified in that exercise.
 
-That last check matters: a configured backup is not the same as a successful restore. The web page and RDS recovery were tested **separately**; I did not prove that this version of the web application could query the database. The incident-analysis Lambda was directly tested, not proven end to end from an alarm.
+[Technical decisions and code](project-1-cloud-foundation/README.md) · [Test evidence](project-1-cloud-foundation/evidence/2026-11-08.md)
 
-[Foundation: technical design and findings](project-1-cloud-foundation/README.md) · [Original test evidence](project-1-cloud-foundation/evidence/2026-11-08.md)
-
-### 02 · ECS & CI/CD — make releases traceable and recoverable
+### Delivery — identifiable releases and tested rollback
 
 ![Live container service showing its deployed Git revision](project-2-ecs-cicd/evidence/live-homepage.png)
 
-I carried the private-networking and health-check approach into ECS Fargate. GitHub Actions runs tests and scanning, obtains short-lived AWS credentials through OIDC, and releases an image identified by its Git commit. Terraform owns the infrastructure baseline; the deployment workflow owns application revisions so an infrastructure update doesn't silently replace a newer release.
+GitHub Actions authenticated with short-lived credentials through OIDC and deployed a Git-SHA-tagged image to private ECS tasks. Their running image digest matched the ECR artifact. When I introduced a task revision that deliberately failed to start, ECS recovered to the previous healthy release in **13 minutes 47 seconds**.
 
-The first container launch exposed a real issue: Gunicorn needed to write a temporary file, but the container ran with a read-only root filesystem. I moved its worker heartbeat files to `/dev/shm` instead of removing the security restriction.
+This proved the native ECS circuit-breaker rollback, not the separate workflow smoke-test rollback. A later image rebuild reduced ECR HIGH findings from nine to two.
 
-I then deliberately deployed a revision that could not start. The ECS circuit breaker returned the service to its previous healthy version in **13 minutes 47 seconds**. An image rebuild later reduced ECR's reported HIGH findings from **nine to two**. The separate GitHub smoke-test rollback path was not tested by that failure injection.
+[Technical decisions and code](project-2-ecs-cicd/README.md) · [Release evidence](project-2-ecs-cicd/evidence/2026-11-08.md) · [GitHub Actions run](https://github.com/JNHolman/RSVP-Cloud-Platform/actions/runs/42458363871)
 
-[Delivery: technical design and findings](project-2-ecs-cicd/README.md) · [Release and rollback evidence](project-2-ecs-cicd/evidence/2026-11-08.md) · [GitHub release run](https://github.com/JNHolman/RSVP-Cloud-Platform/actions/runs/42458363871)
+### Governance — enforceable policies as code, tested offline
 
-### 03 · Cloud Governance — model security beyond one AWS account
+The six-account reference design separates management, security, audit, shared services, nonproduction, and production responsibilities. Its SCPs include controls to prevent member accounts from leaving the organization and to restrict disabling CloudTrail, AWS Config, GuardDuty, and Security Hub in workload environments. Account-level exceptions are explicitly scoped.
 
-The first two parts protect workloads. The third asks who controls access, policies, security findings, audit records, and costs when those workloads span an organization.
+Terraform and Python tests check these policies and the supporting security and cost-analysis logic. **I have not deployed or verified the six-account design in AWS.**
 
-I designed a **six-account reference architecture** with separate management, security, log archive, shared services, nonproduction, and production responsibilities. Terraform models service control policies and identity permissions; Python components handle bounded security and cost analysis. The separation is deliberate: an application team shouldn't be able to casually change the controls or evidence used to monitor its own account.
+[Governance design, policy implementation and tests](project-3-cloud-governance/README.md)
 
-**This part has not been deployed as a six-account environment.** Terraform and Python tests validate policy generation, configuration, and handler behavior. They do not establish that AWS enforced those policies in live member accounts.
+## Decisions behind the work
 
-[Governance: architecture and offline verification](project-3-cloud-governance/README.md)
+I brought my enterprise network engineering background to the parts that tend to fail under pressure: understanding the traffic path, reducing exposure, making changes deliberately, and knowing what to check when something breaks.
 
-## Engineering decisions that carried through
+- **Private by design:** The load balancers accept public HTTPS traffic. EC2, ECS, and the database are placed behind deliberate subnet and security-group boundaries.
+- **Infrastructure and releases have different owners:** Terraform defines ECS infrastructure; GitHub Actions promotes application revisions. This prevents a routine infrastructure update from silently reverting a working release.
+- **Recovery needs evidence:** A database snapshot existing is not the same as a successful restore. A deployment rollback setting is not the same as seeing the previous version return healthy.
+- **Automation has limits:** AI incident analysis produces advisory findings, not infrastructure changes. Governance tests establish implemented behavior, not live organization-wide enforcement.
 
-- **Fit the business, not the diagram.** An always-on architecture was useful to study, but serverless was the better fit for RSVP Society's event-driven workload.
-- **Design for investigation.** Private networks, restricted security-group paths, logs, and health signals are useful only when they help isolate an actual failure.
-- **Separate infrastructure from application releases.** Terraform establishes the environment; an explicit release pipeline changes running software. Their responsibilities should not conflict.
-- **Keep automation accountable.** OIDC limits credential exposure, immutable images establish what shipped, rollback is measured, and AI incident analysis stays advisory rather than taking action.
-- **Distinguish design from proof.** The foundation restore and ECS rollback were measured in AWS. Governance and several additional recovery paths remain design or offline-test results.
+The most important lesson connects back to RSVP Society: **strong engineering is choosing the right controls for the workload, including knowing when not to use them.**
 
-## Project status
-
-This is an **engineering portfolio**, not the live RSVP Society application and not a product someone is expected to install. The results above are tied to the November 8, 2026 exercises; subsequent integration work needs its own validation. The linked technical pages and dated test records distinguish what the code defines from what I actually demonstrated.
+This repository is the engineering portfolio, not the production RSVP Society application or an installation guide. The linked project pages explain the implementation; the dated reports show what was observed rather than what the configuration alone suggests.
 
 **Josh Holman** · Network / Cloud Infrastructure Engineer

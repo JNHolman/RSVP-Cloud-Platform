@@ -1,41 +1,45 @@
 # Part 1 — Cloud Foundation
 
-**A traditional AWS application architecture, built to test how networking, security, monitoring, and recovery work together.**
+**The first problem was to build a traditional AWS application environment that I could secure, troubleshoot, and recover.**
 
-This is where the platform's engineering principles began. A public application needs to accept requests, but that doesn't mean its servers or database belong on the public internet. I designed the traffic path around an HTTPS load balancer, private compute across two Availability Zones, and a private encrypted database.
+I designed a public HTTPS entry point with the application and database in private networks. The VPC spans two Availability Zones; each has its own NAT gateway for private outbound traffic, so one AZ's egress path does not depend on the other. The EC2 application tier is managed by an Auto Scaling Group behind the load balancer.
 
 ```text
-Client → HTTPS / WAF / ALB → private EC2 targets (AZ A and AZ B)
-                                      |
-                           Intended private RDS tier
+Internet → HTTPS / WAF / ALB
+                     |
+               private EC2 targets (AZ A + AZ B)
+                     |
+               intended private RDS connection
 ```
 
-The application-to-database path is represented in Terraform, but the original live test served a separate demo page and validated RDS recovery independently.
+The EC2 demo page did not itself query RDS in the recorded exercise. The application and database paths were validated separately.
 
-## The engineering work
+## How the design works
 
-**Networking and availability.** The VPC separates public entry points from private application subnets. Security-group rules limit access from the ALB to application instances and from the application tier to the database. Each Availability Zone has its own NAT gateway for private outbound access, avoiding a single-AZ egress dependency. An Auto Scaling Group places instances behind the load balancer.
+**Keep the network boundaries explicit.** Security-group references restrict the ALB-to-EC2 and application-to-database traffic paths. The default VPC security group is locked down so workloads need deliberately assigned rules. The public subnets host the entry and egress infrastructure; application instances and RDS do not need public IP addresses.
 
-**Monitoring and security.** WAF filters requests at the edge. VPC Flow Logs, application logs, and CloudWatch alarms provide visibility into traffic, failed requests, and unhealthy targets. An EventBridge-to-Lambda incident-analysis path is defined to examine bounded logs and metrics; results are advisory and stored in encrypted S3 and DynamoDB, with a deterministic fallback.
+[Inspect VPC, routes and security groups](terraform/vpc.tf) · [Load balancer](terraform/alb.tf)
 
-**Database recovery.** RDS uses encrypted storage, managed credentials, and snapshot/backup configuration. The RDS encryption key has a Terraform destruction guard because retaining a snapshot without its decryption key is not meaningful recovery. My live recovery test used a native RDS snapshot and a separate restored database.
+**Collect evidence before troubleshooting.** CloudWatch tracks unhealthy targets and application/infrastructure metrics; VPC Flow Logs and application logs show what traffic reached the environment. I also implemented an EventBridge/Lambda incident-analysis path to collect bounded diagnostic evidence and store an advisory result in encrypted S3 and DynamoDB. The handler has a deterministic fallback and cannot change infrastructure.
 
-The trade-off is cost. These controls are useful for an enterprise workload, but running compute, a Multi-AZ database, and network egress infrastructure continuously would have been excessive for RSVP Society's intermittent events.
+[Monitoring and alarms](terraform/monitoring.tf) · [Incident-analysis handler](terraform/ai_log_summarizer.py)
 
-## What the AWS exercise actually proved
+**Treat recovery as a separate test.** RDS uses private networking, storage encryption, managed credentials, and backup configuration. I retained the database encryption key using a Terraform destruction guard: a snapshot is useless if its key is deleted. For the live test, I deliberately restored a native snapshot to a separate database instead of assuming the configuration was sufficient.
 
-![Live foundation application page](evidence/live-homepage.png)
+[RDS configuration](terraform/rds.tf) · [Backup configuration](terraform/backup.tf)
 
-On November 8, 2026, the test environment had two healthy private EC2 targets in different Availability Zones. HTTPS served the demo page, WAF rejected a synthetic malicious request, logs arrived, and an unhealthy-target alarm entered and exited ALARM.
+## What happened in the AWS exercise
 
-For recovery, I wrote a known database record, created an encrypted snapshot, restored it to a separate private RDS instance, and read the same record over TLS. **Measured restore: 10 minutes 2 seconds.**
+On November 8, 2026, two instances were healthy in different AZs and had no public IP addresses. An HTTPS check succeeded, WAF rejected a harmless test request, VPC/application logs arrived, and the unhealthy-target alarm moved from ALARM back to OK.
 
-One incident-analysis Lambda invocation initially failed on DynamoDB key access. After restricting the required decrypt permission to the demo encryption key and context, a direct retry stored a fallback result. A separate local handler test exercised a live AI response.
+The database recovery test wrote a known marker, took a snapshot, restored a private RDS instance, and read the marker back over TLS. **Restore request to verified read: 10 minutes 2 seconds.**
 
-**The limits:** the demo page did not query RDS; alarm-to-Lambda delivery was not verified; and this exercise did not measure point-in-time recovery or AZ failover. Those distinctions matter when evaluating the architecture.
+The incident-analysis Lambda exposed a KMS permission problem during direct testing. I narrowed the DynamoDB decrypt permission to the relevant key and encryption context, then verified that the fallback result was stored. A separate local handler test exercised an AI-generated result.
 
-[Full dated test record](evidence/2026-11-08.md) · [Captured observations](evidence/observations.json)
+**Not proven in this exercise:** an end-to-end page-to-RDS query, automatic alarm-to-Lambda delivery, AWS Backup recovery, point-in-time recovery, or Multi-AZ failover. The dated evidence distinguishes these from the tested paths.
 
-This established the network boundaries, failure visibility, and recovery discipline carried into Part 2.
+[Original observations and recovery timeline](evidence/2026-11-08.md) · [Recorded results](evidence/observations.json)
+
+The point of this part is the relationship between traffic, visibility, and recovery—not a catalogue of AWS services. It set the expectations I carried into container delivery.
 
 [Platform overview](../README.md) · [Part 2: ECS & CI/CD](../project-2-ecs-cicd/README.md)
