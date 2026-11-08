@@ -132,8 +132,8 @@ resource "aws_db_instance" "app_db" {
   vpc_security_group_ids = [aws_security_group.db_sg.id]
   parameter_group_name   = aws_db_parameter_group.mysql.name
 
-  multi_az            = true
-  publicly_accessible               = false
+  multi_az                            = true
+  publicly_accessible                 = false
   iam_database_authentication_enabled = true
 
   monitoring_interval = 60
@@ -150,7 +150,7 @@ resource "aws_db_instance" "app_db" {
   delete_automated_backups  = false
 
   auto_minor_version_upgrade = true
-  apply_immediately           = false
+  apply_immediately          = false
 
   enabled_cloudwatch_logs_exports = [
     "error",

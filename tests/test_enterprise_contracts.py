@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 
@@ -23,7 +24,7 @@ def test_dynamodb_runtime_roles_do_not_receive_unnecessary_kms_or_extra_read_per
 
 
 def test_runtime_iam_matches_actual_api_calls():
-    p1 = Path("infrastructure/project-1-cloud-platform/iam.tf").read_text()
+    p1 = re.sub(r"[ \t]+", " ", Path("infrastructure/project-1-cloud-platform/iam.tf").read_text())
     finops = Path("infrastructure/project-3-cloud-governance/finops-ai/main.tf").read_text()
 
     assert 'Action = ["logs:FilterLogEvents"]' in p1
@@ -68,7 +69,8 @@ def test_checkov_retention_exception_is_explicit_and_narrow():
     assert "config_file: .checkov.yml" in workflow
     assert "soft_fail: true" in workflow
     assert "IaC security scan (advisory)" in workflow
-    assert "Terraform quality gates (manual only)" in workflow
+    assert "name: Terraform quality gates" in workflow
+    assert "github.event_name == 'pull_request'" in workflow
     assert "CKV_AWS_338" in config
     assert config.count("CKV_") == 1
     assert "seven years" in config
@@ -103,7 +105,7 @@ def test_dashboard_cors_origin_is_a_single_explicit_https_origin():
 
 def test_cleanup_docs_do_not_claim_protected_recovery_keys_are_disposable():
     readme = Path("README.md").read_text(encoding="utf-8")
-    runbook = Path("docs/DEPLOYMENT.md").read_text(encoding="utf-8")
+    runbook = Path("docs/OPERATIONS.md").read_text(encoding="utf-8")
     assert "Project 1 recovery KMS keys have intentional Terraform destruction guards" in readme
     assert "do not expect an unrestricted `terraform destroy`" in runbook.lower()
     assert "snapshots" in runbook.lower() and "recovery points" in runbook.lower()
@@ -117,14 +119,14 @@ def test_workload_stack_has_no_unused_placeholder_app_log_group():
 
 
 def test_project3_runbook_requires_state_kms_backend_placeholder_replacement():
-    runbook = Path("docs/DEPLOYMENT.md").read_text(encoding="utf-8")
-    project3 = runbook.split("## 3. Bootstrap Project 2 delivery", 1)[0]
+    runbook = Path("docs/OPERATIONS.md").read_text(encoding="utf-8")
+    project3 = runbook
     assert "REPLACE_WITH_TERRAFORM_STATE_KMS_KEY_ARN" in project3
     assert "state-bootstrap outputs" in project3
 
 
 def test_prod_oidc_runbook_requires_github_environment_protection():
-    runbook = Path("docs/DEPLOYMENT.md").read_text(encoding="utf-8")
+    runbook = Path("docs/OPERATIONS.md").read_text(encoding="utf-8")
     assert "GitHub Environment protection rules for `prod`" in runbook
     assert "restrict deployment branches/tags" in runbook
     assert "production authorization boundary" in runbook

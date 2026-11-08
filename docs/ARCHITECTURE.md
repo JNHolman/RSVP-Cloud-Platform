@@ -1,89 +1,59 @@
-# Architecture and Design Decisions
+# RSVP Cloud Platform — Architecture
 
-## Architecture objective
+This documents the three-stage engineering design introduced in the [README](../README.md).
 
-The platform is designed around one principle: **the application is only one part of the system**. Deployment, security, observability, governance, and recovery are part of the architecture as well.
+## Application and boundaries
 
-## Logical layers
+A small Python application provides health/version endpoints and MySQL read/write behavior. Projects 1 and 2 demonstrate different hosting and delivery models for the same application contract. They do not need to run simultaneously or share a live database.
 
-### Edge
+## Stage 1 — Private EC2 and RDS
 
-- DNS
-- AWS WAF
-- HTTPS Application Load Balancer
-- ACM certificate
-
-The edge is public. Application compute is not.
-
-### Workload
-
-- EC2 Auto Scaling for the infrastructure-focused implementation
-- ECS Fargate for the container-delivery implementation
-- private subnets across Availability Zones
-- autoscaling and health checks
-
-### Data
-
-- private RDS MySQL
-- Multi-AZ
-- KMS encryption
-- Secrets Manager-managed credentials
-- PITR and AWS Backup
-
-### Delivery
-
-- GitHub Actions
-- OIDC federation to AWS
-- immutable Git SHA images
-- CI quality/security gates
-- controlled environment deployment
-- health validation and rollback
-
-### Governance
-
-- AWS Organizations
-- OUs and SCPs
-- delegated security administration
-- dedicated log-archive pattern
-- organization CloudTrail and Config aggregation
-- IAM Identity Center
-
-### Operations
-
-- CloudWatch metrics/logs/dashboards/alarms
-- SNS and EventBridge
-- recovery validation scripts and deployment guidance
-- AI-assisted SRE/security/FinOps analysis
-
-## Trust boundaries
-
-1. Internet traffic terminates at managed public edge services.
-2. Application compute is private and accepts only expected load-balancer traffic.
-3. The database accepts traffic only from the application security boundary.
-4. GitHub can assume only the intended deployment role through OIDC.
-5. Workload accounts are separated from security and logging administration.
-6. AI roles can read bounded evidence and write analysis outputs but cannot perform infrastructure remediation.
-
-## Deployment boundaries
-
-The governance layer uses multiple Terraform roots intentionally. Organization bootstrap, log archive, audit trail, delegated security, and Identity Center operate under different AWS trust/account contexts. Treating them as one root would hide the actual operational boundaries and make account bootstrap less safe.
-
-## Production vs portfolio operation
-
-The production design favors resilience and security. A portfolio deployment can be short-lived to control AWS spend, but the source architecture does not weaken production controls simply to make the diagram cheaper.
-
-## Portfolio validation boundaries
-
-```mermaid
-flowchart LR
-  Parent[Squarespace parent DNS] -. proposed child NS .-> Child[Route 53 cloud subzone]
-  Child --> P1[dev HTTPS ALB and WAF]
-  Child --> P2[ecs HTTPS ALB and WAF]
-  P1 --> EC2[Private EC2 ASG across two AZs] --> DB[Private encrypted Multi-AZ RDS]
-  P2 --> ECS[Private Fargate tasks across two AZs]
-  GH[GitHub dev environment] --> OIDC[OIDC deployment role] --> ECS
-  Org[Enterprise organization stack] --> Policy[Shared SCP module]
-  Test[Local Terraform plan tests] --> Policy
+```text
+Internet → HTTPS/WAF → ALB → private EC2 (AZ A + AZ B)
+                                   ↓
+                         encrypted Multi-AZ RDS
 ```
 
-The two workload paths run in separate windows. The dotted edge represents a proposed DNS delegation. See the [evidence matrix](PORTFOLIO-VALIDATION.md).
+The VPC isolates application and database resources. Security groups restrict traffic; CloudWatch and flow logs support troubleshooting. Backups and snapshots support recovery.
+
+**Incident path:** CloudWatch alarm → EventBridge → Lambda → bounded log/metric evidence → validated AI or deterministic fallback → encrypted S3 and DynamoDB. AI is advisory and cannot change infrastructure.
+
+**Live evidence:** Private targets in two AZs, HTTPS, WAF rejection, alarms, and a snapshot restore verified against a known record in **10m 02s**. Daily backup delivery, point-in-time recovery, and AZ failover are design capabilities, not all independently proven by that exercise.
+
+## Stage 2 — ECS and controlled releases
+
+```text
+GitHub Actions → tests/scans → ECR immutable image
+                                  ↓
+                          private ECS Fargate
+                                  ↓
+                          HTTPS health checks
+```
+
+GitHub Actions assumes short-lived AWS credentials through OIDC. Terraform owns the infrastructure and task-definition baseline; the deployment workflow owns application releases.
+
+Two recovery paths are distinct: the **ECS circuit breaker** rolls back unhealthy task deployments, while **workflow rollback** handles failed release checks. The live exercise proved the native ECS rollback in **13m 47s**, not every workflow recovery path. Scaling configuration does not by itself prove load-driven scaling.
+
+## Stage 3 — Governance and operations
+
+```text
+AWS Organizations
+ ├─ Management: policies and cost oversight
+ ├─ Security: findings and incident analysis
+ ├─ Log Archive: audit evidence
+ └─ Workload accounts: applications and reporting
+```
+
+Terraform models SCPs, Identity Center, CloudTrail, security aggregation, dashboards, and cost analysis. Offline tests validate configuration contracts and handler behavior. **Live OU enforcement, cross-account integration, and identity flows remain unverified.**
+
+## Operating principles
+
+- **Isolation:** RSVP Society production resources and DNS are out of scope for portfolio changes.
+- **Ownership:** Review backend identity, Terraform plans, and resource ownership before any apply.
+- **Recovery:** Preserve encrypted snapshots and their KMS keys; measure recovery during controlled exercises.
+- **Cost:** Time-box paid environments and track retained recovery assets.
+- **AI:** Validate outputs and keep infrastructure changes under human control.
+
+## Evidence and procedures
+
+[Project 1 live report](PROJECT-1-LIVE-2026-11-08.md) · [Project 2 live report](PROJECT-2-LIVE-2026-11-08.md) · [Operations and validation matrix](OPERATIONS.md#validation-and-recovery)

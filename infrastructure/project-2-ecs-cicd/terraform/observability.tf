@@ -15,13 +15,13 @@ resource "aws_cloudwatch_metric_alarm" "ecs_cpu_high" {
   alarm_description   = "ECS service CPU is persistently elevated"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = 5
-  datapoints_to_alarm  = 3
-  metric_name          = "CPUUtilization"
-  namespace            = "AWS/ECS"
-  period               = 60
-  statistic            = "Average"
-  threshold            = 80
-  treat_missing_data   = "breaching"
+  datapoints_to_alarm = 3
+  metric_name         = "CPUUtilization"
+  namespace           = "AWS/ECS"
+  period              = 60
+  statistic           = "Average"
+  threshold           = 80
+  treat_missing_data  = "breaching"
   dimensions = {
     ClusterName = aws_ecs_cluster.this.name
     ServiceName = aws_ecs_service.app.name
@@ -35,13 +35,13 @@ resource "aws_cloudwatch_metric_alarm" "ecs_memory_high" {
   alarm_description   = "ECS service memory is persistently elevated"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = 5
-  datapoints_to_alarm  = 3
-  metric_name          = "MemoryUtilization"
-  namespace            = "AWS/ECS"
-  period               = 60
-  statistic            = "Average"
-  threshold            = 85
-  treat_missing_data   = "breaching"
+  datapoints_to_alarm = 3
+  metric_name         = "MemoryUtilization"
+  namespace           = "AWS/ECS"
+  period              = 60
+  statistic           = "Average"
+  threshold           = 85
+  treat_missing_data  = "breaching"
   dimensions = {
     ClusterName = aws_ecs_cluster.this.name
     ServiceName = aws_ecs_service.app.name
@@ -55,13 +55,13 @@ resource "aws_cloudwatch_metric_alarm" "alb_target_5xx" {
   alarm_description   = "ECS application targets are returning 5XX responses"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = 2
-  datapoints_to_alarm  = 2
-  metric_name          = "HTTPCode_Target_5XX_Count"
-  namespace            = "AWS/ApplicationELB"
-  period               = 60
-  statistic            = "Sum"
-  threshold            = 5
-  treat_missing_data   = "notBreaching"
+  datapoints_to_alarm = 2
+  metric_name         = "HTTPCode_Target_5XX_Count"
+  namespace           = "AWS/ApplicationELB"
+  period              = 60
+  statistic           = "Sum"
+  threshold           = 5
+  treat_missing_data  = "notBreaching"
   dimensions = {
     LoadBalancer = aws_lb.this.arn_suffix
     TargetGroup  = aws_lb_target_group.app.arn_suffix
@@ -75,13 +75,13 @@ resource "aws_cloudwatch_metric_alarm" "unhealthy_targets" {
   alarm_description   = "One or more ECS targets are unhealthy"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = 2
-  datapoints_to_alarm  = 2
-  metric_name          = "UnHealthyHostCount"
-  namespace            = "AWS/ApplicationELB"
-  period               = 60
-  statistic            = "Maximum"
-  threshold            = 0
-  treat_missing_data   = "breaching"
+  datapoints_to_alarm = 2
+  metric_name         = "UnHealthyHostCount"
+  namespace           = "AWS/ApplicationELB"
+  period              = 60
+  statistic           = "Maximum"
+  threshold           = 0
+  treat_missing_data  = "breaching"
   dimensions = {
     LoadBalancer = aws_lb.this.arn_suffix
     TargetGroup  = aws_lb_target_group.app.arn_suffix
@@ -97,7 +97,7 @@ resource "aws_cloudwatch_dashboard" "operations" {
       {
         type = "metric", x = 0, y = 0, width = 12, height = 6,
         properties = {
-          title = "ECS service utilization"
+          title  = "ECS service utilization"
           region = var.aws_region
           period = 60
           metrics = [
@@ -109,7 +109,7 @@ resource "aws_cloudwatch_dashboard" "operations" {
       {
         type = "metric", x = 12, y = 0, width = 12, height = 6,
         properties = {
-          title = "ALB traffic and latency"
+          title  = "ALB traffic and latency"
           region = var.aws_region
           period = 60
           metrics = [
@@ -122,7 +122,7 @@ resource "aws_cloudwatch_dashboard" "operations" {
       {
         type = "metric", x = 0, y = 6, width = 24, height = 6,
         properties = {
-          title = "ALB target health"
+          title  = "ALB target health"
           region = var.aws_region
           period = 60
           metrics = [

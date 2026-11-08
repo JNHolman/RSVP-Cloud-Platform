@@ -183,9 +183,9 @@ resource "aws_autoscaling_group" "app_asg" {
 ##############################################
 
 resource "aws_autoscaling_policy" "app_cpu_target" {
-  name                   = "${local.name_prefix}-cpu-target"
-  autoscaling_group_name = aws_autoscaling_group.app_asg.name
-  policy_type            = "TargetTrackingScaling"
+  name                      = "${local.name_prefix}-cpu-target"
+  autoscaling_group_name    = aws_autoscaling_group.app_asg.name
+  policy_type               = "TargetTrackingScaling"
   estimated_instance_warmup = 180
 
   target_tracking_configuration {

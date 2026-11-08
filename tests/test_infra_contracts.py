@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -68,7 +69,7 @@ def test_github_oidc_and_deploy_rollback_contract():
 def test_organization_existing_accounts_are_reference_only():
     variables = read("infrastructure/project-3-cloud-governance/organization/variables.tf")
     prerequisites = read("infrastructure/project-3-cloud-governance/organization/prerequisites.tf")
-    deployment = read("docs/DEPLOYMENT.md")
+    deployment = read("docs/OPERATIONS.md")
 
     assert "does not move existing accounts between OUs" in variables
     assert "does not move those accounts" in deployment
@@ -115,7 +116,7 @@ def test_alarm_topics_use_service_compatible_customer_managed_kms():
     p2_topic = read("infrastructure/project-2-ecs-cicd/terraform/observability.tf")
     p1_key = read("infrastructure/project-1-cloud-platform/observability-security.tf")
     p2_key = read("infrastructure/project-2-ecs-cicd/terraform/observability-security.tf")
-    p1_iam = read("infrastructure/project-1-cloud-platform/iam.tf")
+    p1_iam = re.sub(r"[ \t]+", " ", read("infrastructure/project-1-cloud-platform/iam.tf"))
 
     assert 'alias/aws/sns' not in p1_topic + p2_topic
     assert 'kms_master_key_id = aws_kms_key.observability.arn' in p1_topic
@@ -257,7 +258,7 @@ def test_production_backup_vault_uses_reversible_governance_lock():
 
 
 def test_project1_ai_dynamodb_kms_permissions_are_runtime_compatible():
-    iam = read("infrastructure/project-1-cloud-platform/iam.tf")
+    iam = re.sub(r"[ \t]+", " ", read("infrastructure/project-1-cloud-platform/iam.tf"))
     assert '"kms:ViaService" = "dynamodb.${var.aws_region}.amazonaws.com"' in iam
     assert '"kms:EncryptionContext:aws:dynamodb:tableName" = aws_dynamodb_table.ai_log_summaries.name' in iam
     assert 'Sid = "DynamoWriteMetadata"' in iam
@@ -373,7 +374,7 @@ def test_workload_environment_and_cognito_deletion_protection_are_guarded():
 
 
 def test_runbook_requires_existing_account_ou_placement_verification():
-    runbook = read("docs/DEPLOYMENT.md")
+    runbook = read("docs/OPERATIONS.md")
     assert "does not move those accounts" in runbook
     assert "An account outside the target OU will not inherit that OU's SCPs." in runbook
 
@@ -487,7 +488,7 @@ def test_stacksets_delegated_admin_requires_cloudformation_trusted_access_opt_in
     org = (ROOT / "infrastructure/project-3-cloud-governance/organization/organization.tf").read_text()
     delegated = (ROOT / "infrastructure/project-3-cloud-governance/organization/delegated-admin.tf").read_text()
     variables = (ROOT / "infrastructure/project-3-cloud-governance/organization/variables.tf").read_text()
-    readme = read("docs/DEPLOYMENT.md")
+    readme = read("docs/OPERATIONS.md")
 
     assert 'variable "stacksets_trusted_access_activated"' in variables
     assert 'var.stacksets_trusted_access_activated ? ["stacksets.cloudformation.amazonaws.com"] : []' in org
@@ -835,7 +836,7 @@ def test_github_deploy_scopes_task_definition_registration_to_environment_family
 
 
 def test_predeploy_runbook_explains_ecs_task_definition_ownership_handoff():
-    runbook = read("docs/DEPLOYMENT.md")
+    runbook = read("docs/OPERATIONS.md")
     assert "Task-definition ownership" in runbook
     assert "ConfigurationSource=TerraformBaseline" in runbook
     assert "after any Terraform change that modifies the ECS task definition" in runbook

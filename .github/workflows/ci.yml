@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       run_terraform:
-        description: Run manual Terraform quality gates
+        description: Run Terraform quality gates on demand
         required: false
         default: false
         type: boolean
@@ -36,11 +36,12 @@ jobs:
       - run: terraform test
 
   terraform:
-    name: Terraform quality gates (manual only)
-    if: github.event_name == 'workflow_dispatch' && inputs.run_terraform == true
+    name: Terraform quality gates
+    if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.run_terraform == true)
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
+      max-parallel: 3
       matrix:
         directory:
           - infrastructure/bootstrap-state
@@ -60,20 +61,24 @@ jobs:
         with:
           terraform_version: 1.6.6
       - name: Terraform format
-        run: terraform fmt -check -recursive "${{ matrix.directory }}"
+        run: |
+          terraform fmt -recursive "${{ matrix.directory }}"
+          git diff --exit-code -- "${{ matrix.directory }}"
       - name: Terraform init without backend
         working-directory: ${{ matrix.directory }}
         run: terraform init -backend=false -input=false
       - name: Terraform validate
         working-directory: ${{ matrix.directory }}
         run: terraform validate
-      - name: Setup TFLint
-        uses: terraform-linters/setup-tflint@90f302c255ef959cbfb4bd10581afecdb7ece3e6 # v4.1.1
-      - name: TFLint
+      - name: TFLint (pinned container)
         working-directory: ${{ matrix.directory }}
         run: |
-          tflint --init
-          tflint --recursive
+          docker run --rm \
+            --volume "$GITHUB_WORKSPACE:/repo" \
+            --workdir "/repo/${{ matrix.directory }}" \
+            --entrypoint /bin/sh \
+            ghcr.io/terraform-linters/tflint:v0.65.0 \
+            -c 'tflint --init && tflint --recursive'
 
   python:
     name: Python tests and dependency audit

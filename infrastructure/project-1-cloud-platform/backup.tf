@@ -29,7 +29,7 @@ resource "aws_kms_key" "backup" {
 resource "aws_backup_vault" "production" {
   name        = "${local.name_prefix}-recovery"
   kms_key_arn = aws_kms_key.backup.arn
-  tags = { Purpose = "disaster-recovery" }
+  tags        = { Purpose = "disaster-recovery" }
 }
 
 # Governance mode protects production recovery points from routine or accidental
@@ -68,9 +68,9 @@ resource "aws_iam_role" "backup" {
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
-      Effect = "Allow"
+      Effect    = "Allow"
       Principal = { Service = "backup.amazonaws.com" }
-      Action = "sts:AssumeRole"
+      Action    = "sts:AssumeRole"
     }]
   })
 }
