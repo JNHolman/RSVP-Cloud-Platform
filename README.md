@@ -82,4 +82,6 @@ The six-account design separates management, security, audit, shared services, a
 
 My enterprise network engineering background shaped the platform: keep traffic paths explicit, separate infrastructure changes from application releases, and verify recovery instead of relying on configuration alone. The original RSVP Society decision remains the standard—build what the workload actually needs.
 
+[Resource ownership, production safeguards, and recovery custody](shared/OPERATIONS.md)
+
 **Josh Holman** · Network / Cloud Infrastructure Engineer
