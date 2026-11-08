@@ -89,18 +89,7 @@ For application verification, use the shared application's health, version, and 
 
 [Previously recorded Project 1 results](PROJECT-1-LIVE-2026-11-08.md)
 
-### Additional plan review and scope checks
-
-From the repository root, stream the saved plan into the reviewer. Supply the child zone ID verified independently against the delegated public zone. Select p1 for the isolated Project 1 demo or p2 for the Project 2 dev runtime.
-
-```sh
-set -o pipefail
-terraform show -json portfolio-dev.tfplan | python3 ../../scripts/review-portfolio-plan.py p1 "$CHILD_ZONE_ID"
-```
-
-Run terraform show from an initialized workload directory if provider schemas are needed, using terraform -chdir and an absolute plan path. Streaming keeps the JSON, which may contain sensitive values, out of files and logs. Exit 1 flags a scope or action finding; exit 2 signals invalid input. Routine updates, replacements and deletions need a separate review from this first-deployment procedure. ACM can determine its validation name only after certificate creation. Its scoped record must have overwrite disabled. Review IAM permissions, shared dependencies, budget and backend identity separately.
-
-Read the [November 8 live exercise record](PROJECT-1-LIVE-2026-11-08.md) for the observed outcomes and limitations.
+The plan reviewer is intended for first-deployment scope checks, not automatic approval of updates or deletions. It may return exit 1 for scope/action findings and exit 2 for invalid input. Keep the JSON stream out of saved logs; review IAM, budget, backend identity, shared dependencies, and ACM DNS record ownership separately.
 
 ## Project 2: isolated ECS delivery
 
@@ -165,6 +154,30 @@ These are the **measured results from the original deployment sessions**. They s
 | Enterprise governance | Terraform and Python tests exercised policies, security analysis, fallback responses, and reporting without deploying six accounts | [Offline test guide](#project-3-offline-validation) |
 
 The original exercises also uncovered actual problems: an AWS Lambda concurrency limit, a KMS permission issue, a container temporary-file failure, and container package vulnerabilities. The dated reports show those failures and how they were handled. That troubleshooting is part of the project, not something to hide.
+
+### Original validation classification matrix
+
+This matrix records the scope of the November 8 exercise and its offline checks. An unverified live integration in this historical snapshot is not a claim that later Codex work failed; newer results require separate dated evidence.
+
+| Capability | Classification | Evidence available or still required |
+|---|---|---|
+| Dedicated portfolio backend exists | Live validated, inventory only | Read-only inspection identified the state and access-log buckets and lock table. The original checkout's cached S3 backend configuration matches the dev key. The bucket returned no object versions or delete markers. Workload state lineage and ownership remain unresolved. |
+| P1 two-AZ private ASG, ALB, HTTPS, WAF, application logging and flow logs | Live validated | Two healthy targets across two AZs without public IPs, HTTPS 200, synthetic XSS 403, ALB alarm transition and flow-log delivery. |
+| P1 encrypted Multi-AZ MySQL and snapshot recovery | Live validated | A known row persisted through a restore to a separate private instance. Restore request to verified read took 10m 02s. |
+| P1 daily AWS Backup jobs, point-in-time restore and failover | Architecture validated | Live inventory showed 14-day automated retention and a restorable timestamp. The independent backup vault had zero points during the demo. Scheduled delivery, PITR and AZ failover still need exercises. |
+| P1 AI deterministic fallback and persistence | Live validated, direct invocation | Synthetic input to the deployed Lambda produced an encrypted S3 object and DynamoDB metadata after a table-scoped KMS correction. |
+| P1 external AI analysis | Live validated, local handler invocation | A synthetic alarm produced a schema-validated gpt-5.5 result persisted to KMS-encrypted S3 and DynamoDB. |
+| P1 alarm-to-Lambda delivery | Not yet validated | The shared account could not reserve the configured concurrency. |
+| P2 container health and headers | Automated validated | Flask tests exercise the HTTP routes. |
+| P2 private Fargate, HTTPS ALB, WAF and telemetry | Live validated | Two healthy task ENIs across two AZs without public addresses, serving SHA matched, WAF probe returned 403 and application logs arrived. |
+| P2 OIDC delivery, immutable ECR image and ECS release | Live validated in dev | GitHub assumed the environment-scoped role, built and scanned the image, then deployed the revision. The running digest matched ECR. See the [live run and scan findings](PROJECT-2-LIVE-2026-11-08.md). |
+| P2 native failed-release recovery | Live validated | A controlled startup failure in revision 4 triggered ECS rollback to revision 3 in 13m 47s, with the expected HTTPS response after recovery. |
+| P2 load-driven scaling, workflow-triggered smoke-failure rollback, stage/prod boundaries | Not yet validated live | The dev scaling range and alarm configuration were observed. Only the native circuit breaker failure path was exercised. |
+| P3 six-account topology, OU attachment targets, service delegation and Identity Center grants | Automated validated, configuration contracts | Tests inspect actual Terraform blocks, opt-ins, assignment targets and managed policies. |
+| P3 SCP denies and named exceptions | Automated validated, generated documents | Terraform 1.6.6 plan tests on the same module used by Organizations. |
+| P3 CloudTrail, log archive, dashboard trust, least privilege and Cognito GET protection | Automated validated, configuration contracts | Tests check trail, archive key policies, exact role conditions, table permissions and GET authorizer wiring. |
+| P3 GuardDuty findings imported through Security Hub, AI triage, FinOps, dashboard and fallbacks | Automated validated, local runtime | Synthetic events and recording clients exercise handler logic, pagination, severity floors, persistence, error sanitization and degraded responses. |
+| P3 OU enforcement, STS decisions, service enrollment, CloudTrail delivery, Identity Center login and real token acceptance/rejection | Not yet validated | Enterprise integration environment required for multi-account claims. No Project 3 deployment planned. |
 
 ## Final integration and automation checks
 
