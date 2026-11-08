@@ -51,9 +51,9 @@ jobs:
 
       - name: Test application before bootstrap image
         run: |
-          pip install -r infrastructure/project-2-ecs-cicd/app/requirements.txt
+          pip install -r project-2-ecs-cicd/app/requirements.txt
           pip install pytest==9.1.1
-          pytest -q infrastructure/project-2-ecs-cicd/app/tests
+          pytest -q project-2-ecs-cicd/app/tests
 
       - name: Configure AWS credentials with OIDC
         uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4
@@ -78,7 +78,7 @@ jobs:
             docker pull "$IMAGE_URI"
           elif printf '%s' "$OUTPUT" | grep -q 'ImageNotFoundException'; then
             echo "IMAGE_EXISTS=false" >> "$GITHUB_ENV"
-            docker build -t "$IMAGE_URI" infrastructure/project-2-ecs-cicd/app
+            docker build -t "$IMAGE_URI" project-2-ecs-cicd/app
           else
             printf '%s\n' "$OUTPUT" >&2
             exit 1
