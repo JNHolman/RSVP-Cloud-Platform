@@ -24,7 +24,7 @@ Client traffic → HTTPS / WAF / ALB → private ECS tasks (two AZs)
 
 [Service ownership and rollback settings](terraform/ecs_service.tf) · [Application source](app/app.py)
 
-**Handle failures at the right layer.** ECS has a deployment circuit breaker for unhealthy tasks. The workflow separately rolls back on deployment or smoke-test failure. I treated them as distinct mechanisms rather than claiming that testing one proved the other.
+**Handle failures at the right layer.** The ECS deployment circuit breaker recovers unhealthy tasks. The GitHub workflow defines a separate rollback path for failed deployment or smoke checks.
 
 ## What happened in the AWS exercise
 
@@ -34,10 +34,8 @@ On November 8, 2026, GitHub Actions authenticated through OIDC and delivered an 
 
 I deliberately registered an ECS revision with a failing startup command. The native circuit breaker returned the service to the previous healthy revision in **13 minutes 47 seconds** without a manual service update. A post-demo base-image update reduced ECR HIGH findings from nine to two; the remaining findings were not declared resolved.
 
-**Not proven in that exercise:** workflow smoke-failure rollback, load-driven scaling, or stage/prod deployment. Those are different claims from the native circuit-breaker test.
+The failure injection tested native ECS rollback; the GitHub smoke-test rollback path was not exercised.
 
 [Release and recovery timeline](evidence/2026-11-08.md) · [ECR scan comparison](evidence/image-rescan.json) · [Successful GitHub Actions deployment](https://github.com/JNHolman/RSVP-Cloud-Platform/actions/runs/42458363871)
-
-Part 2 applies the same security and recovery standards to changes in application software. Part 3 extends that thinking to account-level controls.
 
 [Platform overview](../README.md) · [Part 3: Cloud Governance](../project-3-cloud-governance/README.md)

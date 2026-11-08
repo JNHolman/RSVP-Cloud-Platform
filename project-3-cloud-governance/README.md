@@ -31,28 +31,18 @@ Management / AWS Organizations
 
 ## What I verified
 
-The governance implementation has meaningful automated checks, even though it was not deployed across six AWS accounts.
+The following controls were validated through automated tests:
 
 | Tested area | What the tests establish |
 | --- | --- |
 | **Organization guardrails** | Terraform generates explicit denies for leaving the organization, closing accounts, and disabling key audit/security services. Tests confirm a named administrator-role exception and reject wildcard role patterns. |
 | **Account and audit boundaries** | Python contract tests check OU assignments, SCP attachment targets, opt-in delegated administrators, Identity Center assignments, and encrypted organization-trail configuration. |
-| **Security, dashboard, and cost logic** | Python tests check handler inputs, access/configuration boundaries, stored-record behavior, and deterministic fallback paths without requiring live multi-account services. |
+| **Security, dashboard, and cost logic** | Python tests check handler inputs, access/configuration boundaries, stored-record behavior, and deterministic fallback paths. |
 
 [Terraform policy tests](modules/scp-policies/tests/guardrails.tftest.hcl) · [Account-boundary tests](tests/test_governance_boundaries.py) · [Infrastructure tests](tests/test_governance_infrastructure.py) · [Passing offline policy CI](https://github.com/JNHolman/RSVP-Cloud-Platform/actions/runs/42508709940/job/128816887334)
 
-These results prove **policy generation and local code/test behavior**. They do not prove live SCP enforcement, Identity Center sign-in, cross-account CloudTrail delivery, or centralized security findings.
+## Engineering trade-off
 
-## Engineering trade-off: why I stopped at offline validation
-
-The available AWS account also hosted RSVP Society. Applying organization-wide controls there was not an acceptable way to experiment with policies that could affect the business.
-
-I could have created a separate test organization with five additional member accounts. That would have made live enforcement and cross-account validation possible, but required more account administration, service spending, and eventual cleanup for a portfolio demonstration.
-
-I kept the enterprise design and verified the parts that could be tested safely without that environment. **The benefit was protecting the business while proving the policy logic; the limitation was losing evidence of how those controls behave when AWS enforces them across accounts.**
-
-This completes the progression from private workloads, through controlled releases, to organizational boundaries.
-
-[Platform overview](../README.md)
+The available AWS account hosted RSVP Society, so I kept experimental organization-wide controls out of that environment. An isolated six-account AWS organization could have tested real enforcement and cross-account integration, but would require additional account administration and ongoing service costs. I retained the enterprise design and validated its policies and application logic offline. **Live SCP enforcement, Identity Center sign-in, and cross-account logging/security aggregation remain unverified.**
 
 [Platform overview](../README.md)

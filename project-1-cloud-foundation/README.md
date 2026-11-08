@@ -12,8 +12,6 @@ Internet → HTTPS / WAF / ALB
                intended private RDS connection
 ```
 
-The EC2 demo page did not itself query RDS in the recorded exercise. The application and database paths were validated separately.
-
 ## How the design works
 
 **Keep the network boundaries explicit.** Security-group references restrict the ALB-to-EC2 and application-to-database traffic paths. The default VPC security group is locked down so workloads need deliberately assigned rules. The public subnets host the entry and egress infrastructure; application instances and RDS do not need public IP addresses.
@@ -36,10 +34,8 @@ The database recovery test wrote a known marker, took a snapshot, restored a pri
 
 The incident-analysis Lambda exposed a KMS permission problem during direct testing. I narrowed the DynamoDB decrypt permission to the relevant key and encryption context, then verified that the fallback result was stored. A separate local handler test exercised an AI-generated result.
 
-**Not proven in this exercise:** an end-to-end page-to-RDS query, automatic alarm-to-Lambda delivery, AWS Backup recovery, point-in-time recovery, or Multi-AZ failover. The dated evidence distinguishes these from the tested paths.
+The application page and RDS restore were tested separately. Automatic alarm delivery and failover were not exercised; the [test record](evidence/2026-11-08.md) details the validation boundary.
 
 [Original observations and recovery timeline](evidence/2026-11-08.md) · [Recorded results](evidence/observations.json)
-
-This work established the network and recovery decisions I carried into Part 2.
 
 [Platform overview](../README.md) · [Part 2: ECS & CI/CD](../project-2-ecs-cicd/README.md)
