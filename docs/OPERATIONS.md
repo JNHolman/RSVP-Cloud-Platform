@@ -44,11 +44,19 @@ Copy a root's `backend.hcl.example` to a **local, untracked** `backend.hcl`. Rep
 
 The demos used a delegated `cloud.rsvpsociety.com` child zone. Confirm that the existing parent delegation and child records are correct. The portfolio uses `dev.cloud.rsvpsociety.com` for Project 1 and `ecs.cloud.rsvpsociety.com` for Project 2. Do not replace the parent nameservers or change Society's apex, www or API records. Check ACM validation records for collisions; record ownership before changing DNS.
 
+### Detailed shared-account and DNS checks
+
+1. Confirm the caller account, role and region before planning. This account also hosts Society production. Identify every existing rsvp-dev resource by ARN, tags and Terraform address. Compare the initialized checkout's backend bucket, dev key, workspace and state lineage against the dedicated Cloud Platform backend. The earlier current-object listing was empty. Check object versions and known state history with the owner. For the legacy namespace, an empty state alongside existing resources is a stop condition. For portfolio-dev, match inventory to its distinct resource prefix and key. Keep raw state, secrets and saved plans private.
+2. Record existing parent DNS answers for the apex, www, api and proposed child. Resolve the authoritative parent with dig NS rsvpsociety.com. Inspect Squarespace for an existing cloud record, child delegation or DNSSEC DS. Resolve conflicts with the owner before changes. For a later authorized run only, create one public child zone cloud.rsvpsociety.com, then enter its four assigned servers as NS records at host cloud in Squarespace. Leave the parent nameservers and existing production records in place.
+3. Compare dig +trace NS cloud.rsvpsociety.com and direct child-authority SOA answers, then repeat the parent-record checks. Supply only the child zone ID to the dev example. Verify ACM validation CNAMEs from public resolvers, regional certificate status ISSUED, dev/ecs aliases, TLS hostname and /health before recording evidence. Allow DNS propagation ahead of the paid workload windows.
+4. P1 requires a dedicated Secrets Manager ARN, access to its encryption key, and a supported DB class/engine combination. P2 requires the existing dev GitHub Environment, matching role ARN, AWS_REGION, PROJECT_NAME and SERVICE_URL=https://ecs.cloud.rsvpsociety.com. Review environment branch/reviewer rules and OIDC audience and exact repository/environment subject. Limit bootstrap environments to dev. Check ownership of the account-singleton GitHub OIDC provider before bootstrap. If another stack owns it, pause before planning creation or import. Publish the scanned first immutable image before runtime planning. Use separate dev state keys for bootstrap and runtime.
+5. Inspect the saved workload plan locally for account, DNS zone, resource names, replacements, IAM changes and access to existing resources. Keep Society buckets, databases, DNS, IAM roles, workflows and backend outside every plan. A shared AWS account still shares quotas, billing and some account-wide services.
+
 ## Project 1: isolated cloud foundation
 
 **Location:** `infrastructure/project-1-cloud-platform/`
 
-### Project 1 portfolio deployment configuration
+### Portfolio-dev configuration
 
 Use `environments/portfolio-dev/`, not the older `dev/` backend. The portfolio prefix is `rsvp-pf1-dev`, and the state key is `project-1-cloud-platform/portfolio-dev/terraform.tfstate`. The proposed VPC CIDR is `10.83.0.0/16`; confirm it does not conflict with networks the VPC may connect to.
 
@@ -80,6 +88,19 @@ Only after an explicit approval should anyone apply the reviewed plan.
 For application verification, use the shared application's health, version, and database operations. Check the actual database response rather than treating a successful landing-page request as proof that the data path works.
 
 [Previously recorded Project 1 results](PROJECT-1-LIVE-2026-11-08.md)
+
+### Additional plan review and scope checks
+
+From the repository root, stream the saved plan into the reviewer. Supply the child zone ID verified independently against the delegated public zone. Select p1 for the isolated Project 1 demo or p2 for the Project 2 dev runtime.
+
+```sh
+set -o pipefail
+terraform show -json portfolio-dev.tfplan | python3 ../../scripts/review-portfolio-plan.py p1 "$CHILD_ZONE_ID"
+```
+
+Run terraform show from an initialized workload directory if provider schemas are needed, using terraform -chdir and an absolute plan path. Streaming keeps the JSON, which may contain sensitive values, out of files and logs. Exit 1 flags a scope or action finding; exit 2 signals invalid input. Routine updates, replacements and deletions need a separate review from this first-deployment procedure. ACM can determine its validation name only after certificate creation. Its scoped record must have overwrite disabled. Review IAM permissions, shared dependencies, budget and backend identity separately.
+
+Read the [November 8 live exercise record](PROJECT-1-LIVE-2026-11-08.md) for the observed outcomes and limitations.
 
 ## Project 2: isolated ECS delivery
 
@@ -123,28 +144,11 @@ Use this deployment order: **organization → log-archive → audit-trail → se
 
 When referencing existing accounts, confirm OU membership: Terraform does not automatically move accounts merely because their IDs were supplied. Confirm delegated-administrator prerequisites, StackSets trusted access where used, and explicit account-scoped SCP exceptions. Configure Security and FinOps dashboard read roles before creating the workload dashboard API. No such live deployment is claimed here.
 
-## Capture proof and clean up
+## Validation and recovery
 
-For each exercise, record the deployed revision, relevant resource ARNs, time-stamped outcomes, health checks, failures, recovery times and a small number of screenshots. Use synthetic data and remove account identifiers or secrets before publishing. A configuration screenshot is not proof that recovery worked.
+The dated exercise results below are measured historical outcomes. The integration checks that follow describe the final application contract; only dated live evidence establishes measured runtime results.
 
-Before cleanup, identify which resources are expendable and which must stay to protect evidence or backups:
-
-- Remove **only** reviewed disposable demo workloads, including restored databases, compute, load balancers, NAT gateways and temporary public IP addresses.
-- Retain required snapshots, backup recovery points, KMS keys, Terraform state and encrypted evidence until an owner approves their retirement. Project 1 has `prevent_destroy` guards on recovery keys.
-- Expect versioned S3 buckets, ECR images, backup vaults and dependencies to prevent a simple whole-root destroy. Never remove Terraform state to bypass an ownership or deletion problem.
-- Remove workload-specific DNS records only after the service is gone. Treat parent delegation as a separate DNS-owner decision.
-- Verify cleanup using **resource ARNs and direct AWS inventory**, not tags alone. Check for remaining databases, tasks, ASGs, ALBs, NAT gateways and EIPs. Reconcile retained resources and continuing charges.
-
-The November 8 cost plan estimated approximately **$0.72/hour** for Project 1 and **$0.18/hour** for Project 2 while running, before variable usage. The billed amount is not established by those figures. The next billing review is scheduled for **November 15, 2026**.
-
-[Original live AWS exercises](#the-original-live-aws-exercises--november-8-2026)
-
-
----
-
-# Validation and evidence
-
-## The original live AWS exercises — November 8, 2026
+## Recorded live AWS results — November 8, 2026
 
 These are the **measured results from the original deployment sessions**. They stay attached to the date and version tested, even when the code changes later.
 
@@ -158,7 +162,7 @@ These are the **measured results from the original deployment sessions**. They s
 | Automated container deployment | GitHub Actions authenticated through OIDC, built and scanned an image, then deployed it to private ECS tasks | [Project 2 exercise](PROJECT-2-LIVE-2026-11-08.md) |
 | Failed release recovery | A deliberately broken ECS revision recovered to the previous healthy version in **13m 47s** | [Project 2 exercise](PROJECT-2-LIVE-2026-11-08.md) |
 | Container security review | A newer image reduced ECR's HIGH findings from nine to two, with no CRITICAL findings in either image scan | [Project 2 scan comparison](evidence/project-2-2026-11-08/image-rescan.json) |
-| Enterprise governance | Terraform and Python tests exercised policies, security analysis, fallback responses, and reporting without deploying six accounts | [Offline test guide](OPERATIONS.md#project-3-offline-validation) |
+| Enterprise governance | Terraform and Python tests exercised policies, security analysis, fallback responses, and reporting without deploying six accounts | [Offline test guide](#project-3-offline-validation) |
 
 The original exercises also uncovered actual problems: an AWS Lambda concurrency limit, a KMS permission issue, a container temporary-file failure, and container package vulnerabilities. The dated reports show those failures and how they were handled. That troubleshooting is part of the project, not something to hide.
 
@@ -179,62 +183,7 @@ The finished engineering work uses **one application contract across EC2 and ECS
 
 **Test procedures and automated checks are different from a recorded live result.** The dated reports above remain the source for measured AWS outcomes. New live results should be added as new dated evidence rather than changing history.
 
-
-
----
-
-# Original operational planning and safeguards
-
-The following details are retained from the earlier validation runbook for traceability. Historical inventory and observations describe the November 7–8 exercises, not a fresh live AWS inspection. Recheck ownership, quotas, pricing, and state before any new deployment.
-
-## Read-only preflight, November 7, 2026
-
-The original checkout and this portfolio checkout share base commit `01da9bf`. The original Project 1 working directory has cached S3 backend configuration for the dedicated portfolio bucket in us-east-1, key `project-1-cloud-platform/dev/terraform.tfstate`, default workspace. Initialization records the backend connection locally. The remote bucket listing returned no versions or delete markers, so it supplied no workload state or lineage for an import or migration. The original checkout also has local edits and provider lock files. Keep that working directory intact.
-
-A direct Auto Scaling query found `rsvp-dev-asg` with desired capacity two and zero attached instances. Its three most recent scaling activities failed validation because one or more target groups were missing. The dev instance profile has Project=rsvp and Environment=dev tags. Neither tags nor a matching name establish Terraform ownership. No DB instance or ALB with the rsvp-dev prefix appeared in the regional service queries. A general tagging query also missed the ASG, so use direct service inventory when reconciling other resource types.
-
-Before any live Project 1 run, recover the owning deployment record or state backup if available. Match resource IDs and immutable configuration against the candidate addresses. If ownership can be demonstrated but state cannot be recovered, prepare an explicit adoption or retirement proposal with the owner for each surviving resource. Never adopt the group based on name alone. Repairing its target group while desired capacity remains two could trigger paid launches. The live health and restore claims remain outstanding.
-
-The IAM OIDC provider listing was empty in the verified account. Project 2's existing bootstrap creates the provider and environment-scoped roles. Refresh that inventory immediately before an authorized bootstrap. If a provider has appeared in another stack, resolve ownership first. Existing GitHub Environments alone cannot issue working AWS sessions without provider and role trust.
-
-## Project 1 portfolio deployment configuration
-
-Use `infrastructure/project-1-cloud-platform/environments/portfolio-dev` for the new demonstration. It sets project_name to `rsvp-pf1` and environment to `dev`, producing the resource prefix `rsvp-pf1-dev`. Its proposed isolated VPC is 10.83.0.0/16. Confirm address availability against any networks that will be connected. The new state object key is `project-1-cloud-platform/portfolio-dev/terraform.tfstate` in the existing Cloud Platform backend. The three legacy scaling failures are evidence about the old dev deployment only. That deployment's ownership investigation can proceed independently.
-
-For a future authorized plan, work from the new portfolio checkout, keep the default workspace and use a fresh TF_DATA_DIR dedicated to this configuration. Copy the values example to `environments/portfolio-dev/terraform.tfvars`, then supply the delegated child zone ID and dedicated secret ARN. Both workload roots disable overwrite when creating ACM validation records. If a record already exists, reconcile its owner before proceeding. Confirm the child zone, dev hostname, prefix, state key and account, and reconcile any existing portfolio-prefixed resources. Use the portfolio backend and variable files together:
-
-```sh
-# From infrastructure/project-1-cloud-platform in the portfolio checkout
-export TF_DATA_DIR="$PWD/.terraform/portfolio-dev"
-terraform init -backend-config=environments/portfolio-dev/backend.hcl
-terraform workspace show
-terraform plan -var-file=environments/portfolio-dev/terraform.tfvars -out=portfolio-dev.tfplan
-```
-
-The local backend.hcl is prepared in this checkout and ignored by Git. On another machine, fill the matching example from the dedicated backend outputs. Review the saved plan for object replacements, shared DNS writes, unexpected names and costs. The legacy dev key belongs only to the older configuration.
-
-### Review the first workload plan locally
-
-From the repository root, stream the saved plan into the reviewer. Supply the child zone ID verified independently against the delegated public zone. Select p1 for the isolated Project 1 demo or p2 for the Project 2 dev runtime.
-
-```sh
-set -o pipefail
-terraform show -json "$PLAN_FILE" | python3 scripts/review-portfolio-plan.py p1 "$CHILD_ZONE_ID"
-```
-
-Run terraform show from an initialized workload directory if provider schemas are needed, using terraform -chdir and an absolute plan path. Streaming keeps the JSON, which may contain sensitive values, out of files and logs. Exit 1 flags a scope or action finding; exit 2 signals invalid input. Routine updates, replacements and deletions need a separate review from this first-deployment procedure. ACM can determine its validation name only after certificate creation. Its scoped record must have overwrite disabled. Review IAM permissions, shared dependencies, budget and backend identity separately.
-
-Read the [November 8 live exercise record](PROJECT-1-LIVE-2026-11-08.md) for the observed outcomes and limitations.
-
-## Shared-account and DNS prerequisites
-
-1. Confirm the caller account, role and region before planning. This account also hosts Society production. Identify every existing rsvp-dev resource by ARN, tags and Terraform address. Compare the initialized checkout's backend bucket, dev key, workspace and state lineage against the dedicated Cloud Platform backend. The earlier current-object listing was empty. Check object versions and known state history with the owner. For the legacy namespace, an empty state alongside existing resources is a stop condition. For portfolio-dev, match inventory to its distinct resource prefix and key. Keep raw state, secrets and saved plans private.
-2. Record existing parent DNS answers for the apex, www, api and proposed child. Resolve the authoritative parent with dig NS rsvpsociety.com. Inspect Squarespace for an existing cloud record, child delegation or DNSSEC DS. Resolve conflicts with the owner before changes. For a later authorized run only, create one public child zone cloud.rsvpsociety.com, then enter its four assigned servers as NS records at host cloud in Squarespace. Leave the parent nameservers and existing production records in place.
-3. Compare dig +trace NS cloud.rsvpsociety.com and direct child-authority SOA answers, then repeat the parent-record checks. Supply only the child zone ID to the dev example. Verify ACM validation CNAMEs from public resolvers, regional certificate status ISSUED, dev/ecs aliases, TLS hostname and /health before recording evidence. Allow DNS propagation ahead of the paid workload windows.
-4. P1 requires a dedicated Secrets Manager ARN, access to its encryption key, and a supported DB class/engine combination. P2 requires the existing dev GitHub Environment, matching role ARN, AWS_REGION, PROJECT_NAME and SERVICE_URL=https://ecs.cloud.rsvpsociety.com. Review environment branch/reviewer rules and OIDC audience and exact repository/environment subject. Limit bootstrap environments to dev. Check ownership of the account-singleton GitHub OIDC provider before bootstrap. If another stack owns it, pause before planning creation or import. Publish the scanned first immutable image before runtime planning. Use separate dev state keys for bootstrap and runtime.
-5. Inspect the saved workload plan locally for account, DNS zone, resource names, replacements, IAM changes and access to existing resources. Keep Society buckets, databases, DNS, IAM roles, workflows and backend outside every plan. A shared AWS account still shares quotas, billing and some account-wide services.
-
-## Evidence collection windows
+## Validation windows and evidence to capture
 
 | Sequential window | Earliest practical observation after provisioning | Evidence to retain |
 |---|---|---|
@@ -245,7 +194,11 @@ Read the [November 8 live exercise record](PROJECT-1-LIVE-2026-11-08.md) for the
 
 Use a dev-only disposable revision for failure injection during a separately authorized exercise. A manual rollback demonstrates operator recovery only. Record gaps if account permissions, DNS propagation, delayed logs or service startup prevent the intended observation. Redact account identifiers and personal or model-input data before publishing.
 
-## Cost worksheet
+## Cost management
+
+The worksheet below is a planning model. Actual charges require billing reconciliation.
+
+## Cost worksheet — planning estimates, not actual charges
 
 Planning estimates in USD for us-east-1 Linux x86 on demand, two AZs, 730 hours/month, November 2026. Assume four public IPv4 addresses per live workload (two ALB and two NAT), one LCU, low traffic and no credits. Check regional rates, actual AMI disk size and billing usage before starting.
 
@@ -271,7 +224,21 @@ Budget separately for retained assets. One state KMS key is roughly $1/month plu
 
 [KMS](https://aws.amazon.com/kms/pricing/) · [Backup](https://aws.amazon.com/backup/pricing/) · [CloudWatch](https://aws.amazon.com/cloudwatch/pricing/) · [DNS](https://aws.amazon.com/route53/pricing/)
 
-## Teardown and custody
+## Cleanup and resource custody
+
+## Evidence capture and cleanup overview
+
+For each exercise, record the deployed revision, relevant resource ARNs, time-stamped outcomes, health checks, failures, recovery times and a small number of screenshots. Use synthetic data and remove account identifiers or secrets before publishing. A configuration screenshot is not proof that recovery worked.
+
+Before cleanup, identify which resources are expendable and which must stay to protect evidence or backups:
+
+- Remove **only** reviewed disposable demo workloads, including restored databases, compute, load balancers, NAT gateways and temporary public IP addresses.
+- Retain required snapshots, backup recovery points, KMS keys, Terraform state and encrypted evidence until an owner approves their retirement. Project 1 has `prevent_destroy` guards on recovery keys.
+- Expect versioned S3 buckets, ECR images, backup vaults and dependencies to prevent a simple whole-root destroy. Never remove Terraform state to bypass an ownership or deletion problem.
+- Remove workload-specific DNS records only after the service is gone. Treat parent delegation as a separate DNS-owner decision.
+- Verify cleanup using **resource ARNs and direct AWS inventory**, not tags alone. Check for remaining databases, tasks, ASGs, ALBs, NAT gateways and EIPs. Reconcile retained resources and continuing charges.
+
+## Teardown and retained-resource custody
 
 1. Record ownership, active revisions, backend key, resource addresses, backup identifiers, encryption keys and evidence custodian before any removal. Verify snapshot completion and recovery evidence. The final snapshot and retained automated backups have separate lifecycles. Daily AWS Backup points expire after 35 days; manual final snapshots require a deliberate retention decision.
 2. For a future cleanup, prepare an explicit dev-only teardown plan with a reviewed address list for expendable resources. Separate retained recovery resources and their dependencies before execution. A whole-root destroy is blocked by protected keys. Avoid state removal as a deletion workaround. Keep the vault with its recovery points and all required KMS keys, grants and restore access. Confirm the final snapshot name is available and retain the DB key through the final snapshot. Preserve encrypted AI evidence and its key together.
@@ -283,3 +250,19 @@ Budget separately for retained assets. One state KMS key is roughly $1/month plu
 On November 8, 2026, Cost Explorer returned estimated daily data with no groups for the rsvp-pf1 and rsvp-project2 project tags. The Project cost-allocation tag was inactive. The exact demo charge is unresolved. In this shared account, whole-account daily totals also include Society production activity.
 
 **Next billing review: November 15, 2026.** Use the billing console or an existing cost-and-usage report to reconcile identifiable portfolio usage by resource ID, SKU and demo time window. Record any unattributable charges separately. Inventory the two manual RDS snapshots, retained automated backups, evidence buckets, CloudWatch logs, ECR images, hosted zone, secret and required KMS keys. Assign an owner and expiry decision to each retained item. Preserve encryption keys for every snapshot or artifact that must remain readable.
+
+## Historical context
+
+Retained for audit traceability; these November 7 observations precede the November 8 live tests and are not current operating instructions.
+
+## Historical preflight — November 7, 2026
+
+This is an archived observation, not a statement of current deployment status. The subsequent November 8 test results are recorded above.
+
+At the time of the November 7 preflight, the original checkout and the portfolio checkout shared base commit `01da9bf`. The original Project 1 working directory has cached S3 backend configuration for the dedicated portfolio bucket in us-east-1, key `project-1-cloud-platform/dev/terraform.tfstate`, default workspace. Initialization records the backend connection locally. The remote bucket listing returned no versions or delete markers, so it supplied no workload state or lineage for an import or migration. The original checkout also has local edits and provider lock files. Keep that working directory intact.
+
+A direct Auto Scaling query found `rsvp-dev-asg` with desired capacity two and zero attached instances. Its three most recent scaling activities failed validation because one or more target groups were missing. The dev instance profile has Project=rsvp and Environment=dev tags. Neither tags nor a matching name establish Terraform ownership. No DB instance or ALB with the rsvp-dev prefix appeared in the regional service queries. A general tagging query also missed the ASG, so use direct service inventory when reconciling other resource types.
+
+Before any live Project 1 run, recover the owning deployment record or state backup if available. Match resource IDs and immutable configuration against the candidate addresses. If ownership can be demonstrated but state cannot be recovered, prepare an explicit adoption or retirement proposal with the owner for each surviving resource. Never adopt the group based on name alone. Repairing its target group while desired capacity remains two could trigger paid launches. Those live health and restore checks had not yet been completed on November 7; the November 8 results above supersede that preflight status.
+
+The IAM OIDC provider listing was empty in the verified account. Project 2's existing bootstrap creates the provider and environment-scoped roles. Refresh that inventory immediately before an authorized bootstrap. If a provider has appeared in another stack, resolve ownership first. Existing GitHub Environments alone cannot issue working AWS sessions without provider and role trust.
