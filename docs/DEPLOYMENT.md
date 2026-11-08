@@ -1,6 +1,10 @@
-# Deploying and testing RSVP Cloud Platform
+# Deployment and testing — technical guide
 
-**This is a technical runbook, not a requirement to leave the platform running.** It explains how to repeat the demonstrations safely. For the plain-English design, start with [Architecture](ARCHITECTURE.md). For results, see [What I tested](PORTFOLIO-VALIDATION.md).
+This is the **technical reference** for approved AWS demonstrations. You do not need it to understand the project: start with the [main README](../README.md) or [architecture in plain English](ARCHITECTURE.md).
+
+The three stages describe one intended progression, but **the current EC2 and ECS workloads are separate implementations**. Do not treat the database as connected to the application or claim a migrated shared workload until the integration is implemented and tested.
+
+This guide retains account checks, backend configuration, approval boundaries, and teardown precautions. For actual results, see [tests and evidence](PORTFOLIO-VALIDATION.md).
 
 ## Current state
 

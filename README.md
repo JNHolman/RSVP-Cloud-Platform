@@ -1,235 +1,102 @@
 # RSVP Cloud Platform
 
-**An AWS engineering platform that grew out of a real business migration and became a deeper study of cloud networking, infrastructure automation, delivery, security, reliability, and operations.**
+**Building, modernizing, and operating an application on AWS — with security, automation, and recovery built into the work.**
 
-## Where this came from
+Imagine a company putting an application in the cloud. Getting the website online is only the beginning. It also needs to protect customer data, release updates safely, detect problems, recover from failures, and keep costs under control.
 
-RSVP Cloud Platform started because I wanted to move **RSVP Society, a private-event business I run, onto AWS**.
+That's the engineering problem I wanted to work through.
 
-My first approach was much heavier than the business actually needed. I had built the kind of three-tier architecture that shows up in a lot of cloud projects — VPCs, public and private subnets, load balancing, compute, and a relational database — and then kept adding the controls I was learning around it.
+RSVP Cloud Platform follows that journey in three stages:
 
-As RSVP Society became a real operating system for the business, the mismatch became obvious. The right answer was not to force enterprise-sized infrastructure onto a small workload just because I had already built it. I simplified RSVP Society around its real requirements and separated this project from it.
+| Stage | The question I wanted to answer | What I built |
+| --- | --- | --- |
+| **1. Build it** | How do I host an application securely and recover its data? | A private AWS network with EC2 servers, a load balancer, an encrypted database, monitoring, and backups |
+| **2. Modernize it** | How do I release updates without breaking the service? | A containerized application with automated tests, deployments, health checks, scaling rules, and rollback |
+| **3. Operate it** | How do I manage security, access, incidents, and spending as the environment grows? | A multi-account governance design with automated security and cost analysis, tested locally |
 
-I kept RSVP Cloud Platform for a different reason: **to push past the point where a normal AWS tutorial stops** and work through the problems I expect to face as I move from enterprise network engineering into cloud networking, infrastructure automation, and cloud operations.
+**This is one engineering journey, not three unrelated AWS service lists.** The code currently uses separate demonstration workloads for the EC2 and container stages; making them one shared application is the remaining integration work. The six-account governance design is deliberately not deployed.
 
-That is why this repository is intentionally broader than the infrastructure RSVP Society needs. The extra depth has a purpose: learn the technology, understand the trade-offs, connect it to problems I have already handled in network operations, and be able to explain how I would use it at a larger scale.
+## What I've demonstrated
 
-I use short, sequential demonstrations for networking and release recovery. I test governance offline because the policy and analysis logic can run locally, while enforcement across six real accounts requires a separate integration environment. My [validation matrix, evidence plan and cost model](docs/PORTFOLIO-VALIDATION.md) record what I can substantiate.
+These aren't just diagrams or planned features. In isolated AWS test environments, I:
 
-## What problems am I working through?
+- **Protected application traffic.** Served HTTPS through a load balancer and web firewall, while keeping compute instances and containers off the public internet.
+- **Tested real recovery.** Restored an encrypted database snapshot, connected to the restored database, and confirmed the original test record was there. The restore request to verified read took **10 minutes 2 seconds**.
+- **Deployed updates through automation.** Used GitHub Actions and short-lived AWS credentials to test, build, scan, and release a container to ECS.
+- **Broke a release on purpose.** Watched AWS ECS automatically restore the previous healthy version in **13 minutes 47 seconds**.
+- **Tested incident analysis.** Ran the AI handler against test alarm data, verified its safe fallback, and separately checked a live model response. The complete automatic alarm-to-AI path still needs a live test.
 
-My network background shapes how I look at cloud infrastructure. I am less interested in whether I can create an AWS resource than in what happens when traffic, changes, dependencies, security controls, or recovery procedures fail.
+I also wrote offline tests for the governance and security design. **Offline validation is not the same as running a six-account AWS environment.**
 
-| Problem | How this platform approaches it | Why it matters |
-|---|---|---|
-| Too much infrastructure is directly exposed | Public edge, private application/database tiers, security-group boundaries, HTTPS and WAF | Reduces attack surface and makes the traffic path intentional |
-| Infrastructure changes are manual or inconsistent | Terraform, environment-specific configuration, remote state and reviewable changes | Makes infrastructure repeatable and easier to audit |
-| Deployment credentials become another secret to manage | GitHub Actions uses AWS OIDC and environment-scoped roles | Removes long-lived AWS deployment keys from GitHub |
-| A bad release reaches production | Immutable Git-SHA images, pre-deploy checks, health validation and ECS rollback | Reduces change risk and gives releases a known recovery path |
-| An outage starts with "what actually failed?" | CloudWatch metrics, logs, alarms, dashboards, EventBridge/SNS and bounded AI analysis | Gives operators evidence before they start troubleshooting |
-| One workload or administrator has too much blast radius | AWS Organizations, separate security/logging responsibilities, SCPs and Identity Center | Separates duties and protects central controls |
-| Backups exist but recovery is assumed | Multi-AZ design, RDS PITR/AWS Backup and recovery validation | Treats recoverability as something to test, not something to assume |
-| Reliability controls can become expensive | Autoscaling, environment-specific sizing, Cost Explorer analysis and explicit trade-offs | Keeps technical design connected to business cost |
+[See exactly what passed, what failed, and what remains open](docs/PORTFOLIO-VALIDATION.md).
 
-## Platform at a glance
+## How the platform grows
 
-```mermaid
-flowchart LR
-    U[Users] --> DNS[Route 53 / DNS]
-    DNS --> WAF[AWS WAF]
-    WAF --> ALB[HTTPS Application Load Balancer]
+### 1 — Start with a secure foundation
 
-    ALB --> APP[Private EC2 / ECS Workloads]
-    APP --> DB[(Private Multi-AZ RDS)]
+The first stage uses a traditional AWS design: a public entry point, private servers in two Availability Zones, a private MySQL database, monitoring, and backups.
 
-    GH[GitHub Actions] -->|OIDC + immutable SHA releases| APP
+I wanted to answer practical questions: Can someone reach the servers directly? Will traffic reach a healthy server if one fails? Can I restore the database and prove the data survived?
 
-    CW[CloudWatch / EventBridge] --> OPS[Operational Signals]
-    GD[GuardDuty / Security Hub] --> SEC[Central Security]
-    CE[Cost Explorer] --> FIN[Cost Analysis]
+**What is working:** The networking, HTTPS, firewall, monitoring signals, and database restore were tested in AWS.
 
-    OPS --> AI[AI-assisted Analysis]
-    SEC --> AI
+**What remains:** The current EC2 demo page does not yet make an application-level query to RDS. Additional backup and failover scenarios also need live testing.
 
-    ORG[AWS Organizations / SCPs / Identity Center] --> SEC
-    ORG --> LOG[Central Log Archive]
-    ORG --> APP
-```
+### 2 — Make releases safer
 
-### In plain English
+The next stage uses a Python application running in containers on ECS Fargate. GitHub Actions tests the application, scans its image, and deploys a version that can be traced back to the source code.
 
-Internet traffic terminates at a protected HTTPS edge. The application runs in private subnets and only accepts the traffic path it expects. The database is private and only accepts application-tier traffic.
+Why? Because a deployment is only successful if the new version actually works — and the team needs a way back when it doesn't.
 
-Infrastructure is defined in Terraform. Application releases move through GitHub Actions using short-lived AWS credentials and immutable container versions. Monitoring, security findings, backups, and recovery controls are treated as part of the platform rather than something added after the application works.
+**What is working:** A GitHub-driven release, two healthy private containers across two Availability Zones, and an ECS-managed rollback were demonstrated.
 
-The multi-account layer separates workload, security, and logging responsibilities. AI is used only as an analysis layer over approved operational evidence; it is not allowed to make infrastructure changes.
+**What remains:** The GitHub workflow's separate rollback path and load-driven autoscaling need live tests. The newer container image also has two reported high-severity findings that need to be resolved or assessed.
 
-## Why this goes beyond a three-tier AWS project
+### 3 — Prepare to operate at a larger scale
 
-The three-tier portion is only the starting point.
+The final stage asks how the same operating approach would work across teams and AWS accounts.
 
-A VPC, load balancer, compute tier, and database show that an application can be hosted. They do not answer how the environment is operated after that. This project continues into the areas that become important when more people, more changes, more accounts, and more failure modes are involved:
+The design separates applications, security administration, and audit logs. It includes account-level guardrails, restricted access, security-event analysis, and cost reporting. AI helps interpret evidence; it does **not** make changes to infrastructure on its own.
 
-- controlled container delivery and rollback
-- CI security and quality gates
-- short-lived deployment authentication
-- observability and incident evidence
-- tested recovery paths
-- centralized security findings
-- multi-account governance and policy guardrails
-- identity and permission boundaries
-- cost visibility
-- bounded use of AI in operational workflows
+**What is working:** The Terraform policies and application logic have automated offline tests.
 
-The point is not to use the most AWS services possible. The point is to understand **when these controls solve a real problem, what they cost, and what I would leave out when the requirements do not justify them**.
+**What remains:** Cross-account access, AWS security-service enrollment, centralized log delivery, and real user sign-in have not been validated in a deployed multi-account environment.
 
-## The three engineering layers
+## Why I built it
 
-### 1. Cloud foundation
+This project started as a proposal to move [RSVP Society](https://github.com/JNHolman/rsvp-society), my private-event platform, onto AWS.
 
-The first layer translates familiar network and infrastructure concerns into AWS:
+The original three-tier infrastructure was more expensive and complex than that business needed. Instead of forcing the business to use it, I separated the projects. RSVP Society follows its actual operating needs; RSVP Cloud Platform became the place where I could explore larger-scale cloud engineering.
 
-- multi-AZ VPC with public edge and private workload/database subnets
-- EC2 Auto Scaling behind an HTTPS Application Load Balancer
-- security-group-to-security-group traffic boundaries
-- NAT Gateway per Availability Zone for resilient private egress
-- private Multi-AZ RDS MySQL with KMS encryption
-- RDS-managed credentials in Secrets Manager
-- point-in-time recovery, AWS Backup and final-snapshot protection; **RDS recovery points inherit the database encryption key**
-- CloudWatch dashboards, logs, alarms and notifications
-- WAF managed protections and rate limiting
+My background is enterprise network engineering. During an outage, the most useful questions are usually straightforward: **What's failing? What changed? Who is affected? How do we prove the cause and restore service?**
 
-This is the part closest to my networking background: traffic paths, segmentation, failure domains, least exposure, monitoring, and recovery.
+I wanted to apply that same thinking to AWS, Terraform, containers, deployment automation, security, and AI-assisted operations.
 
-### 2. Container delivery and infrastructure automation
+## A few decisions that matter
 
-The second layer focuses on how changes safely reach a running service:
+| Decision | Why I chose it | Trade-off |
+| --- | --- | --- |
+| Keep application servers private | Limit what is exposed directly to the internet | More network components |
+| Run workloads across two Availability Zones | Reduce dependence on a single location | Higher running cost |
+| Use GitHub Actions for application releases | Make changes repeatable and recoverable | Release permissions must be protected |
+| Use Terraform for infrastructure | Make configuration reviewable and reproducible | Infrastructure changes still need careful approval |
+| Keep AI advisory | Help engineers interpret incidents without giving a model control of production | People still make the changes |
+| Test briefly, then tear down | Demonstrate real AWS behavior without a permanent enterprise-sized bill | Some tests must be scheduled separately |
 
-- Dockerized Python/Flask workload
-- ECR with immutable image handling
-- ECS Fargate across Availability Zones
-- CPU and memory autoscaling
-- GitHub Actions authenticated to AWS through OIDC
-- environment-scoped deployment roles
-- immutable Git-SHA releases instead of `latest`
-- pre-deployment tests and vulnerability scanning
-- HTTPS smoke testing after deployment
-- automatic rollback to the previous ECS task definition on a failed release
-- Terraform separated from application release ownership so an infrastructure-only change does not roll the application backward
+**This repository is an engineering portfolio, not a claim that all three stages are running together in production.** Projects 1 and 2 were deployed for controlled tests and their temporary workloads were removed. Retained backups, encryption keys, logs, and images may still incur charges. RSVP Society production is separate and must not be affected by this work.
 
-That last point matters. Terraform owns the platform baseline; the release workflow owns application revisions. The two should not fight each other.
+## Explore the work
 
-### 3. Governance, security and operations
+| Start here | What you'll find |
+| --- | --- |
+| [Architecture](docs/ARCHITECTURE.md) | How the three stages fit together, their AWS components, and the design choices |
+| [Tests and evidence](docs/PORTFOLIO-VALIDATION.md) | Live results, outstanding tests, and the limits of each claim |
+| [Project 1 live exercise](docs/PROJECT-1-LIVE-2026-11-08.md) | Private networking, HTTPS, alarms, and the timed database restore |
+| [Project 2 live exercise](docs/PROJECT-2-LIVE-2026-11-08.md) | Automated deployment, failed release, ECS rollback, and image scan |
+| [Deployment and testing guide](docs/DEPLOYMENT.md) | Technical prerequisites, safe execution procedures, and cleanup |
 
-The third layer asks what changes when one workload becomes several environments or accounts:
-
-- AWS Organizations and organizational units
-- Service Control Policies protecting central security controls
-- Security and Log Archive account patterns
-- delegated GuardDuty, Security Hub and AWS Config administration, with organization aggregation **where Config recording is enabled**
-- organization-wide CloudTrail
-- IAM Identity Center permission sets
-- authenticated operations API with Cognito MFA
-- centralized operational/security data access with scoped cross-account roles
-- Cost Explorer-backed FinOps analysis
-- AI-assisted SRE and security triage with deterministic guardrails and fallback behavior
-
-The governance code is intentionally split into multiple Terraform roots because the management, security, log archive, and workload accounts do not share the same trust boundary.
-
-## Decisions and trade-offs
-
-| Decision | Why I made it | What I accept in return |
-|---|---|---|
-| Private workloads behind a public edge | Keeps direct exposure limited to managed ingress | More networking components and private-egress cost |
-| NAT Gateway per AZ | Avoids making private egress depend on one Availability Zone | Higher cost than one shared NAT |
-| Multi-AZ RDS | Gives the database an availability baseline that matches the production design | Higher steady-state database cost |
-| ECS Fargate instead of Kubernetes | Lets me focus on containers, delivery, networking and operations without adding cluster administration that this workload does not need | Less control than a Kubernetes platform |
-| OIDC instead of stored AWS keys | Reduces credential lifetime and secret-management risk | Requires stricter trust-policy and GitHub Environment design |
-| Immutable SHA releases | Makes a deployed image traceable to source | Requires a deliberate image lifecycle and release process |
-| Separate security/logging accounts | Reduces the blast radius of a workload account | Adds account/bootstrap complexity and cross-account trust design |
-| Manual Terraform execution | Infrastructure changes remain deliberate and context-aware, especially across multiple accounts | Terraform provider validation is not performed on every ordinary push |
-| AI is advisory only | Useful for summarizing evidence and suggesting next checks | A human or deterministic workflow still owns every state-changing action |
-| Single-region today | Keeps cost and complexity proportional to the project | Multi-region disaster recovery remains a future business decision |
-
-## AI-assisted operations
-
-I wanted to explore AI where it could actually help operations without pretending it should run the infrastructure.
-
-The platform uses AI for three bounded jobs:
-
-- summarize CloudWatch alarm and log evidence for SRE triage
-- analyze Security Hub findings and suggest investigation steps
-- explain Cost Explorer data and identify areas worth reviewing
-
-Before external analysis, evidence is limited and sensitive identifiers are redacted or hashed where appropriate. Outputs are schema-checked, confidence is recorded, deterministic fallbacks remain available, and security severity cannot be downgraded below the underlying Security Hub finding.
-
-The AI roles do **not** have permission to terminate instances, resize databases, buy capacity, edit security groups, or perform autonomous remediation.
-
-## How my network-engineering experience carries into this
-
-The tools are different, but many of the engineering questions are not.
-
-In enterprise networking I have had to isolate failures across routing, firewalls, VPNs, DNS, WAN paths, and application dependencies; work through controlled production changes; validate recovery; and use telemetry to prove where a problem is occurring.
-
-I approached this platform the same way:
-
-**understand the traffic path → define the trust boundary → reduce blast radius → make changes repeatable → collect evidence → recover safely.**
-
-The project is my way of extending that operating mindset into AWS, Terraform, containers, CI/CD, cloud security, and platform operations rather than treating cloud as a completely separate discipline.
-
-## Cost and scale
-
-Some of the controls in this repository are deliberately more expensive than the cheapest possible lab: redundant NAT Gateways, Multi-AZ RDS, multiple ECS tasks, WAF, GuardDuty, Security Hub, Config, CloudWatch, backups, and centralized logging all have a cost.
-
-That is part of the exercise.
-
-**Project 1 recovery KMS keys have intentional Terraform destruction guards** so retained snapshots and recovery points are not orphaned by routine teardown.
-
-A technical control has to be justified by the risk or operating problem it solves. A small business workload may not need every control shown here. A larger environment may need even more. The architecture is therefore designed so that the conversation can be about **requirements, risk, reliability, and cost**, not simply about whether a service can be turned on.
-
-At larger scale I would look at reusable platform modules, account vending, stronger workload ownership boundaries, service-level objectives, policy automation, shared-network patterns, and regional disaster recovery when those requirements become real. I would not add Kubernetes, Kafka, Transit Gateway, or multi-region architecture just to make the diagram look more complicated.
-
-## Validation approach
-
-I treat source checks and live AWS behavior as different kinds of evidence.
-
-Repository checks cover Python tests, linting, dependency auditing, infrastructure security scanning, container build/scanning, packaging and structural contracts. Terraform execution remains deliberate rather than automatic.
-
-When the platform is exercised in AWS, the useful evidence is operational: private workload placement, HTTPS/WAF behavior, healthy tasks across Availability Zones, deployment rollback, RDS protection and restore behavior, CloudWatch alarm transitions, centralized security findings, and measured recovery results.
-
-RTO/RPO numbers remain **targets** until a timed recovery exercise produces measurements. I use the same rule for cost, scale, and performance claims: measure first, claim second.
-
-## Repository map
-
-| Area | Purpose |
-|---|---|
-| `infrastructure/project-1-cloud-platform/` | Network/application foundation, EC2, RDS, monitoring, backup and SRE analysis |
-| `infrastructure/project-2-ecs-cicd/` | Container workload, ECS platform, delivery bootstrap and controlled releases |
-| `infrastructure/project-3-cloud-governance/` | Organizations, centralized security, log archive, Identity Center, operations API and FinOps |
-| `infrastructure/bootstrap-state/` | Remote Terraform state foundation |
-| `.github/workflows/` | Automated quality/security checks and controlled ECS delivery |
-| `ops/recovery/` | Recovery and resilience validation helpers |
-| `docs/ARCHITECTURE.md` | Trust boundaries and deeper architecture notes |
-| `docs/DEPLOYMENT.md` | Operational deployment and validation reference |
-
-## Scope and claim boundaries
-
-This is a portfolio-scale engineering platform, not a claim that I have operated this exact design at hyperscale. The value of the project is in the architecture, code, controls, trade-offs, failure handling, and the ability to validate those decisions against real AWS services.
-
-RSVP Society also does not use all of this infrastructure. That separation is intentional. One of the most useful lessons from building the original version was learning that **good engineering is not adding every control you know — it is knowing which controls the workload actually needs.**
+The implementation is under [`infrastructure/`](infrastructure/), the workflows are under [`.github/workflows/`](.github/workflows/), and automated tests are under [`tests/`](tests/).
 
 ---
 
-**Josh Holman**  
-Network / Cloud Infrastructure Engineer  
-AWS • Terraform • Python • GitHub Actions • Cisco • Palo Alto
-
-## Project 3 portfolio validation
-
-A single-account portfolio can demonstrate Project 3 locally with zero additional accounts or AWS charges. Run the offline commands in [the deployment guide](docs/DEPLOYMENT.md#project-3-offline-validation).
-
-| Validation status | Project 3 evidence |
-| --- | --- |
-| Live tested | No live AWS validation claimed for this portfolio run. |
-| Offline tested | Terraform renders the enterprise SCPs. Python exercises incident triage and FinOps fallbacks with local fixtures and checks the dashboard trust and security configuration. |
-| Architecture only / not deployed | OU inheritance, cross-account role assumption, Identity Center assignments, delegated administration and service enrollment require an enterprise environment to verify. |
+**Josh Holman** · Network / Cloud Infrastructure Engineer

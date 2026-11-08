@@ -1,6 +1,8 @@
-# What I tested — and what I still need to prove
+# Tests and evidence: what worked, and what's still open
 
-A working Terraform plan proves that AWS resources are configured. A live test proves how they behave. This page keeps those two things separate.
+**The short version:** Project 1's network and database recovery were live-tested. Project 2's automated deployment and ECS recovery were live-tested. Project 3's enterprise governance was tested offline. The shared application and some end-to-end operational flows are not yet complete.
+
+A Terraform configuration shows what the system is supposed to do. A live exercise shows what it actually did. I keep those statements separate.
 
 ## Results at a glance
 
@@ -9,6 +11,7 @@ A working Terraform plan proves that AWS resources are configured. A live test p
 | **1 — Cloud foundation** | Private EC2 servers in two AZs; HTTPS; WAF block; application logs and flow logs; a CloudWatch alarm changing state; encrypted RDS snapshot restore with a verified record | Automatic CloudWatch-to-AI delivery; independent AWS Backup restore; point-in-time recovery; database failover; application-to-database transaction |
 | **2 — ECS delivery** | Private Fargate tasks across two AZs; HTTPS; GitHub OIDC deployment; immutable image; successful release; ECS rollback from a deliberately broken revision | GitHub workflow's own failed-smoke-test rollback; scale-out and scale-in under load; stage/prod controls |
 | **3 — Governance** | Terraform policy tests and offline Python tests for security triage, cost analysis, permissions and failure handling | Real account creation/enrollment, SCP enforcement, delegated services, cross-account access and live dashboard sign-in |
+| **Integration across stages** | Each workload was demonstrated independently with real AWS services | A single application running first on EC2 and then on ECS, with verified database interaction |
 
 **Project 3 was deliberately tested offline.** Its code describes a multi-account architecture; it is not evidence of a deployed six-account organization.
 
@@ -60,6 +63,8 @@ The container scan also uses an ignore-unfixed policy. The separate ECR scan is 
 [Latest reviewed CI run](https://github.com/JNHolman/RSVP-Cloud-Platform/actions/runs/42461692898)
 
 ## What's left to validate
+
+**First, complete the shared application story:** use one small application across EC2 and ECS and verify that it really reads and writes test data. This is a planned improvement, not a tested integration.
 
 The most useful additional demonstrations are:
 
