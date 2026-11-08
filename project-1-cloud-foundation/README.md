@@ -1,6 +1,6 @@
 # Part 1 — Cloud Foundation
 
-**The first problem was to build a traditional AWS application environment that I could secure, troubleshoot, and recover.**
+**A private AWS application architecture with visible network behavior and a tested database recovery path.**
 
 I designed a public HTTPS entry point with the application and database in private networks. The VPC spans two Availability Zones; each has its own NAT gateway for private outbound traffic, so one AZ's egress path does not depend on the other. The EC2 application tier is managed by an Auto Scaling Group behind the load balancer.
 
@@ -40,6 +40,6 @@ The incident-analysis Lambda exposed a KMS permission problem during direct test
 
 [Original observations and recovery timeline](evidence/2026-11-08.md) · [Recorded results](evidence/observations.json)
 
-The point of this part is the relationship between traffic, visibility, and recovery—not a catalogue of AWS services. It set the expectations I carried into container delivery.
+This work established the network and recovery decisions I carried into Part 2.
 
 [Platform overview](../README.md) · [Part 2: ECS & CI/CD](../project-2-ecs-cicd/README.md)

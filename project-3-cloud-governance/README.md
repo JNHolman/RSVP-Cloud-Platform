@@ -1,8 +1,8 @@
 # Part 3 — Cloud Governance
 
-**The final design question: how do you maintain security, identity, and audit boundaries when more than one account or team is involved?**
+**A six-account AWS governance design: security policies, identity boundaries, independent audit records, and cost visibility.**
 
-I modeled a six-account AWS organization, separating management, security, log archive, shared services, nonproduction, and production. These are responsibilities that should not all live in the same application account.
+I modeled six account responsibilities: management, security, log archive, shared services, nonproduction, and production. Separate security and audit accounts keep a workload team from being solely responsible for its own oversight.
 
 ```text
 Management / AWS Organizations
@@ -13,13 +13,13 @@ Management / AWS Organizations
   └── Production           → production workloads
 ```
 
-## What the implementation enforces by design
+## The guardrails defined in code
 
-**Protect the organization and its security tools.** The SCP module denies member accounts permission to leave the organization or close their accounts. A second policy blocks ordinary workload principals from stopping or altering CloudTrail logging, AWS Config recording, GuardDuty, and Security Hub. It is attached to the nonproduction and production organizational units, with optional, explicitly named administrator-role exceptions—not broad wildcard exemptions.
+**Protect the organization and its security tools.** The service control policy (SCP) module generates a rule denying member accounts the ability to leave the organization or close their accounts. Another rule would stop ordinary workload roles from disabling CloudTrail logging, AWS Config recording, GuardDuty, or Security Hub. Terraform defines attachments to the nonproduction and production organizational units. Exceptions are limited to explicitly named administrator roles, not wildcard access.
 
 [Actual SCP rules](modules/scp-policies/main.tf) · [Policy attachment targets](organization/scps.tf)
 
-**Put independent evidence outside the workload account.** The design separates a security account for centralized findings and a log archive account for audit records. IAM Identity Center models human access. Referencing existing accounts **does not automatically move them into organizational units**; **OU placement determines which SCPs apply**. Also, SCPs do not restrict the AWS Organizations management account.
+**Keep oversight independent of applications.** A security account is responsible for findings and a log archive account for audit records. IAM Identity Center models who can access accounts. Referencing existing accounts **does not automatically move them into organizational units**; **OU placement determines which SCPs apply**. Also, SCPs do not restrict the AWS Organizations management account.
 
 [Account boundaries](organization/accounts.tf) · [Identity Center configuration](identity-center/main.tf)
 
@@ -29,14 +29,14 @@ Management / AWS Organizations
 
 **Keep different account lifecycles separate.** Organization management, log archive, security, identity, and workload Terraform roots intentionally remain distinct. Sharing a repository does not mean those accounts should share state or deployment privileges.
 
-## What was tested, and what wasn't
+## Why I tested this part offline
 
-This is an **offline-tested six-account reference design**, not a deployed AWS organization. Terraform tests checked policy generation and role exceptions; Python tests exercised infrastructure contracts, security analysis, dashboard reads, cost handling, and fallback responses.
+The AWS account available for the portfolio was also hosting RSVP Society. The six-account model required five additional accounts and centralized services, so deploying it into that environment would have introduced cost and risks to the business for no immediate business benefit.
 
-That proves the implementation and test behavior locally. It **does not** prove live SCP enforcement, Identity Center access, cross-account audit delivery, or security finding aggregation. There is no live six-account evidence to claim otherwise.
+I used Terraform tests to check the actual SCP rules and administrator exceptions, plus Python tests for configuration, incident analysis, dashboards, and cost handling. Those tests verify the implementation **without claiming that the policies were enforced across live AWS accounts**.
 
 [Terraform policy tests](modules/scp-policies/tests/guardrails.tftest.hcl) · [Governance tests](tests/)
 
-This completes the design progression: private application infrastructure, repeatable delivery, and organizational controls around both.
+Together with the first two parts, this shows how I approached the same security and operational problems from workload design through organization-wide controls.
 
 [Platform overview](../README.md)

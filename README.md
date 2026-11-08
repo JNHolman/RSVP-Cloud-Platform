@@ -8,13 +8,16 @@ I built [RSVP Society](https://github.com/JNHolman/rsvp-society) to manage priva
 
 My first AWS design used familiar enterprise components: a VPC, an Application Load Balancer, EC2 servers, and a relational database. It was a reasonable model for a service with steady demand. But RSVP Society gets busy around invitations and event days, not around the clock.
 
-I moved the live business toward serverless services so the infrastructure matched that pattern.
+I chose a serverless design for RSVP Society so the infrastructure matched that pattern.
 
-| Original enterprise approach | RSVP Society's serverless direction | Why it changed |
-| --- | --- | --- |
-| Always-available EC2 application tier | API Gateway + AWS Lambda | Process requests when they arrive instead of running application servers continuously |
-| Managed relational database infrastructure | DynamoDB | Use managed, on-demand capacity for members, invitations, and event activity |
-| Load-balanced server delivery and scheduled server-side work | CloudFront + EventBridge-driven scheduling | Deliver the frontend efficiently and run event tasks when needed |
+| Responsibility | Original enterprise design | RSVP Society's approach | Why it fits |
+| --- | --- | --- | --- |
+| Application requests | Load balancer and always-on EC2 | API Gateway and Lambda | Run code when requests arrive |
+| Application data | Provisioned RDS database | DynamoDB | Scale database capacity with event activity |
+| Website delivery | Web server behind the load balancer | CloudFront | Deliver and cache the frontend without an application server |
+| Invitations and reminders | Server-managed background scheduling | EventBridge Scheduler | Trigger tasks when they're due |
+
+These rows compare architectural responsibilities, not one-for-one AWS service replacements.
 
 The pivot wasn't because traditional infrastructure is wrong. **It was the wrong operating model for this business.** I kept that engineering work and expanded it into RSVP Cloud Platform to explore the security, delivery, and governance needs of a larger AWS environment. The business application and this portfolio are separate.
 
@@ -26,9 +29,9 @@ The pivot wasn't because traditional infrastructure is wrong. **It was the wrong
 | [**02 · ECS & CI/CD**](project-2-ecs-cicd/README.md) | Private Fargate services, GitHub Actions, OIDC, ECR and deployment rollback | Can I ship software changes without losing control of the running service? |
 | [**03 · Cloud Governance**](project-3-cloud-governance/README.md) | Organization guardrails, identity, centralized security, logging and costs | How would those standards be applied across teams and accounts? |
 
-Foundation establishes the network and recovery design. Delivery applies the same security and reliability approach to containers and releases. Governance takes the question beyond a single application account.
+Foundation establishes the network and recovery design. Delivery carries those same standards into software releases. Governance shows how they could be applied across AWS accounts.
 
-This is a **progression in engineering scope**, not a claim that all three environments were deployed as one live system. Foundation and ECS were exercised independently. The six-account governance design has been tested offline.
+This is one engineering project with three related parts, not a claim that they were running together: the EC2 and ECS exercises were tested independently, and the governance design was tested locally.
 
 ```mermaid
 flowchart TB
@@ -75,11 +78,11 @@ This proved the native ECS circuit-breaker rollback, not the separate workflow s
 
 [Technical decisions and code](project-2-ecs-cicd/README.md) · [Release evidence](project-2-ecs-cicd/evidence/2026-11-08.md) · [GitHub Actions run](https://github.com/JNHolman/RSVP-Cloud-Platform/actions/runs/42458363871)
 
-### Governance — enforceable policies as code, tested offline
+### Governance — security guardrails designed and tested locally
 
-The six-account reference design separates management, security, audit, shared services, nonproduction, and production responsibilities. Its SCPs include controls to prevent member accounts from leaving the organization and to restrict disabling CloudTrail, AWS Config, GuardDuty, and Security Hub in workload environments. Account-level exceptions are explicitly scoped.
+The six-account reference design separates management, security, audit, shared services, nonproduction, and production responsibilities. Its **service control policies (SCPs)** define limits on what member accounts may do—for example, preventing them from leaving the organization or disabling CloudTrail, AWS Config, GuardDuty, and Security Hub. Administrator exceptions require explicitly named roles.
 
-Terraform and Python tests check these policies and the supporting security and cost-analysis logic. **I have not deployed or verified the six-account design in AWS.**
+I had only one AWS account hosting RSVP Society when I evaluated this design. Deploying the full governance layer would have meant adding five accounts and connecting organization-wide controls to an environment containing my business. Instead, I tested the generated policies and supporting security/cost-analysis code locally, avoiding production risk and ongoing lab costs. **That verifies the code, not AWS enforcement.**
 
 [Governance design, policy implementation and tests](project-3-cloud-governance/README.md)
 
@@ -90,10 +93,10 @@ I brought my enterprise network engineering background to the parts that tend to
 - **Private by design:** The load balancers accept public HTTPS traffic. EC2, ECS, and the database are placed behind deliberate subnet and security-group boundaries.
 - **Infrastructure and releases have different owners:** Terraform defines ECS infrastructure; GitHub Actions promotes application revisions. This prevents a routine infrastructure update from silently reverting a working release.
 - **Recovery needs evidence:** A database snapshot existing is not the same as a successful restore. A deployment rollback setting is not the same as seeing the previous version return healthy.
-- **Automation has limits:** AI incident analysis produces advisory findings, not infrastructure changes. Governance tests establish implemented behavior, not live organization-wide enforcement.
+- **Automation has limits:** AI incident analysis produces findings, not infrastructure changes. Governance tests confirm generated rules and local behavior, not live account enforcement.
 
 The most important lesson connects back to RSVP Society: **strong engineering is choosing the right controls for the workload, including knowing when not to use them.**
 
-This repository is the engineering portfolio, not the production RSVP Society application or an installation guide. The linked project pages explain the implementation; the dated reports show what was observed rather than what the configuration alone suggests.
+This repository is the engineering portfolio, not the live RSVP Society application or an installation guide. Each project page links the important source code and recorded results.
 
 **Josh Holman** · Network / Cloud Infrastructure Engineer

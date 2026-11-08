@@ -1,22 +1,20 @@
 # Part 2 — ECS & CI/CD
 
-**The next problem was keeping deployments as controlled and recoverable as the infrastructure beneath them.**
+**Private containers, traceable releases, and a measured recovery from a failed deployment.**
 
 A healthy server is not enough if the release pipeline can quietly replace it with the wrong image. I built a GitHub Actions delivery path for a private ECS Fargate service, with tests, vulnerability scanning, immutable Git-SHA image tags, and a health check that returns the serving version.
 
 ```text
-GitHub Actions → tests / image scan → short-lived OIDC role
-                                        |
-                                immutable image in ECR
-                                        |
-                              private ECS tasks (two AZs)
-                                        |
-                                   HTTPS / WAF / ALB
+GitHub Actions → tests / scan → temporary AWS role (OIDC)
+                                    |
+                          ECR image → ECS release
+
+Client traffic → HTTPS / WAF / ALB → private ECS tasks (two AZs)
 ```
 
 ## How the release design works
 
-**Authenticate without deployment access keys.** GitHub's OIDC identity assumes an AWS role scoped to the repository and a named GitHub Environment. The delivery bootstrap defines those roles and ECR resources. For production, the GitHub Environment also needs appropriate approval and release-branch protections.
+**Authenticate without stored access keys.** GitHub Actions uses OpenID Connect (OIDC) to obtain a temporary AWS role scoped to the repository and a named GitHub Environment. The delivery bootstrap defines those roles and ECR resources. For production, the GitHub Environment also needs appropriate approval and release-branch protections.
 
 [OIDC trust and ECR bootstrap](bootstrap-delivery/main.tf) · [Release workflow](../.github/workflows/ecs-project2-deploy.yml)
 
@@ -40,6 +38,6 @@ I deliberately registered an ECS revision with a failing startup command. The na
 
 [Release and recovery timeline](evidence/2026-11-08.md) · [ECR scan comparison](evidence/image-rescan.json) · [Successful GitHub Actions deployment](https://github.com/JNHolman/RSVP-Cloud-Platform/actions/runs/42458363871)
 
-Part 1 established protected infrastructure. This part adds a controlled way to change the software running on it. Part 3 asks how to maintain those standards beyond a single AWS account.
+Part 2 applies the same security and recovery standards to changes in application software. Part 3 extends that thinking to account-level controls.
 
 [Platform overview](../README.md) · [Part 3: Cloud Governance](../project-3-cloud-governance/README.md)
