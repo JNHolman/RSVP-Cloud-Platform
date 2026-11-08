@@ -70,22 +70,14 @@ jobs:
       - name: Terraform validate
         working-directory: ${{ matrix.directory }}
         run: terraform validate
-      - name: Install TFLint (pinned and verified)
-        run: |
-          set -euo pipefail
-          curl --fail --location --retry 8 --retry-all-errors --retry-delay 5 \
-            --connect-timeout 15 --max-time 120 \
-            "https://github.com/terraform-linters/tflint/releases/download/v0.65.0/tflint_linux_amd64.zip" \
-            --output "$RUNNER_TEMP/tflint.zip"
-          echo "d4c545ed2e29d6338604b586f34f544f380f70f243aa72f7b484713835eaec61  $RUNNER_TEMP/tflint.zip" | sha256sum -c -
-          unzip -q "$RUNNER_TEMP/tflint.zip" tflint -d "$RUNNER_TEMP"
-          sudo install -m 0755 "$RUNNER_TEMP/tflint" /usr/local/bin/tflint
-          tflint --version
-      - name: TFLint
+      - name: TFLint (pinned container)
         working-directory: ${{ matrix.directory }}
         run: |
-          tflint --init
-          tflint --recursive
+          docker run --rm \
+            --volume "$PWD:/data" --workdir /data \
+            --entrypoint /bin/sh \
+            ghcr.io/terraform-linters/tflint:v0.65.0 \
+            -c 'tflint --init && tflint --recursive'
 
   python:
     name: Python tests and dependency audit
