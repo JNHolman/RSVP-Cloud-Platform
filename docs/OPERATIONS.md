@@ -28,7 +28,7 @@ The November 7 preflight found an older `rsvp-dev-asg` whose state ownership was
 
 Open a review branch and check **CI - Test and Scan**. Its normal run covers Python checks, tests and dependency auditing, the container build and image scan, and Project 3's offline module tests.
 
-**Do not confuse green CI with every check being enforced.** Full Terraform quality gates require a manual workflow dispatch with `run_terraform=true`. Checkov findings are advisory because that job uses `soft_fail: true`. The container scan ignores findings without a known fix. Review those reports separately.
+**Do not confuse green CI with every check being enforced.** Terraform quality gates run on pull requests; they can also be triggered manually with `run_terraform=true`. Checkov findings are advisory because that job uses `soft_fail: true`. The container scan ignores findings without a known fix. Review those reports separately.
 
 No Terraform apply or destroy is performed automatically by these workflows.
 

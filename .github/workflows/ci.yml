@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       run_terraform:
-        description: Run manual Terraform quality gates
+        description: Run Terraform quality gates on demand
         required: false
         default: false
         type: boolean
@@ -36,8 +36,8 @@ jobs:
       - run: terraform test
 
   terraform:
-    name: Terraform quality gates (manual only)
-    if: github.event_name == 'workflow_dispatch' && inputs.run_terraform == true
+    name: Terraform quality gates
+    if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.run_terraform == true)
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
