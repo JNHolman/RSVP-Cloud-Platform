@@ -74,7 +74,8 @@ jobs:
         working-directory: ${{ matrix.directory }}
         run: |
           docker run --rm \
-            --volume "$PWD:/data" --workdir /data \
+            --volume "$GITHUB_WORKSPACE:/repo" \
+            --workdir "/repo/${{ matrix.directory }}" \
             --entrypoint /bin/sh \
             ghcr.io/terraform-linters/tflint:v0.65.0 \
             -c 'tflint --init && tflint --recursive'
