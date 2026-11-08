@@ -109,6 +109,11 @@ jobs:
             --services "$ECS_SERVICE" \
             --query 'services[0].taskDefinition' \
             --output text)
+          test -n "$PREVIOUS_TASK_DEF" && test "$PREVIOUS_TASK_DEF" != None
+          PREVIOUS_VERSION=$(aws ecs describe-task-definition --task-definition "$PREVIOUS_TASK_DEF" \
+            --query 'taskDefinition.containerDefinitions' --output json | jq -er --arg name "$CONTAINER_NAME" \
+            '.[] | select(.name == $name) | .environment[] | select(.name == "APP_VERSION") | .value')
+          echo "PREVIOUS_VERSION=$PREVIOUS_VERSION" >> "$GITHUB_ENV"
           echo "PREVIOUS_TASK_DEF=$PREVIOUS_TASK_DEF" >> "$GITHUB_ENV"
 
       - name: Resolve Terraform task-definition baseline
@@ -196,31 +201,9 @@ jobs:
             https://*) ;;
             *) echo "SERVICE_URL must use HTTPS" >&2; exit 1 ;;
           esac
-          curl --proto '=https' --tlsv1.2 --fail --silent --show-error --retry 5 --retry-delay 5 "$SERVICE_URL/health" | tee health.json
-          python - <<'PY'
-          import json
-          import os
-          with open('health.json') as f:
-              data=json.load(f)
-          if data.get('status') != 'ok':
-              raise SystemExit('health endpoint did not return status=ok')
-          if data.get('version') != os.environ['GITHUB_SHA'][:7] or data.get('env') != os.environ['EXPECTED_ENV']:
-              raise SystemExit('health endpoint returned the wrong release or environment')
-          PY
+          curl --proto '=https' --tlsv1.2 --fail --silent --show-error --retry 5 --retry-delay 5 "$SERVICE_URL/health" |
+            python "$GITHUB_WORKSPACE/project-2-ecs-cicd/verify-release-health.py" "${GITHUB_SHA::7}" "$EXPECTED_ENV"
 
-      - name: Roll back failed deployment
-        if: steps.deploy.outcome == 'failure' || steps.smoke.outcome == 'failure'
-        run: |
-          aws ecs update-service \
-            --cluster "$ECS_CLUSTER" \
-            --service "$ECS_SERVICE" \
-            --task-definition "$PREVIOUS_TASK_DEF" >/dev/null
-          aws ecs wait services-stable --cluster "$ECS_CLUSTER" --services "$ECS_SERVICE"
-          exit 1
-
-      - name: Verify deployed revision
-        if: steps.deploy.outcome == 'success' && steps.smoke.outcome == 'success'
-        run: |
           ACTIVE=$(aws ecs describe-services \
             --cluster "$ECS_CLUSTER" \
             --services "$ECS_SERVICE" \
@@ -228,3 +211,22 @@ jobs:
             --output text)
           test "$ACTIVE" = "$TASK_DEF_ARN"
           echo "Deployment verified: $ACTIVE"
+
+      - name: Roll back failed deployment
+        if: steps.deploy.outcome == 'failure' || steps.smoke.outcome == 'failure'
+        env:
+          SERVICE_URL: ${{ vars.SERVICE_URL }}
+          EXPECTED_ENV: ${{ inputs.environment }}
+        run: |
+          aws ecs update-service \
+            --cluster "$ECS_CLUSTER" \
+            --service "$ECS_SERVICE" \
+            --task-definition "$PREVIOUS_TASK_DEF" >/dev/null
+          aws ecs wait services-stable --cluster "$ECS_CLUSTER" --services "$ECS_SERVICE"
+          active=$(aws ecs describe-services --cluster "$ECS_CLUSTER" --services "$ECS_SERVICE" \
+            --query 'services[0].taskDefinition' --output text)
+          test "$active" = "$PREVIOUS_TASK_DEF"
+          curl --proto '=https' --fail --silent --show-error --max-time 10 --retry 3 "$SERVICE_URL/health" |
+            python "$GITHUB_WORKSPACE/project-2-ecs-cicd/verify-release-health.py" "$PREVIOUS_VERSION" "$EXPECTED_ENV"
+          echo "Previous release verified after rollback"
+          exit 1

@@ -12,3 +12,5 @@ private_subnet_cidrs = ["10.83.3.0/24", "10.83.4.0/24"]
 domain_name       = "dev.cloud.rsvpsociety.com"
 route53_zone_id   = "REPLACE_WITH_CLOUD_CHILD_ZONE_ID"
 openai_secret_arn = "REPLACE_WITH_PORTFOLIO_SECRET_ARN"
+
+ai_reserved_concurrency = -1

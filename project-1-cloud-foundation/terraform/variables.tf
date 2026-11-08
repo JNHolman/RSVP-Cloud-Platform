@@ -242,3 +242,13 @@ variable "alarm_rds_free_storage_bytes" {
   type        = number
   default     = 5368709120
 }
+
+variable "ai_reserved_concurrency" {
+  description = "Use -1 for the shared concurrency pool in quota-limited development accounts."
+  type        = number
+  default     = 2
+  validation {
+    condition     = var.ai_reserved_concurrency == -1 || (var.ai_reserved_concurrency >= 1 && floor(var.ai_reserved_concurrency) == var.ai_reserved_concurrency)
+    error_message = "Choose -1 or a positive whole number."
+  }
+}

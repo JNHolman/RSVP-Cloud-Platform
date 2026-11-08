@@ -55,7 +55,7 @@ resource "aws_ecs_task_definition" "app" {
         }
       ]
 
-      environment = [
+      environment = concat([
         {
           # Fargate mounts the task volume as root. Gunicorn needs a
           # non-root-writable directory for its per-worker heartbeat files.
@@ -74,7 +74,7 @@ resource "aws_ecs_task_definition" "app" {
           name  = "ENV_NAME"
           value = var.environment
         }
-      ]
+      ], local.database_environment)
 
       healthCheck = {
         command = [

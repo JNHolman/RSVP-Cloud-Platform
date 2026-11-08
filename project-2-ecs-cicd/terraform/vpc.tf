@@ -162,6 +162,14 @@ resource "aws_route_table" "private_a" {
     nat_gateway_id = aws_nat_gateway.a.id
   }
 
+  dynamic "route" {
+    for_each = var.foundation_db[*]
+    content {
+      cidr_block                = route.value.vpc_cidr
+      vpc_peering_connection_id = aws_vpc_peering_connection.foundation[0].id
+    }
+  }
+
   tags = {
     Name = "${local.name_prefix}-private-a-rt"
   }
@@ -173,6 +181,14 @@ resource "aws_route_table" "private_b" {
   route {
     cidr_block     = "0.0.0.0/0"
     nat_gateway_id = aws_nat_gateway.b.id
+  }
+
+  dynamic "route" {
+    for_each = var.foundation_db[*]
+    content {
+      cidr_block                = route.value.vpc_cidr
+      vpc_peering_connection_id = aws_vpc_peering_connection.foundation[0].id
+    }
   }
 
   tags = {

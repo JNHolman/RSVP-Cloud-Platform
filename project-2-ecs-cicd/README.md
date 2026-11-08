@@ -22,6 +22,14 @@ Two recovery paths are distinct: the **ECS circuit breaker** rolls back unhealth
 | Security and monitoring | WAF 403, CloudWatch streams and ECR scan comparison | Rebuild and rescan after a supported fix for the two remaining high findings |
 | Recovery and scaling | ECS restored the previous healthy revision in 13m 47s | Exercise GitHub smoke-test rollback and measure scale-out and scale-in |
 
+## Read the foundation database
+
+The integrated dev release serves the same Flask source as EC2. Supply the foundation's `foundation_db` output to the ECS runtime as an input of the same name. It contains the RDS hostname, database resource ID and private network identifiers. Generate it from the verified dev backend after the foundation is available. Pass only this named output, keeping raw state and local Terraform values out of Git.
+
+ECS owns the peering connection, return routes, database-reader policy and security-group rules it adds. The foundation retains ownership of RDS, its security group and private route tables. Use non-overlapping VPCs in the same account and region. Remove the ECS runtime and its connection before retiring the foundation.
+
+From a private operator session, initialize the configured database with the application's `demo.sql`, create `rsvp_reader` with the RDS IAM authentication plugin, require TLS, and grant SELECT only on `demo_reservations`. For live evidence, insert a second, uniquely named exercise record through the operator session. Capture that exact record via both HTTPS endpoints, with the running ECS revision and corresponding database query. The image's independent SQLite fixture cannot supply that record.
+
 ## Operations
 
 Before using the production OIDC role, configure **GitHub Environment protection rules for `prod`**: **restrict deployment branches/tags** to approved release sources and require reviewer approval where supported. Environment protection is part of the **production authorization boundary**, because AWS trust scopes the OIDC subject to the repository and environment.
