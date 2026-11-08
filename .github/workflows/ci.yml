@@ -133,6 +133,17 @@ jobs:
       - name: Build image
         working-directory: infrastructure/project-2-ecs-cicd/app
         run: docker build -t rsvp-project2:${GITHUB_SHA} .
+      - name: Verify non-root container startup
+        run: |
+          set -eu
+          container=$(docker run -d --read-only --tmpfs /tmp:ro --user app \
+            -e GUNICORN_CMD_ARGS="--worker-tmp-dir /dev/shm" -e ENV_NAME=ci \
+            -e APP_VERSION="$GITHUB_SHA" -p 127.0.0.1::8080 "rsvp-project2:$GITHUB_SHA")
+          trap 'docker logs "$container"; docker rm -f "$container" >/dev/null' EXIT
+          endpoint=$(docker port "$container" 8080/tcp)
+          curl --silent --show-error --fail --retry 10 --retry-connrefused --retry-delay 1 \
+            "http://$endpoint/health" | jq -e --arg sha "$GITHUB_SHA" \
+            '.status == "ok" and .env == "ci" and .version == $sha'
       - name: Trivy image scan
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
