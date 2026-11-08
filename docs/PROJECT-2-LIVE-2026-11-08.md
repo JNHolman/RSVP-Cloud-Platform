@@ -26,3 +26,16 @@ The GitHub Trivy gate passed with HIGH/CRITICAL filtering and ignore-unfixed ena
 At 02:49 EST, AWS inventory showed zero active demo ECS clusters, ALBs, NAT gateways, allocated demo EIPs, demo VPCs and workload DNS records. ECS had already reported zero running and pending tasks. Terraform removed 54 runtime resources. I deregistered the workflow release revision, retired the temporary dev deploy role and policy, and reconciled the four dev GitHub Environment variables to their prior values. A future release needs that role and configuration provisioned again.
 
 I retained the scanned ECR image and repository, its lifecycle policy and encryption key, the OIDC provider, the observability key, log groups, versioned access-log bucket and dedicated backend. Two Project 2 customer-managed KMS keys have a baseline of roughly $2/month before rotations and requests. ECR image storage, log and object storage, and requests remain usage-based. The runtime planning estimate was $0.18/hour before usage. Actual billed charges require a later billing report. The child zone continues to serve its retained delegation.
+
+## Post-demo image remediation
+
+I rebuilt the same application on python:3.12.15-slim-trixie and pushed the candidate to the retained dev ECR repository. ECS stayed shut down. The running demo screenshot and rollback timings belong to the earlier Bookworm image. The [candidate build](https://github.com/JNHolman/RSVP-Cloud-Platform/actions/runs/42461114794) and [Linux/amd64 scan comparison](evidence/project-2-2026-11-08/image-rescan.json) identify both artifacts by digest.
+
+| ECR severity | Bookworm demo | Trixie candidate |
+|---|---:|---:|
+| Critical | 0 | 0 |
+| High | 9 | 2 |
+| Medium | 10 | 9 |
+| Low | 3 | 4 |
+
+All nine original high IDs dropped out of the candidate scan. Debian records Trixie fixes for four of those IDs and still lists five as open. The two high findings reported on the candidate are different glibc CVEs. Debian lists the candidate version 2.41-12+deb13u4 as vulnerable to both. Rebuild and rescan when Debian publishes applicable updates, and review the affected code paths before promotion. [CVE-2026-5435](https://security-tracker.debian.org/tracker/CVE-2026-5435) · [CVE-2026-19499](https://security-tracker.debian.org/tracker/CVE-2026-19499)
