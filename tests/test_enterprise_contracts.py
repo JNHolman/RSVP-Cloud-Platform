@@ -38,7 +38,7 @@ def test_runtime_iam_matches_actual_api_calls():
 
 def test_project2_container_base_is_patch_and_distro_pinned():
     dockerfile = Path("infrastructure/project-2-ecs-cicd/app/Dockerfile").read_text()
-    assert dockerfile.startswith("FROM python:3.12.15-slim-bookworm\n")
+    assert dockerfile.startswith("FROM python:3.12.15-slim-trixie\n")
     assert "FROM python:3.12-slim\n" not in dockerfile
 
 
