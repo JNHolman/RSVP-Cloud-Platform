@@ -473,6 +473,8 @@ def test_project2_ecs_container_runs_nonroot_with_readonly_root_filesystem():
     ecs = read("infrastructure/project-2-ecs-cicd/terraform/ecs.tf")
     assert 'user      = "app"' in ecs
     assert 'readonlyRootFilesystem = true' in ecs
+    assert 'name  = "GUNICORN_CMD_ARGS"' in ecs
+    assert 'value = "--worker-tmp-dir /dev/shm"' in ecs
     assert 'sourceVolume  = "tmp"' in ecs
     assert 'containerPath = "/tmp"' in ecs
     assert 'readOnly      = false' in ecs
