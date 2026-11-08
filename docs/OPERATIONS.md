@@ -106,7 +106,7 @@ Before using the production OIDC role, configure **GitHub Environment protection
 
 **What to verify:** Two healthy private tasks in separate AZs, HTTPS, WAF, logs, the ECR image digest and GitHub's deployment result. The ECS circuit-breaker rollback and GitHub workflow rollback are separate behaviors. Verify each through its own controlled failure path. Use bounded load for autoscaling and record both scale-out and scale-in events.
 
-**Important:** Terraform sets the ECS baseline. The GitHub workflow owns application releases. The ECS service intentionally ignores later task-definition drift so a Terraform-only change does not unexpectedly revert a release. After changing the Terraform task baseline, run Controlled Deploy before claiming that baseline is active.
+**Task-definition ownership:** Terraform registers the infrastructure and security baseline, tagged `ConfigurationSource=TerraformBaseline`. The ECS service intentionally ignores `task_definition` drift so a later Terraform apply cannot roll back a GitHub-deployed application release. Therefore, after any Terraform change that modifies the ECS task definition, run **Controlled Deploy** before treating that configuration change as active. The workflow clones the latest Terraform baseline, replaces only the release image/version, and promotes that revision to the service.
 
 [Previously recorded Project 2 results](PROJECT-2-LIVE-2026-11-08.md)
 
