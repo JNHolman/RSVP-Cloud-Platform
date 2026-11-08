@@ -1,0 +1,148 @@
+{
+  "captured_at": "2026-11-08T07:24:30.918390+00:00",
+  "sha": "f045f7b72c43a1904cb80845de849a082fd7c683",
+  "ecr_digest": "sha256:d965cb5656dc201306bc5f6697bbcb16542376125c7dde6f1b8663d7075a859f",
+  "release_health": {
+    "status": "ok",
+    "env": "dev",
+    "version": "f045f7b"
+  },
+  "running": 2,
+  "desired": 2,
+  "private_targets": [
+    {
+      "az": "us-east-1a",
+      "public_ip_assigned": false,
+      "target_health": "healthy"
+    },
+    {
+      "az": "us-east-1b",
+      "public_ip_assigned": false,
+      "target_health": "healthy"
+    }
+  ],
+  "waf_acl": "rsvp-project2-dev-web-acl",
+  "xss_probe_http_status": 403,
+  "log_streams_with_ingested_events": 5,
+  "circuit_breaker": {
+    "enable": true,
+    "rollback": true,
+    "resetOnHealthyTask": true,
+    "thresholdConfiguration": {
+      "type": "BOUNDED_PERCENT",
+      "value": 50
+    }
+  },
+  "rollback": {
+    "before": {
+      "status": "ok",
+      "env": "dev",
+      "version": "f045f7b"
+    },
+    "previous_revision": "rsvp-project2-dev-task:3",
+    "test_revision": "rsvp-project2-dev-task:4",
+    "started": "2026-11-08T07:25:41.196446+00:00",
+    "after": {
+      "status": "ok",
+      "env": "dev",
+      "version": "f045f7b"
+    },
+    "finished": "2026-11-08T07:39:28.141333+00:00",
+    "restored_revision": "rsvp-project2-dev-task:3",
+    "recovery": "ECS returned to the previous revision without an operator update",
+    "service_events": [
+      "(service rsvp-project2-dev-service) (deployment ecs-svc/0088040657363140122) deployment failed: tasks failed to start."
+    ]
+  },
+  "scaling_targets": [
+    [
+      2,
+      6,
+      "ecs:service:DesiredCount"
+    ]
+  ],
+  "alarms": [
+    [
+      "rsvp-project2-dev-ecs-cpu-high",
+      "CPUUtilization"
+    ],
+    [
+      "rsvp-project2-dev-ecs-memory-high",
+      "MemoryUtilization"
+    ],
+    [
+      "rsvp-project2-dev-target-5xx",
+      "HTTPCode_Target_5XX_Count"
+    ],
+    [
+      "rsvp-project2-dev-unhealthy-targets",
+      "UnHealthyHostCount"
+    ]
+  ],
+  "ecr_scan": {
+    "status": "COMPLETE",
+    "platform": "linux/amd64",
+    "manifest_digest": "sha256:f8b9c35419127d877254d8568d8e4ac75c1cb73d6a31a623747cb072ad1cd8bd",
+    "counts": {
+      "HIGH": 9,
+      "MEDIUM": 10,
+      "LOW": 3
+    }
+  },
+  "high_findings": [
+    {
+      "cve": "CVE-2026-85091",
+      "package": "zlib",
+      "version": "1.2.13.dfsg-1"
+    },
+    {
+      "cve": "CVE-2026-84243",
+      "package": "glibc",
+      "version": "2.36-9+deb12u14"
+    },
+    {
+      "cve": "CVE-2026-119373",
+      "package": "sqlite3",
+      "version": "3.40.1-2+deb12u2"
+    },
+    {
+      "cve": "CVE-2026-53613",
+      "package": "util-linux",
+      "version": "2.38.1-5+deb12u3"
+    },
+    {
+      "cve": "CVE-2026-119379",
+      "package": "sqlite3",
+      "version": "3.40.1-2+deb12u2"
+    },
+    {
+      "cve": "CVE-2026-78410",
+      "package": "util-linux",
+      "version": "2.38.1-5+deb12u3"
+    },
+    {
+      "cve": "CVE-2026-53615",
+      "package": "util-linux",
+      "version": "2.38.1-5+deb12u3"
+    },
+    {
+      "cve": "CVE-2026-119374",
+      "package": "sqlite3",
+      "version": "3.40.1-2+deb12u2"
+    },
+    {
+      "cve": "CVE-2026-76844",
+      "package": "zlib",
+      "version": "1.2.13.dfsg-1"
+    }
+  ],
+  "teardown": {
+    "verified_at": "2026-11-08T07:49:27.738258+00:00",
+    "active_clusters": 0,
+    "load_balancers": 0,
+    "active_nat_gateways": 0,
+    "allocated_demo_eips": 0,
+    "demo_vpcs": 0,
+    "ecs_dns_records": 0
+  }
+}

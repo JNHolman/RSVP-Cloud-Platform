@@ -12,9 +12,10 @@ I keep the evidence for a control alongside the claim it supports. A Terraform p
 | P1 external AI analysis | Live validated, local handler invocation | A synthetic alarm produced a schema-validated gpt-5.5 result persisted to KMS-encrypted S3 and DynamoDB. |
 | P1 alarm-to-Lambda delivery | Not yet validated | The shared account could not reserve the configured concurrency. |
 | P2 container health and headers | Automated validated | Flask tests exercise the HTTP routes. |
-| P2 private Fargate, autoscaling, ALB, WAF, circuit breaker and telemetry | Architecture validated | Runtime Terraform. Verify task ENIs, service events, metrics and HTTPS against dev. |
-| P2 OIDC trust, environment-specific deploy roles, ECR SHA tags and rollback workflow | Architecture validated | Bootstrap and workflow configuration. Existing GitHub environments alone do not establish approval or branch restrictions. |
-| P2 successful promotion, rejected release and recovery | Not yet validated | Capture workflow run IDs, previous/new/restored task ARNs, image digest and health responses. |
+| P2 private Fargate, HTTPS ALB, WAF and telemetry | Live validated | Two healthy task ENIs across two AZs without public addresses, serving SHA matched, WAF probe returned 403 and application logs arrived. |
+| P2 OIDC delivery, immutable ECR image and ECS release | Live validated in dev | GitHub assumed the environment-scoped role, built and scanned the image, then deployed the revision. The running digest matched ECR. See the [live run and scan findings](PROJECT-2-LIVE-2026-11-08.md). |
+| P2 native failed-release recovery | Live validated | A controlled startup failure in revision 4 triggered ECS rollback to revision 3 in 13m 47s, with the expected HTTPS response after recovery. |
+| P2 load-driven scaling, workflow-triggered smoke-failure rollback, stage/prod boundaries | Not yet validated live | The dev scaling range and alarm configuration were observed. Only the native circuit breaker failure path was exercised. |
 | P3 six-account topology, OU attachment targets, service delegation and Identity Center grants | Automated validated, configuration contracts | Tests inspect actual Terraform blocks, opt-ins, assignment targets and managed policies. |
 | P3 SCP denies and named exceptions | Automated validated, generated documents | Terraform 1.6.6 plan tests on the same module used by Organizations. |
 | P3 CloudTrail, log archive, dashboard trust, least privilege and Cognito GET protection | Automated validated, configuration contracts | Tests check trail, archive key policies, exact role conditions, table permissions and GET authorizer wiring. |

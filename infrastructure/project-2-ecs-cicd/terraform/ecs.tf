@@ -37,9 +37,7 @@ resource "aws_ecs_task_definition" "app" {
       essential = true
       user      = "app"
 
-      # Keep the application filesystem immutable at runtime. Gunicorn may use
-      # /tmp for worker heartbeat files, so only that path receives a writable
-      # task-scoped volume.
+      # Keep the application filesystem immutable and mount task-local temporary storage.
       readonlyRootFilesystem = true
       mountPoints = [
         {
@@ -58,6 +56,12 @@ resource "aws_ecs_task_definition" "app" {
       ]
 
       environment = [
+        {
+          # Fargate mounts the task volume as root. Gunicorn needs a
+          # non-root-writable directory for its per-worker heartbeat files.
+          name  = "GUNICORN_CMD_ARGS"
+          value = "--worker-tmp-dir /dev/shm"
+        },
         {
           name  = "APP_VERSION"
           value = "initial"
