@@ -62,9 +62,7 @@ flowchart TB
 
 ![Live EC2 application page from the foundation exercise](project-1-cloud-foundation/evidence/live-homepage.png)
 
-In the November 8, 2026 exercise, two private EC2 instances in separate Availability Zones served traffic through an HTTPS load balancer. I verified WAF blocking and a CloudWatch alarm entering and leaving its alarm state.
-
-I also restored an encrypted RDS snapshot to a separate private database and read back a known record over TLS in **10 minutes 2 seconds**. The webpage and database were tested separately; an application-to-database request was **not** verified in that exercise.
+The November 8, 2026 exercise verified private EC2 targets across two Availability Zones, working HTTPS, WAF blocking, and CloudWatch alarm transitions. I restored an encrypted RDS snapshot to a separate database and read back a known record over TLS in **10 minutes 2 seconds**. That proved database recovery, not an end-to-end application query.
 
 [Technical decisions and code](project-1-cloud-foundation/README.md) · [Test evidence](project-1-cloud-foundation/evidence/2026-11-08.md)
 
@@ -72,19 +70,19 @@ I also restored an encrypted RDS snapshot to a separate private database and rea
 
 ![Live container service showing its deployed Git revision](project-2-ecs-cicd/evidence/live-homepage.png)
 
-GitHub Actions authenticated with short-lived credentials through OIDC and deployed a Git-SHA-tagged image to private ECS tasks. Their running image digest matched the ECR artifact. When I introduced a task revision that deliberately failed to start, ECS recovered to the previous healthy release in **13 minutes 47 seconds**.
-
-This proved the native ECS circuit-breaker rollback, not the separate workflow smoke-test rollback. A later image rebuild reduced ECR HIGH findings from nine to two.
+GitHub Actions deployed an identifiable container image to private ECS tasks using temporary AWS credentials. A deliberately broken revision triggered ECS to restore the previous healthy version in **13 minutes 47 seconds**. A later image rebuild reduced ECR HIGH vulnerability findings from nine to two. The project page separates this verified ECS rollback from the workflow's untested recovery path.
 
 [Technical decisions and code](project-2-ecs-cicd/README.md) · [Release evidence](project-2-ecs-cicd/evidence/2026-11-08.md) · [GitHub Actions run](https://github.com/JNHolman/RSVP-Cloud-Platform/actions/runs/42458363871)
 
 ### Governance — security guardrails designed and tested locally
 
-The six-account reference design separates management, security, audit, shared services, nonproduction, and production responsibilities. Its **service control policies (SCPs)** define limits on what member accounts may do—for example, preventing them from leaving the organization or disabling CloudTrail, AWS Config, GuardDuty, and Security Hub. Administrator exceptions require explicitly named roles.
+The six-account design separates management, security, audit, shared services, and nonproduction/production responsibilities. Its **service control policies (SCPs)** define restrictions on leaving the organization and disabling core security services.
 
-I had only one AWS account hosting RSVP Society when I evaluated this design. Deploying the full governance layer would have meant adding five accounts and connecting organization-wide controls to an environment containing my business. Instead, I tested the generated policies and supporting security/cost-analysis code locally, avoiding production risk and ongoing lab costs. **That verifies the code, not AWS enforcement.**
+**What I proved:** Terraform tests checked the generated deny rules, explicit administrator exceptions, and rejection of wildcard exceptions. Python tests checked security, dashboard, and cost-analysis behavior. The [offline policy CI job](https://github.com/JNHolman/RSVP-Cloud-Platform/actions/runs/42508709940/job/128816887334) passed.
 
-[Governance design, policy implementation and tests](project-3-cloud-governance/README.md)
+**The trade-off:** I chose not to attach organizational controls to an AWS account hosting RSVP Society. A separate six-account test organization would have isolated the business, but added account-management work, service costs, and cleanup complexity. The local tests provide meaningful evidence of the implementation, **not live AWS policy enforcement**.
+
+[Governance design, verified tests, and trade-offs](project-3-cloud-governance/README.md)
 
 ## Decisions behind the work
 
@@ -93,7 +91,7 @@ I brought my enterprise network engineering background to the parts that tend to
 - **Private by design:** The load balancers accept public HTTPS traffic. EC2, ECS, and the database are placed behind deliberate subnet and security-group boundaries.
 - **Infrastructure and releases have different owners:** Terraform defines ECS infrastructure; GitHub Actions promotes application revisions. This prevents a routine infrastructure update from silently reverting a working release.
 - **Recovery needs evidence:** A database snapshot existing is not the same as a successful restore. A deployment rollback setting is not the same as seeing the previous version return healthy.
-- **Automation has limits:** AI incident analysis produces findings, not infrastructure changes. Governance tests confirm generated rules and local behavior, not live account enforcement.
+- **Automation has limits:** AI incident analysis produces findings, not infrastructure changes. Tests and live observations are labeled separately so design intent is never presented as runtime proof.
 
 The most important lesson connects back to RSVP Society: **strong engineering is choosing the right controls for the workload, including knowing when not to use them.**
 

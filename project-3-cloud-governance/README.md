@@ -29,14 +29,30 @@ Management / AWS Organizations
 
 **Keep different account lifecycles separate.** Organization management, log archive, security, identity, and workload Terraform roots intentionally remain distinct. Sharing a repository does not mean those accounts should share state or deployment privileges.
 
-## Why I tested this part offline
+## What I verified
 
-The AWS account available for the portfolio was also hosting RSVP Society. The six-account model required five additional accounts and centralized services, so deploying it into that environment would have introduced cost and risks to the business for no immediate business benefit.
+The governance implementation has meaningful automated checks, even though it was not deployed across six AWS accounts.
 
-I used Terraform tests to check the actual SCP rules and administrator exceptions, plus Python tests for configuration, incident analysis, dashboards, and cost handling. Those tests verify the implementation **without claiming that the policies were enforced across live AWS accounts**.
+| Tested area | What the tests establish |
+| --- | --- |
+| **Organization guardrails** | Terraform generates explicit denies for leaving the organization, closing accounts, and disabling key audit/security services. Tests confirm a named administrator-role exception and reject wildcard role patterns. |
+| **Account and audit boundaries** | Python contract tests check OU assignments, SCP attachment targets, opt-in delegated administrators, Identity Center assignments, and encrypted organization-trail configuration. |
+| **Security, dashboard, and cost logic** | Python tests check handler inputs, access/configuration boundaries, stored-record behavior, and deterministic fallback paths without requiring live multi-account services. |
 
-[Terraform policy tests](modules/scp-policies/tests/guardrails.tftest.hcl) · [Governance tests](tests/)
+[Terraform policy tests](modules/scp-policies/tests/guardrails.tftest.hcl) · [Account-boundary tests](tests/test_governance_boundaries.py) · [Infrastructure tests](tests/test_governance_infrastructure.py) · [Passing offline policy CI](https://github.com/JNHolman/RSVP-Cloud-Platform/actions/runs/42508709940/job/128816887334)
 
-Together with the first two parts, this shows how I approached the same security and operational problems from workload design through organization-wide controls.
+These results prove **policy generation and local code/test behavior**. They do not prove live SCP enforcement, Identity Center sign-in, cross-account CloudTrail delivery, or centralized security findings.
+
+## Engineering trade-off: why I stopped at offline validation
+
+The available AWS account also hosted RSVP Society. Applying organization-wide controls there was not an acceptable way to experiment with policies that could affect the business.
+
+I could have created a separate test organization with five additional member accounts. That would have made live enforcement and cross-account validation possible, but required more account administration, service spending, and eventual cleanup for a portfolio demonstration.
+
+I kept the enterprise design and verified the parts that could be tested safely without that environment. **The benefit was protecting the business while proving the policy logic; the limitation was losing evidence of how those controls behave when AWS enforces them across accounts.**
+
+This completes the progression from private workloads, through controlled releases, to organizational boundaries.
+
+[Platform overview](../README.md)
 
 [Platform overview](../README.md)
