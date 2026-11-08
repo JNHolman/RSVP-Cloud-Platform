@@ -1,151 +1,134 @@
-# Deployment and Validation Guide
+# Deploying and testing RSVP Cloud Platform
 
-For portfolio runs, follow the [dev-only prerequisites, DNS handoff, evidence windows and retention procedure](PORTFOLIO-VALIDATION.md) before using the enterprise deployment sequence.
+**This is a technical runbook, not a requirement to leave the platform running.** It explains how to repeat the demonstrations safely. For the plain-English design, start with [Architecture](ARCHITECTURE.md). For results, see [What I tested](PORTFOLIO-VALIDATION.md).
 
+## Current state
 
-This is the deterministic order for validating and deploying the RSVP Cloud Platform. Do not collect portfolio evidence until the corresponding verification step passes.
+Projects 1 and 2 were deployed in isolated dev exercises on November 8, 2026, then their temporary workloads were removed. Some snapshots, keys, logs, images, DNS and Terraform backend resources were retained. Project 3 has **not** been deployed in a multi-account environment.
 
-## 1. Run repository quality gates
+Do not treat these steps as instructions to change RSVP Society's production environment.
 
-Push the candidate to a review branch and allow `CI - Test and Scan` to run. Automatic CI covers:
+## Before changing AWS
 
-- Checkov
-- Ruff
-- pytest
-- pip-audit
-- Docker build
-- Trivy HIGH/CRITICAL scan
+1. **Identify the account and region.** Use `aws sts get-caller-identity`. The exercises used `us-east-1`.
+2. **Confirm ownership.** Record the Terraform backend bucket and key, workspace, resource names and ARNs. Check existing resources independently. An empty or mismatched state file is a stop condition when matching resources already exist.
+3. **Protect RSVP Society.** No changes to its databases, IAM roles, state, buckets, parent DNS records or live services.
+4. **Check costs.** Refresh AWS prices, quotas and retained-resource charges. Keep the combined demonstration target under **$75**, but do not assume a short test will automatically stay within budget.
+5. **Review the plan before every apply.** Examine the resources to be created, changed or deleted, plus DNS, IAM, ownership and encryption dependencies. Do not run a broad `terraform destroy` against a stack containing protected recovery artifacts.
 
-Terraform execution is intentionally **not automatic**. If Terraform validation is needed, manually run the CI workflow with `run_terraform=true`, or run the documented Terraform commands yourself in the intended AWS/account context. Do not treat skipped Terraform validation as a pass.
+The November 7 preflight found an older `rsvp-dev-asg` whose state ownership was not established. Leave that legacy resource alone. Use the dedicated portfolio namespace for Project 1.
 
-## 2. Bootstrap Terraform remote state
+## Tests before deployment
 
-Use an **account-local state backend** for every AWS account that will run one of these Terraform roots. This avoids silently granting member accounts access to a management-account state bucket.
+Open a review branch and check **CI - Test and Scan**. Its normal run covers Python checks, tests and dependency auditing, the container build and image scan, and Project 3's offline module tests.
 
-Keep these backend resources dedicated to RSVP Cloud Platform. Do not reuse the RSVP Society state bucket, lock table, KMS resources, or other business infrastructure.
+**Do not confuse green CI with every check being enforced.** Full Terraform quality gates require a manual workflow dispatch with `run_terraform=true`. Checkov findings are advisory because that job uses `soft_fail: true`. The container scan ignores findings without a known fix. Review those reports separately.
 
-At minimum, bootstrap `infrastructure/bootstrap-state` with local state in the management, Security, Log Archive, and workload/Prod accounts used by the deployment. Use a globally unique `state_bucket_name` in each account. Record these outputs for each account:
+No Terraform apply or destroy is performed automatically by these workflows.
+
+## Shared setup: state and DNS
+
+Every Terraform root must use the correct backend and workspace. Bootstrap `infrastructure/bootstrap-state` only in the account that will own that state, and retain its outputs:
 
 - `state_bucket_name`
 - `lock_table_name`
 - `state_kms_key_arn`
 
-Use the backend belonging to the account where that Terraform root is executed:
+Copy a root's `backend.hcl.example` to a **local, untracked** `backend.hcl`. Replace the bucket and KMS placeholders using outputs from the correct backend. Do not copy an existing production backend merely because it is convenient.
 
-- management account: `organization`, `audit-trail`, `finops-ai`, and `identity-center`
-- Security account: `security-admin`
-- Log Archive account: `log-archive`
-- workload/Prod account: `workload` and workload infrastructure deployed there
+The demos used a delegated `cloud.rsvpsociety.com` child zone. Confirm that the existing parent delegation and child records are correct. The portfolio uses `dev.cloud.rsvpsociety.com` for Project 1 and `ecs.cloud.rsvpsociety.com` for Project 2. Do not replace the parent nameservers or change Society's apex, www or API records. Check ACM validation records for collisions; record ownership before changing DNS.
 
-Each Project 3 root includes a `backend.hcl.example`. Copy it to an untracked local `backend.hcl`, replace both the bucket placeholder and `REPLACE_WITH_TERRAFORM_STATE_KMS_KEY_ARN` with that account's state-bootstrap outputs, and initialize with `terraform init -backend-config=backend.hcl`. If you intentionally centralize state in one account instead, configure and review the required cross-account S3/KMS/backend-role permissions first; this repository does not grant them implicitly.
+## Project 1: isolated cloud foundation
 
-## 3. Bootstrap Project 2 delivery
+**Location:** `infrastructure/project-1-cloud-platform/`
 
-Apply `infrastructure/project-2-ecs-cicd/bootstrap-delivery` once per AWS account. It creates:
+### Project 1 portfolio deployment configuration
 
-- one GitHub Actions OIDC provider
-- dev/stage/prod ECR repositories
-- environment-scoped GitHub deployment roles
+Use `environments/portfolio-dev/`, not the older `dev/` backend. The portfolio prefix is `rsvp-pf1-dev`, and the state key is `project-1-cloud-platform/portfolio-dev/terraform.tfstate`. The proposed VPC CIDR is `10.83.0.0/16`; confirm it does not conflict with networks the VPC may connect to.
 
-Copy each role ARN into the matching GitHub Environment variable `AWS_DEPLOY_ROLE_ARN`. If Project 2 uses non-default Terraform values for `aws_region` or `project_name`, also set matching GitHub Environment variables `AWS_REGION` and `PROJECT_NAME`; otherwise the workflows use `us-east-1` and `rsvp-project2`.
+Prepare local copies of `backend.hcl.example` and `terraform.tfvars.example`, leaving the examples untouched. Set the delegated child-zone ID, `dev.cloud.rsvpsociety.com`, and a **dedicated** Secrets Manager ARN for the AI credential. Keep these values out of Git.
 
-Before treating the `prod` OIDC role as production-ready, configure GitHub Environment protection rules for `prod`: restrict deployment branches/tags to the approved release source (for example `main` or explicit release tags) and require a deployment approval where the repository plan supports it. The AWS trust policy intentionally scopes the OIDC subject to the repository plus GitHub Environment; GitHub Environment protection is therefore part of the production authorization boundary, not an optional cosmetic setting. Apply comparable branch/tag restrictions to `stage` when it is used as a release gate.
+After filling in and checking those local files:
 
-## 4. Push the first immutable container image
+```sh
+cd infrastructure/project-1-cloud-platform
+export TF_DATA_DIR="$PWD/.terraform/portfolio-dev"
+terraform init -backend-config=environments/portfolio-dev/backend.hcl
+terraform workspace show
+terraform plan -var-file=environments/portfolio-dev/terraform.tfvars -out=portfolio-dev.tfplan
+```
 
-Run **ECS Project 2 - Bootstrap First Image** for the target environment.
+To check the intended first-deployment scope, review the plan and run the local reviewer with the independently confirmed child-zone ID:
 
-Record the exact Git-SHA image URI that the workflow prints. Put that URI in the target environment's local `terraform.tfvars` as `container_image`. Never replace it with `:latest`.
+```sh
+set -o pipefail
+terraform show -json portfolio-dev.tfplan | python3 ../../scripts/review-portfolio-plan.py p1 "$CHILD_ZONE_ID"
+```
 
-## 5. Deploy Project 1 infrastructure
+A scope finding means **stop and review**, not override the check. Keep plans and raw state private; they may contain sensitive values.
 
-Use the [portfolio-dev configuration](PORTFOLIO-VALIDATION.md#project-1-portfolio-deployment-configuration) for the portfolio demonstration. Its resource prefix and backend key are separate from the previous dev workload.
+Only after an explicit approval should anyone apply the reviewed plan.
 
-Prepare the target environment variables with:
+**What to verify:** HTTPS health; two healthy private instances in different AZs; WAF response; application and VPC logs; alarm state changes; RDS encryption and managed credentials; a backup and a verified restore. Treat alarm-to-AI delivery, AWS Backup recovery, PITR and Multi-AZ failover as **pending tests**, not completed features.
 
-- Route53 hosted-zone ID
-- application DNS name
-- Secrets Manager ARN containing the OpenAI API key
-- optional alert email
+The current EC2 page is a demonstration page and does not execute a database query.
 
-For Project 1, copy the target environment's `backend.hcl.example` to an untracked `backend.hcl`, replace both the state-bucket placeholder and `REPLACE_WITH_TERRAFORM_STATE_KMS_KEY_ARN` with the outputs from the state bootstrap, initialize with `terraform init -backend-config=environments/<environment>/backend.hcl`, review `terraform plan`, then apply. Verify private EC2 placement, HTTPS, WAF, Multi-AZ RDS, managed database secret, backups, alarms, and dashboard.
+[Previously recorded Project 1 results](PROJECT-1-LIVE-2026-11-08.md)
 
-## 6. Deploy Project 2 ECS runtime
+## Project 2: isolated ECS delivery
 
-For Project 2, copy the target environment's `backend.hcl.example` to an untracked `backend.hcl`, replace the state-bucket and state-KMS-key placeholders with the outputs from the state bootstrap, and initialize the runtime stack with that backend config. Use the immutable first-image URI from step 4 plus the Route53 zone/domain for the target environment.
+**Locations:** `infrastructure/project-2-ecs-cicd/bootstrap-delivery/` and `infrastructure/project-2-ecs-cicd/terraform/`
 
-After apply, verify:
+1. **Bootstrap delivery.** Use the bootstrap Terraform root in the intended AWS account. It manages the ECR repositories, the GitHub OIDC provider and environment-specific deployment roles. Confirm the account does not already have an independently owned OIDC provider before making changes.
+2. **Configure GitHub.** Set `AWS_DEPLOY_ROLE_ARN` in the matching GitHub Environment. Also set `AWS_REGION` and `PROJECT_NAME` if not using the defaults (`us-east-1`, `rsvp-project2`). For stage/prod, restrict approved branches/tags and require approval where supported.
+3. **Build the first image.** Run **ECS Project 2 - Bootstrap First Image** for the target environment. Copy the exact immutable Git-SHA image URI into the local runtime `terraform.tfvars` as `container_image`. Do not use `:latest`.
+4. **Deploy the runtime.** Initialize `infrastructure/project-2-ecs-cicd/terraform/` with its matching dev backend, review its plan, and apply only after approval.
+5. **Finish GitHub configuration.** Set `SERVICE_URL` to the service's verified HTTPS URL. Run **ECS Project 2 - Controlled Deploy**, then confirm that `/health` returns the expected release and environment.
 
-- at least two healthy tasks
-- tasks span Availability Zones
-- no public task IPs
-- HTTPS `/health` returns `status=ok`
-- autoscaling target exists
-- deployment circuit breaker is enabled
+**What to verify:** Two healthy private tasks in separate AZs, HTTPS, WAF, logs, the ECR image digest and GitHub's deployment result. The ECS circuit-breaker rollback was already demonstrated. The GitHub smoke-failure rollback and load-driven autoscaling require **separate**, bounded tests.
 
-Set GitHub Environment variable `SERVICE_URL` to the HTTPS service URL.
+**Important:** Terraform sets the ECS baseline. The GitHub workflow owns application releases. The ECS service intentionally ignores later task-definition drift so a Terraform-only change does not unexpectedly revert a release. After changing the Terraform task baseline, run Controlled Deploy before claiming that baseline is active.
 
-## 7. Deploy governance foundation
-
-If `create_member_accounts=false`, the organization stack only references the supplied account IDs; it does not move those accounts. Before relying on OU-level SCPs, verify that the existing Security, Log Archive, Shared Services, NonProd, and Prod accounts are already in the intended OUs, and deliberately move/import them where required. An account outside the target OU will not inherit that OU's SCPs.
-
-Security-control SCP exceptions are empty by default. If a break-glass or automation role must be exempted, supply only its explicit account-scoped IAM role ARN in `protected_admin_role_patterns`; wildcard account IDs are rejected.
-
-If StackSets delegated administration is enabled, activate CloudFormation StackSets trusted access (`ActivateOrganizationsAccess`) before enabling that delegated-admin path.
-
-Deploy the Project 3 stacks in dependency order:
-
-1. `organization` from the Organizations management account
-2. `log-archive` in the Log Archive account
-3. `audit-trail` from the management account using the Log Archive bucket/KMS outputs
-4. `security-admin` in the delegated Security account
-5. `finops-ai` in the management/payer account
-6. `identity-center` from the management account
-7. `workload` in the workload/prod account
-
-For the dashboard cross-account path, configure Security and FinOps with the workload account ID and deterministic dashboard role name before deploying the workload stack. Then pass the resulting read-role ARNs to the workload stack.
-
-## 8. Validate controlled application deployment
-
-Run **ECS Project 2 - Controlled Deploy** with a normal code revision. Verify:
-
-- build/test/scan succeeds
-- SHA image is pushed
-- new task definition becomes active
-- post-deployment HTTPS smoke test succeeds
-
-Then perform one safe rollback exercise by deploying a deliberately unhealthy test revision and verify the workflow returns the service to the previous task definition.
-
-**Task-definition ownership:** Terraform registers the infrastructure/security configuration baseline and tags it `ConfigurationSource=TerraformBaseline`. The ECS service intentionally ignores `task_definition` drift so a later Terraform apply cannot roll back a GitHub-deployed application release. Therefore, after any Terraform change that modifies the ECS task definition, run **Controlled Deploy** before treating that configuration change as active. The workflow clones the latest Terraform baseline, replaces only the release image/version, and promotes that revision to the service.
-
-## 9. Validate operations and recovery
-
-At minimum, prove:
-
-- CloudWatch dashboard and alarm transition
-- ECS rollback
-- RDS restore exercise
-- GuardDuty/Security Hub signal path
-- authenticated API behavior
-- WAF association
-- AI incident analysis with confidence/evidence
-- Cost Explorer-backed FinOps report
-
-Treat RTO/RPO values as targets until the recovery exercises produce measured results.
-
-## 10. Evidence and cleanup
-
-Capture only a small set of high-value evidence: architecture, successful CI/security gates, private ECS placement, healthy service/rollback, RDS recovery, CloudWatch alarms, GuardDuty/Security Hub, and one AI-analysis example. Redact account identifiers or secrets where appropriate.
-
-After evidence is captured, destroy expendable demo workload resources that are not intended to remain running. Do not expect an unrestricted `terraform destroy` to remove the protected remote-state, centralized-audit, or Project 1 recovery KMS resources. Those resources use intentional Terraform destruction guards. For a complete teardown, first confirm that the dependent Terraform state, audit data, RDS snapshots, and AWS Backup recovery points no longer need to be recoverable, then deliberately remove the relevant guard as part of the teardown change.
+[Previously recorded Project 2 results](PROJECT-2-LIVE-2026-11-08.md)
 
 ## Project 3 offline validation
 
-For a single-account portfolio, leave the enterprise stacks undeployed. From the repository root with Terraform 1.6.6 and pytest installed, run:
+The six-account design is **not deployed** for this portfolio. With Terraform 1.6.6 and the project's Python test dependencies installed, run from the repository root:
 
 ```sh
 (cd infrastructure/project-3-cloud-governance/modules/scp-policies && terraform init -backend=false && terraform validate && terraform test)
 python -m pytest -q tests
 ```
 
-The SCP module uses Terraform built-ins and needs no provider download, credentials or remote state. The organization stack consumes its JSON outputs at the existing policy and attachment addresses. The Python tests inspect configuration and exercise runtime logic with local clients. This saves account setup and service charges while leaving actual IAM evaluation, SCP inheritance, service delivery and AI API availability unverified.
+These tests prove policy generation and local application logic. They do not prove that AWS enforced the policies across accounts.
+
+### If deploying Project 3 in a real organization
+
+Only use a separately approved enterprise environment. Each root needs a backend in the **account where it runs**, not an assumed shared management-account backend:
+
+| Account | Terraform roots |
+| --- | --- |
+| Management | `organization`, `audit-trail`, `finops-ai`, `identity-center` |
+| Security | `security-admin` |
+| Log Archive | `log-archive` |
+| Workload | `workload` |
+
+Use this deployment order: **organization → log-archive → audit-trail → security-admin → finops-ai → identity-center → workload**.
+
+When referencing existing accounts, confirm OU membership: Terraform does not automatically move accounts merely because their IDs were supplied. Confirm delegated-administrator prerequisites, StackSets trusted access where used, and explicit account-scoped SCP exceptions. Configure Security and FinOps dashboard read roles before creating the workload dashboard API. No such live deployment is claimed here.
+
+## Capture proof and clean up
+
+For each exercise, record the deployed revision, relevant resource ARNs, time-stamped outcomes, health checks, failures, recovery times and a small number of screenshots. Use synthetic data and remove account identifiers or secrets before publishing. A configuration screenshot is not proof that recovery worked.
+
+Before cleanup, identify which resources are expendable and which must stay to protect evidence or backups:
+
+- Remove **only** reviewed disposable demo workloads, including restored databases, compute, load balancers, NAT gateways and temporary public IP addresses.
+- Retain required snapshots, backup recovery points, KMS keys, Terraform state and encrypted evidence until an owner approves their retirement. Project 1 has `prevent_destroy` guards on recovery keys.
+- Expect versioned S3 buckets, ECR images, backup vaults and dependencies to prevent a simple whole-root destroy. Never remove Terraform state to bypass an ownership or deletion problem.
+- Remove workload-specific DNS records only after the service is gone. Treat parent delegation as a separate DNS-owner decision.
+- Verify cleanup using **resource ARNs and direct AWS inventory**, not tags alone. Check for remaining databases, tasks, ASGs, ALBs, NAT gateways and EIPs. Reconcile retained resources and continuing charges.
+
+The November 8 cost plan estimated approximately **$0.72/hour** for Project 1 and **$0.18/hour** for Project 2 while running, before variable usage. The billed amount is not established by those figures. The recorded billing review was **November 15, 2026**.
+
+[Cost, completed tests and outstanding work](PORTFOLIO-VALIDATION.md)
