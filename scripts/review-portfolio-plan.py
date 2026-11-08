@@ -25,10 +25,12 @@ def review(plan, target, zone):
     for item in plan["resource_changes"]:
         change = item["change"]
         actions = change["actions"]
+        address = item["address"]
+        if change.get("importing") is not None or item.get("previous_address"):
+            findings.append(f"{address}: import or state move requires separate review")
         if actions in (["no-op"], ["read"]):
             continue
-        address = item["address"]
-        if actions != ["create"] or change.get("importing") or item.get("previous_address"):
+        if actions != ["create"]:
             findings.append(f"{address}: existing-resource change requires separate review")
         if item["type"].startswith("aws_route53") and item["type"] != "aws_route53_record":
             findings.append(f"{address}: unexpected DNS infrastructure change")

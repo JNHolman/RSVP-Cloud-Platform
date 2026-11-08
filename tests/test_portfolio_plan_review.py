@@ -42,3 +42,10 @@ def test_first_deployment_review(project, host, target):
     alias["change"]["actions"] = ["create"]
     validation["change"]["after"]["allow_overwrite"] = True
     assert run().returncode == 1
+    validation["change"]["after"]["allow_overwrite"] = False
+    alias["change"]["actions"] = ["no-op"]
+    alias["change"]["importing"] = {"id": "existing-record"}
+    assert run().returncode == 1
+    del alias["change"]["importing"]
+    alias["previous_address"] = "aws_route53_record.legacy"
+    assert run().returncode == 1
