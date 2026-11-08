@@ -1,6 +1,6 @@
 # RSVP Cloud Platform — Architecture
 
-RSVP Society moved to event-driven AWS services because its event-based traffic did not justify always-on enterprise infrastructure. This separate portfolio develops that original design across three stages.
+This documents the three-stage engineering design introduced in the [README](../README.md).
 
 ## Application and boundaries
 

@@ -1,18 +1,8 @@
 # Operations — deployment, validation, recovery, and costs
 
-This runbook is for someone reproducing the AWS exercises or reviewing the engineering. The business story is in the [main README](../README.md), and the design decisions are in [Architecture](ARCHITECTURE.md).
+Use this runbook for deployment, validation, recovery, and costs. See [README](../README.md) for context and [Architecture](ARCHITECTURE.md) for the design. The EC2 and ECS environments are independent; never deploy them or modify AWS without verifying account, backend, ownership, and the Terraform plan.
 
-The project follows one application's evolution from EC2 hosting to ECS delivery, with enterprise operations built around it. Use isolated environment configuration and explicit resource ownership rather than forcing the two hosting models to run at once.
-
-The commands below reflect the documented AWS test environments. Follow the matching application and infrastructure configuration in the repository and review the Terraform plan before any AWS changes.
-
-## Historical live-test baseline
-
-The dated November 8 AWS exercises deployed Projects 1 and 2 in isolated dev environments. Temporary workloads were removed after testing. Selected snapshots, encryption keys, logs, images, DNS, and Terraform backend resources were retained.
-
-Project 3's enterprise account architecture is validated through offline tests. That avoids creating six paid AWS accounts for a portfolio exercise.
-
-**Never use these steps to change RSVP Society production.**
+**Never use these steps to change RSVP Society production.** November 8 exercises were temporary; some recovery assets remain retained.
 
 ## Before changing AWS
 
@@ -215,10 +205,6 @@ The finished engineering work uses **one application contract across EC2 and ECS
 
 Use a dev-only disposable revision for failure injection during a separately authorized exercise. A manual rollback demonstrates operator recovery only. Record gaps if account permissions, DNS propagation, delayed logs or service startup prevent the intended observation. Redact account identifiers and personal or model-input data before publishing.
 
-## Cost management
-
-The worksheet below is a planning model. Actual charges require billing reconciliation.
-
 ## Cost worksheet — planning estimates, not actual charges
 
 Planning estimates in USD for us-east-1 Linux x86 on demand, two AZs, 730 hours/month, November 2026. Assume four public IPv4 addresses per live workload (two ALB and two NAT), one LCU, low traffic and no credits. Check regional rates, actual AMI disk size and billing usage before starting.
@@ -244,8 +230,6 @@ The usage allowance assumes under 1 GB each of NAT processing and log ingestion 
 Budget separately for retained assets. One state KMS key is roughly $1/month plus rotations and requests. State versions, access-log bytes, S3 requests and DynamoDB locks depend on measured usage. Two protected P1 keys add roughly $2/month before rotations. A full 20 GB snapshot-equivalent at $0.095/GB-month is $1.90/month; two independently billed equivalents would be $3.80. Retaining the Project 2 delivery bootstrap adds approximately $1/month for its ECR key plus image storage. Measure actual incremental backup bytes, retention, logs, ECR images and any additional keys required for decryption. Baseline example for month one ≈ $22 including the ECR key, the exercise, backend key, two recovery keys and two backup equivalents, plus variable retention and pre-existing usage. Review tagged and untagged charges the following day and after the first billing cycle. At $0.72/h, four and a half days of unattended P1 runtime alone approaches $75. Extended restore attempts, autoscaling, log floods and leftover NAT gateways can exhaust the target.
 
 [KMS](https://aws.amazon.com/kms/pricing/) · [Backup](https://aws.amazon.com/backup/pricing/) · [CloudWatch](https://aws.amazon.com/cloudwatch/pricing/) · [DNS](https://aws.amazon.com/route53/pricing/)
-
-## Cleanup and resource custody
 
 ## Evidence capture and cleanup overview
 
@@ -274,10 +258,6 @@ Project 1 recovery KMS keys have Terraform destruction guards; **do not expect a
 On November 8, 2026, Cost Explorer returned estimated daily data with no groups for the rsvp-pf1 and rsvp-project2 project tags. The Project cost-allocation tag was inactive. The exact demo charge is unresolved. In this shared account, whole-account daily totals also include Society production activity.
 
 **Next billing review: November 15, 2026.** Use the billing console or an existing cost-and-usage report to reconcile identifiable portfolio usage by resource ID, SKU and demo time window. Record any unattributable charges separately. Inventory the two manual RDS snapshots, retained automated backups, evidence buckets, CloudWatch logs, ECR images, hosted zone, secret and required KMS keys. Assign an owner and expiry decision to each retained item. Preserve encryption keys for every snapshot or artifact that must remain readable.
-
-## Historical context
-
-Retained for audit traceability; these November 7 observations precede the November 8 live tests and are not current operating instructions.
 
 ## Historical preflight — November 7, 2026
 

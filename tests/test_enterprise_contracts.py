@@ -68,7 +68,8 @@ def test_checkov_retention_exception_is_explicit_and_narrow():
     assert "config_file: .checkov.yml" in workflow
     assert "soft_fail: true" in workflow
     assert "IaC security scan (advisory)" in workflow
-    assert "Terraform quality gates (manual only)" in workflow
+    assert "name: Terraform quality gates" in workflow
+    assert "github.event_name == 'pull_request'" in workflow
     assert "CKV_AWS_338" in config
     assert config.count("CKV_") == 1
     assert "seven years" in config
