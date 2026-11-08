@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 
@@ -23,7 +24,7 @@ def test_dynamodb_runtime_roles_do_not_receive_unnecessary_kms_or_extra_read_per
 
 
 def test_runtime_iam_matches_actual_api_calls():
-    p1 = Path("infrastructure/project-1-cloud-platform/iam.tf").read_text()
+    p1 = re.sub(r"[ \t]+", " ", Path("infrastructure/project-1-cloud-platform/iam.tf").read_text())
     finops = Path("infrastructure/project-3-cloud-governance/finops-ai/main.tf").read_text()
 
     assert 'Action = ["logs:FilterLogEvents"]' in p1

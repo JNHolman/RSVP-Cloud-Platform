@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -115,7 +116,7 @@ def test_alarm_topics_use_service_compatible_customer_managed_kms():
     p2_topic = read("infrastructure/project-2-ecs-cicd/terraform/observability.tf")
     p1_key = read("infrastructure/project-1-cloud-platform/observability-security.tf")
     p2_key = read("infrastructure/project-2-ecs-cicd/terraform/observability-security.tf")
-    p1_iam = read("infrastructure/project-1-cloud-platform/iam.tf")
+    p1_iam = re.sub(r"[ \t]+", " ", read("infrastructure/project-1-cloud-platform/iam.tf"))
 
     assert 'alias/aws/sns' not in p1_topic + p2_topic
     assert 'kms_master_key_id = aws_kms_key.observability.arn' in p1_topic
@@ -257,7 +258,7 @@ def test_production_backup_vault_uses_reversible_governance_lock():
 
 
 def test_project1_ai_dynamodb_kms_permissions_are_runtime_compatible():
-    iam = read("infrastructure/project-1-cloud-platform/iam.tf")
+    iam = re.sub(r"[ \t]+", " ", read("infrastructure/project-1-cloud-platform/iam.tf"))
     assert '"kms:ViaService" = "dynamodb.${var.aws_region}.amazonaws.com"' in iam
     assert '"kms:EncryptionContext:aws:dynamodb:tableName" = aws_dynamodb_table.ai_log_summaries.name' in iam
     assert 'Sid = "DynamoWriteMetadata"' in iam
