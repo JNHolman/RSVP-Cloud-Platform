@@ -63,6 +63,18 @@ resource "aws_iam_policy" "ai_lambda_policy" {
         Action = ["kms:Encrypt", "kms:GenerateDataKey", "kms:DescribeKey"], Resource = aws_kms_key.ai_logs.arn
       },
       {
+        Sid      = "DecryptTableKeyThroughDynamoDB"
+        Effect   = "Allow"
+        Action   = ["kms:Decrypt"]
+        Resource = aws_kms_key.ai_logs.arn
+        Condition = {
+          StringEquals = {
+            "kms:ViaService" = "dynamodb.${var.aws_region}.amazonaws.com"
+            "kms:EncryptionContext:aws:dynamodb:tableName" = aws_dynamodb_table.ai_log_summaries.name
+          }
+        }
+      },
+      {
         Sid = "DynamoWriteMetadata", Effect = "Allow", Action = ["dynamodb:PutItem"],
         Resource = aws_dynamodb_table.ai_log_summaries.arn
       },

@@ -258,8 +258,8 @@ def test_production_backup_vault_uses_reversible_governance_lock():
 
 def test_project1_ai_dynamodb_kms_permissions_are_runtime_compatible():
     iam = read("infrastructure/project-1-cloud-platform/iam.tf")
-    # DynamoDB table encryption is transparent to the application runtime.
-    # The Lambda only needs PutItem; it must not administer DynamoDB KMS grants.
+    assert '"kms:ViaService" = "dynamodb.${var.aws_region}.amazonaws.com"' in iam
+    assert '"kms:EncryptionContext:aws:dynamodb:tableName" = aws_dynamodb_table.ai_log_summaries.name' in iam
     assert 'Sid = "DynamoWriteMetadata"' in iam
     assert 'Action = ["dynamodb:PutItem"]' in iam
     assert 'Sid = "UseDynamoDbEvidenceKmsKey"' not in iam

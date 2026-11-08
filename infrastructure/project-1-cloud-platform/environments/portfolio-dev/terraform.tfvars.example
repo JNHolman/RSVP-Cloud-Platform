@@ -2,6 +2,9 @@ project_name = "rsvp-pf1"
 environment  = "dev"
 aws_region   = "us-east-1"
 
+# Multi-AZ MySQL with IAM authentication, enhanced monitoring and Performance Insights.
+rds_instance_class = "db.t4g.medium"
+
 vpc_cidr             = "10.83.0.0/16"
 public_subnet_cidrs  = ["10.83.1.0/24", "10.83.2.0/24"]
 private_subnet_cidrs = ["10.83.3.0/24", "10.83.4.0/24"]

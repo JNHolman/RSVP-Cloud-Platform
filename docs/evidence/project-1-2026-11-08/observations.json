@@ -1,0 +1,114 @@
+{
+  "region": "us-east-1",
+  "date": "2026-11-08",
+  "capture": "Selected fields from live AWS API responses and HTTP probes. Instance identifiers and addresses omitted.",
+  "healthy_targets": [
+    {
+      "az": "us-east-1b",
+      "health": "healthy",
+      "private_ip_assigned": true,
+      "public_ip_assigned": false
+    },
+    {
+      "az": "us-east-1a",
+      "health": "healthy",
+      "private_ip_assigned": true,
+      "public_ip_assigned": false
+    }
+  ],
+  "https_probe": "ok\n HTTP 200",
+  "waf_probe": "WAF synthetic XSS probe HTTP 403",
+  "certificate": [
+    "dev.cloud.rsvpsociety.com",
+    "ISSUED",
+    "SUCCESS"
+  ],
+  "alarm_state_history": [
+    [
+      "2026-11-08T00:20:27.460000-05:00",
+      "Alarm updated from ALARM to OK"
+    ],
+    [
+      "2026-11-08T00:14:27.461000-05:00",
+      "Alarm updated from INSUFFICIENT_DATA to ALARM"
+    ]
+  ],
+  "flow_logs": [
+    [
+      "ACTIVE",
+      "SUCCESS",
+      "ALL"
+    ]
+  ],
+  "snapshot": {
+    "Status": "available",
+    "Encrypted": true,
+    "Engine": "mysql",
+    "AllocatedGiB": 20,
+    "SnapshotTime": "2026-11-08T05:34:56.428000+00:00"
+  },
+  "restore_observations": [
+    "2026-11-08T05:38:02.332156+00:00 Private disposable restore requested",
+    "2026-11-08T05:48:04.460376+00:00 rsvp-pf1-dev-restore-20261108 verified synthetic row over TLS_AES_256_GCM_SHA384",
+    "2026-11-08T05:48:04.482786+00:00 End-to-end snapshot restore verified"
+  ],
+  "lambda_direct_invocation_status": "fallback",
+  "dynamodb_analysis_status": "fallback",
+  "s3_evidence_object": {
+    "encryption": "aws:kms",
+    "bytes": 5381
+  },
+  "teardown": {
+    "instances": [],
+    "vpcs": [],
+    "nat": [],
+    "eips": [],
+    "load_balancers": [],
+    "asgs": [],
+    "databases": [],
+    "snapshots": [
+      [
+        "rsvp-pf1-dev-final-20261108051602",
+        "available",
+        true
+      ],
+      [
+        "rsvp-pf1-dev-proof-20261108",
+        "available",
+        true
+      ]
+    ],
+    "automated_backups": [
+      [
+        "rsvp-pf1-dev-db",
+        "retained",
+        null
+      ],
+      [
+        "rsvp-pf1-dev-restore-20261108",
+        "retained",
+        null
+      ]
+    ],
+    "dns": [
+      [
+        "cloud.rsvpsociety.com.",
+        "NS"
+      ],
+      [
+        "cloud.rsvpsociety.com.",
+        "SOA"
+      ]
+    ],
+    "verified_at": "2026-11-08T05:59:02.173279+00:00"
+  },
+  "focused_model_test": {
+    "captured_at": "2026-11-08T06:05:17.838765+00:00",
+    "invocation": "Local execution of Project 1 handler, synthetic event, real AWS clients",
+    "model": "gpt-5.5",
+    "status": "ai_generated",
+    "stored_s3_encryption": "aws:kms",
+    "ddb_verified": true,
+    "input_log_count": 0
+  }
+}

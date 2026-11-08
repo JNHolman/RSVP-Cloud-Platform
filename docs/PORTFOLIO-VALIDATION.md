@@ -5,9 +5,12 @@ I keep the evidence for a control alongside the claim it supports. A Terraform p
 | Capability | Classification | Evidence available or still required |
 |---|---|---|
 | Dedicated portfolio backend exists | Live validated, inventory only | Read-only inspection identified the state and access-log buckets and lock table. The original checkout's cached S3 backend configuration matches the dev key. The bucket returned no object versions or delete markers. Workload state lineage and ownership remain unresolved. |
-| P1 two-AZ routing, private ASG, public ALB, HTTPS, WAF and flow logs | Architecture validated | VPC, EC2, ALB and observability Terraform. Collect ENIs, target health in both AZs, TLS result and matching log event. |
-| P1 Multi-AZ encrypted MySQL, 14-day automated backups, daily 35-day recovery policy | Architecture validated | RDS and Backup definitions. A timed restore, application-level read and recovery objective measurements remain outstanding. |
-| P1 bounded AI evidence and fallback persistence | Automated validated | Local handler tests inject unavailable log and AI dependencies and inspect persisted records. Real alarm delivery and external model response remain outstanding. |
+| P1 two-AZ private ASG, ALB, HTTPS, WAF, application logging and flow logs | Live validated | Two healthy targets across two AZs without public IPs, HTTPS 200, synthetic XSS 403, ALB alarm transition and flow-log delivery. |
+| P1 encrypted Multi-AZ MySQL and snapshot recovery | Live validated | A known row persisted through a restore to a separate private instance. Restore request to verified read took 10m 02s. |
+| P1 daily AWS Backup jobs, point-in-time restore and failover | Architecture validated | Live inventory showed 14-day automated retention and a restorable timestamp. The independent backup vault had zero points during the demo. Scheduled delivery, PITR and AZ failover still need exercises. |
+| P1 AI deterministic fallback and persistence | Live validated, direct invocation | Synthetic input to the deployed Lambda produced an encrypted S3 object and DynamoDB metadata after a table-scoped KMS correction. |
+| P1 external AI analysis | Live validated, local handler invocation | A synthetic alarm produced a schema-validated gpt-5.5 result persisted to KMS-encrypted S3 and DynamoDB. |
+| P1 alarm-to-Lambda delivery | Not yet validated | The shared account could not reserve the configured concurrency. |
 | P2 container health and headers | Automated validated | Flask tests exercise the HTTP routes. |
 | P2 private Fargate, autoscaling, ALB, WAF, circuit breaker and telemetry | Architecture validated | Runtime Terraform. Verify task ENIs, service events, metrics and HTTPS against dev. |
 | P2 OIDC trust, environment-specific deploy roles, ECR SHA tags and rollback workflow | Architecture validated | Bootstrap and workflow configuration. Existing GitHub environments alone do not establish approval or branch restrictions. |
@@ -55,6 +58,8 @@ terraform show -json "$PLAN_FILE" | python3 scripts/review-portfolio-plan.py p1 
 
 Run terraform show from an initialized workload directory if provider schemas are needed, using terraform -chdir and an absolute plan path. Streaming keeps the JSON, which may contain sensitive values, out of files and logs. Exit 1 flags a scope or action finding; exit 2 signals invalid input. Routine updates, replacements and deletions need a separate review from this first-deployment procedure. ACM can determine its validation name only after certificate creation. Its scoped record must have overwrite disabled. Review IAM permissions, shared dependencies, budget and backend identity separately.
 
+Read the [November 8 live exercise record](PROJECT-1-LIVE-2026-11-08.md) for the observed outcomes and limitations.
+
 ## Shared-account and DNS prerequisites
 
 1. Confirm the caller account, role and region before planning. This account also hosts Society production. Identify every existing rsvp-dev resource by ARN, tags and Terraform address. Compare the initialized checkout's backend bucket, dev key, workspace and state lineage against the dedicated Cloud Platform backend. The earlier current-object listing was empty. Check object versions and known state history with the owner. For the legacy namespace, an empty state alongside existing resources is a stop condition. For portfolio-dev, match inventory to its distinct resource prefix and key. Keep raw state, secrets and saved plans private.
@@ -83,20 +88,20 @@ Planning estimates in USD for us-east-1 Linux x86 on demand, two AZs, 730 hours/
 | Two NAT gateways at 0.045, four IPv4 at 0.005 | 0.110 | 0.110 |
 | ALB at 0.0225 plus one LCU at 0.008 | 0.0305 | 0.0305 |
 | Two t3.micro at 0.0104 plus assumed two 8 GiB gp3 root disks | 0.0226 | — |
-| Multi-AZ db.t3.micro MySQL, 20 GiB gp3 per copy | 0.034 + 0.0063 | — |
+| Multi-AZ db.t4g.medium MySQL, 20 GiB gp3 per copy | 0.129 + 0.0063 | — |
 | MySQL 8.0 extended support allowance, two vCPU on primary and standby at 0.10/vCPU-hour | 0.40 | — |
 | Two Fargate tasks, each 0.25 vCPU at 0.04048 and 0.5 GiB at 0.004445 | — | 0.0247 |
 | One WAF ACL plus four rules, 9/month prorated | 0.0123 | 0.0123 |
 | Customer-managed keys, four for P1 and two for P2 including ECR | 0.0055 | 0.0027 |
-| Estimated running subtotal | **0.62/h** | **0.18/h** |
+| Estimated running subtotal | **0.72/h** | **0.18/h** |
 
-P1 four hours ≈ $2.49 plus roughly $0.45–0.90 for one to two hours of equivalent restored database capacity. P2 two hours ≈ $0.36. P3 incremental AWS cost $0. Shared child zone allowance $0.50 for the first month. There is no domain purchase or assumed setup fee. Add $5 per live project for metered usage and provisioning overruns. This gives approximately **$14.25 for the exercise** before ongoing retention, existing usage and tax. Actual billed time extends until deletion completes.
+P1 four hours ≈ $2.88. A disposable single-AZ db.t4g.medium restore adds about $0.27/hour including two vCPUs of estimated Extended Support and 20 GiB of gp3. Allow $0.27–0.54 for one to two hours. P2 two hours ≈ $0.36. P3 incremental AWS cost $0. Shared child zone allowance $0.50 for the first month. There is no domain purchase or assumed setup fee. Add $5 per live project for metered usage and provisioning overruns. This gives approximately **$14.30 for the exercise** before ongoing retention, existing usage and tax. Actual billed time extends until deletion completes.
 
 [Network pricing](https://aws.amazon.com/vpc/pricing/) · [ALB](https://aws.amazon.com/elasticloadbalancing/pricing/) · [EC2](https://aws.amazon.com/ec2/pricing/on-demand/) · [Fargate](https://aws.amazon.com/fargate/pricing/) · [RDS](https://aws.amazon.com/rds/mysql/pricing/) · [MySQL support dates](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/MySQL.Concepts.VersionMgmt.html) · [WAF](https://aws.amazon.com/waf/pricing/)
 
 The usage allowance assumes under 1 GB each of NAT processing and log ingestion per project (roughly $0.045/GB and $0.50/GB respectively), light S3/KMS/API activity and brief alarm/dashboard operation. Also meter WAF requests, ECR storage/scanning, image pulls, data transfer, Secrets Manager, Lambda and DynamoDB. External AI calls bill separately to the API account. Extended Support for MySQL 8.0 is material at this size. Confirm availability and engine pricing before a restore. Do not upgrade an existing database solely to change this estimate.
 
-Budget separately for retained assets. One state KMS key is roughly $1/month plus rotations and requests. State versions, access-log bytes, S3 requests and DynamoDB locks depend on measured usage. Two protected P1 keys add roughly $2/month before rotations. A full 20 GB snapshot-equivalent at $0.095/GB-month is $1.90/month; two independently billed equivalents would be $3.80. Retaining the Project 2 delivery bootstrap adds approximately $1/month for its ECR key plus image storage. Measure actual incremental backup bytes, retention, logs, ECR images and any additional keys required for decryption. Baseline example for month one ≈ $22 including the ECR key, the exercise, backend key, two recovery keys and two backup equivalents, plus variable retention and pre-existing usage. Review tagged and untagged charges the following day and after the first billing cycle. At $0.62/h, five days of unattended P1 runtime alone approaches $75. Extended restore attempts, autoscaling, log floods and leftover NAT gateways can exhaust the target.
+Budget separately for retained assets. One state KMS key is roughly $1/month plus rotations and requests. State versions, access-log bytes, S3 requests and DynamoDB locks depend on measured usage. Two protected P1 keys add roughly $2/month before rotations. A full 20 GB snapshot-equivalent at $0.095/GB-month is $1.90/month; two independently billed equivalents would be $3.80. Retaining the Project 2 delivery bootstrap adds approximately $1/month for its ECR key plus image storage. Measure actual incremental backup bytes, retention, logs, ECR images and any additional keys required for decryption. Baseline example for month one ≈ $22 including the ECR key, the exercise, backend key, two recovery keys and two backup equivalents, plus variable retention and pre-existing usage. Review tagged and untagged charges the following day and after the first billing cycle. At $0.72/h, four and a half days of unattended P1 runtime alone approaches $75. Extended restore attempts, autoscaling, log floods and leftover NAT gateways can exhaust the target.
 
 [KMS](https://aws.amazon.com/kms/pricing/) · [Backup](https://aws.amazon.com/backup/pricing/) · [CloudWatch](https://aws.amazon.com/cloudwatch/pricing/) · [DNS](https://aws.amazon.com/route53/pricing/)
 
