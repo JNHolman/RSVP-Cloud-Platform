@@ -14,6 +14,8 @@ I kept RSVP Cloud Platform for a different reason: **to push past the point wher
 
 That is why this repository is intentionally broader than the infrastructure RSVP Society needs. The extra depth has a purpose: learn the technology, understand the trade-offs, connect it to problems I have already handled in network operations, and be able to explain how I would use it at a larger scale.
 
+I use short, sequential demonstrations for networking and release recovery. I test governance offline because the policy and analysis logic can run locally, while enforcement across six real accounts requires a separate integration environment. My [validation matrix, evidence plan and cost model](docs/PORTFOLIO-VALIDATION.md) record what I can substantiate.
+
 ## What problems am I working through?
 
 My network background shapes how I look at cloud infrastructure. I am less interested in whether I can create an AWS resource than in what happens when traffic, changes, dependencies, security controls, or recovery procedures fail.
@@ -221,3 +223,13 @@ RSVP Society also does not use all of this infrastructure. That separation is in
 **Josh Holman**  
 Network / Cloud Infrastructure Engineer  
 AWS • Terraform • Python • GitHub Actions • Cisco • Palo Alto
+
+## Project 3 portfolio validation
+
+A single-account portfolio can demonstrate Project 3 locally with zero additional accounts or AWS charges. Run the offline commands in [the deployment guide](docs/DEPLOYMENT.md#project-3-offline-validation).
+
+| Validation status | Project 3 evidence |
+| --- | --- |
+| Live tested | No live AWS validation claimed for this portfolio run. |
+| Offline tested | Terraform renders the enterprise SCPs. Python exercises incident triage and FinOps fallbacks with local fixtures and checks the dashboard trust and security configuration. |
+| Architecture only / not deployed | OU inheritance, cross-account role assumption, Identity Center assignments, delegated administration and service enrollment require an enterprise environment to verify. |

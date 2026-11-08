@@ -71,3 +71,19 @@ The governance layer uses multiple Terraform roots intentionally. Organization b
 ## Production vs portfolio operation
 
 The production design favors resilience and security. A portfolio deployment can be short-lived to control AWS spend, but the source architecture does not weaken production controls simply to make the diagram cheaper.
+
+## Portfolio validation boundaries
+
+```mermaid
+flowchart LR
+  Parent[Squarespace parent DNS] -. proposed child NS .-> Child[Route 53 cloud subzone]
+  Child --> P1[dev HTTPS ALB and WAF]
+  Child --> P2[ecs HTTPS ALB and WAF]
+  P1 --> EC2[Private EC2 ASG across two AZs] --> DB[Private encrypted Multi-AZ RDS]
+  P2 --> ECS[Private Fargate tasks across two AZs]
+  GH[GitHub dev environment] --> OIDC[OIDC deployment role] --> ECS
+  Org[Enterprise organization stack] --> Policy[Shared SCP module]
+  Test[Local Terraform plan tests] --> Policy
+```
+
+The two workload paths run in separate windows. The dotted edge represents a proposed DNS delegation. See the [evidence matrix](PORTFOLIO-VALIDATION.md).

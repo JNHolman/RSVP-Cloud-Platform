@@ -1,5 +1,8 @@
 # Deployment and Validation Guide
 
+For portfolio runs, follow the [dev-only prerequisites, DNS handoff, evidence windows and retention procedure](PORTFOLIO-VALIDATION.md) before using the enterprise deployment sequence.
+
+
 This is the deterministic order for validating and deploying the RSVP Cloud Platform. Do not collect portfolio evidence until the corresponding verification step passes.
 
 ## 1. Run repository quality gates
@@ -55,6 +58,8 @@ Run **ECS Project 2 - Bootstrap First Image** for the target environment.
 Record the exact Git-SHA image URI that the workflow prints. Put that URI in the target environment's local `terraform.tfvars` as `container_image`. Never replace it with `:latest`.
 
 ## 5. Deploy Project 1 infrastructure
+
+Use the [portfolio-dev configuration](PORTFOLIO-VALIDATION.md#project-1-portfolio-deployment-configuration) for the portfolio demonstration. Its resource prefix and backend key are separate from the previous dev workload.
 
 Prepare the target environment variables with:
 
@@ -133,3 +138,14 @@ Treat RTO/RPO values as targets until the recovery exercises produce measured re
 Capture only a small set of high-value evidence: architecture, successful CI/security gates, private ECS placement, healthy service/rollback, RDS recovery, CloudWatch alarms, GuardDuty/Security Hub, and one AI-analysis example. Redact account identifiers or secrets where appropriate.
 
 After evidence is captured, destroy expendable demo workload resources that are not intended to remain running. Do not expect an unrestricted `terraform destroy` to remove the protected remote-state, centralized-audit, or Project 1 recovery KMS resources. Those resources use intentional Terraform destruction guards. For a complete teardown, first confirm that the dependent Terraform state, audit data, RDS snapshots, and AWS Backup recovery points no longer need to be recoverable, then deliberately remove the relevant guard as part of the teardown change.
+
+## Project 3 offline validation
+
+For a single-account portfolio, leave the enterprise stacks undeployed. From the repository root with Terraform 1.6.6 and pytest installed, run:
+
+```sh
+(cd infrastructure/project-3-cloud-governance/modules/scp-policies && terraform init -backend=false && terraform validate && terraform test)
+python -m pytest -q tests
+```
+
+The SCP module uses Terraform built-ins and needs no provider download, credentials or remote state. The organization stack consumes its JSON outputs at the existing policy and attachment addresses. The Python tests inspect configuration and exercise runtime logic with local clients. This saves account setup and service charges while leaving actual IAM evaluation, SCP inheritance, service delivery and AI API availability unverified.

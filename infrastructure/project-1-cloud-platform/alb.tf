@@ -67,7 +67,8 @@ resource "aws_route53_record" "acm_validation" {
     }
   }
 
-  allow_overwrite = true
+  # Fail creation if another stack already owns this validation record.
+  allow_overwrite = false
   zone_id         = var.route53_zone_id
   name            = each.value.name
   type            = each.value.type

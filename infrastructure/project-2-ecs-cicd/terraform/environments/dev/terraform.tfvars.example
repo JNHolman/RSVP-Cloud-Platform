@@ -2,7 +2,7 @@ aws_region  = "us-east-1"
 environment = "dev"
 
 container_image = "123456789012.dkr.ecr.us-east-1.amazonaws.com/rsvp-project2-dev-app:REPLACE_WITH_GIT_SHA"
-domain_name     = "dev.example.com"
+domain_name     = "ecs.cloud.rsvpsociety.com"
 route53_zone_id = "ZREPLACE"
 
 # The account-level GitHub OIDC provider, ECR repository, and deploy role are

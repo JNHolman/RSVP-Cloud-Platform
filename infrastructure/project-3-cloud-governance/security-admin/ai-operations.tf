@@ -90,7 +90,7 @@ resource "aws_iam_role_policy" "ai_incident" {
           StringEquals = { "cloudwatch:namespace" = "RSVP/AIOperations" }
         }
       }
-    ], var.security_alert_topic_arn == "" ? [] : [
+      ], var.security_alert_topic_arn == "" ? [] : [
       { Effect = "Allow", Action = ["sns:Publish"], Resource = var.security_alert_topic_arn }
     ])
   })
@@ -233,8 +233,8 @@ resource "aws_iam_role_policy" "dashboard_read" {
     Version = "2012-10-17"
     Statement = [
       {
-        Effect   = "Allow"
-        Action   = ["dynamodb:Query"]
+        Effect = "Allow"
+        Action = ["dynamodb:Query"]
         Resource = [
           aws_dynamodb_table.ai_incidents.arn,
           "${aws_dynamodb_table.ai_incidents.arn}/index/*",

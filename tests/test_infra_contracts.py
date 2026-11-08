@@ -341,7 +341,7 @@ def test_cloud_platform_state_names_are_isolated_from_rsvp_society():
 
 
 def test_security_control_scp_blocks_reconfiguration_bypasses():
-    scp = read("infrastructure/project-3-cloud-governance/organization/scps.tf")
+    scp = read("infrastructure/project-3-cloud-governance/modules/scp-policies/main.tf")
     for action in [
         "cloudtrail:UpdateTrail",
         "cloudtrail:PutEventSelectors",
@@ -364,15 +364,6 @@ def test_dashboard_api_deployment_tracks_full_api_configuration():
         "default_5xx                   = aws_api_gateway_gateway_response.default_5xx",
     ]:
         assert token in api
-
-def test_security_control_scp_has_no_wildcard_admin_bypass():
-    variables = read("infrastructure/project-3-cloud-governance/organization/variables.tf")
-    scp = read("infrastructure/project-3-cloud-governance/organization/scps.tf")
-    assert 'default     = []' in variables
-    assert 'strcontains(arn, "*")' in variables
-    assert 'arn:aws:iam::*:role/SecurityAdmin' not in variables
-    assert 'for_each = length(var.protected_admin_role_patterns) > 0 ? [1] : []' in scp
-
 
 def test_workload_environment_and_cognito_deletion_protection_are_guarded():
     variables = read("infrastructure/project-3-cloud-governance/workload/variables.tf")
@@ -517,8 +508,9 @@ def test_project2_deploy_inherits_latest_terraform_task_definition_baseline():
 
 def test_organization_member_account_escape_guardrail_covers_root_and_account_closure():
     scp = read("infrastructure/project-3-cloud-governance/organization/scps.tf")
-    assert '"organizations:LeaveOrganization"' in scp
-    assert '"account:CloseAccount"' in scp
+    policy = read("infrastructure/project-3-cloud-governance/modules/scp-policies/main.tf")
+    assert '"organizations:LeaveOrganization"' in policy
+    assert '"account:CloseAccount"' in policy
     assert 'resource "aws_organizations_policy_attachment" "deny_leave_root"' in scp
     assert 'target_id = aws_organizations_organization.this.roots[0].id' in scp
     assert 'deny_leave_workloads' not in scp
@@ -956,3 +948,14 @@ def test_all_customer_managed_kms_keys_have_explicit_key_policy_ownership():
     archive = (root / "infrastructure/project-3-cloud-governance/log-archive/main.tf").read_text()
     assert 'resource "aws_kms_key_policy" "audit"' in archive
     assert 'data "aws_iam_policy_document" "kms"' in archive
+
+def test_project3_dashboard_reader_trust_and_security_enrollment():
+    root = ROOT / "infrastructure/project-3-cloud-governance"
+    for path in ["security-admin/ai-operations.tf", "finops-ai/main.tf"]:
+        trust = (root / path).read_text().split('data "aws_iam_policy_document" "dashboard_read_assume" {')[1].split("\n}")[0]
+        assert 'identifiers = ["arn:aws:iam::${var.dashboard_reader_account_id}:root"]' in trust
+        assert 'test     = "ArnEquals"' in trust
+        assert 'variable = "aws:PrincipalArn"' in trust
+        assert 'values   = ["arn:aws:iam::${var.dashboard_reader_account_id}:role/${var.dashboard_reader_role_name}"]' in trust
+    assert 'auto_enable_organization_members = "ALL"' in (root / "security-admin/guardduty.tf").read_text()
+    assert "enable_default_standards = true" in (root / "security-admin/securityhub.tf").read_text()
