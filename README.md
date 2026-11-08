@@ -117,6 +117,10 @@ The biggest lesson from the whole project isn't that I learned how to configure 
 
 It's that **good engineering includes knowing when not to use them.**
 
+## Technical safeguards
+
+AWS Config aggregates findings only **where Config recording is enabled** in member accounts; aggregation alone does not activate recording. **RDS recovery points inherit the database encryption key**, so restoring encrypted backups requires preserving that key and its permissions. **Project 1 recovery KMS keys have intentional Terraform destruction guards** to prevent deleting the keys needed to recover retained evidence.
+
 ## Technical details
 
 The [architecture](docs/ARCHITECTURE.md) explains how the system works. The [operations guide](docs/OPERATIONS.md) contains deployment procedures, security checks, recovery tests, cost calculations, and original test evidence.

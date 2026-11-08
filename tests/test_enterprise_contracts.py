@@ -103,7 +103,7 @@ def test_dashboard_cors_origin_is_a_single_explicit_https_origin():
 
 def test_cleanup_docs_do_not_claim_protected_recovery_keys_are_disposable():
     readme = Path("README.md").read_text(encoding="utf-8")
-    runbook = Path("docs/DEPLOYMENT.md").read_text(encoding="utf-8")
+    runbook = Path("docs/OPERATIONS.md").read_text(encoding="utf-8")
     assert "Project 1 recovery KMS keys have intentional Terraform destruction guards" in readme
     assert "do not expect an unrestricted `terraform destroy`" in runbook.lower()
     assert "snapshots" in runbook.lower() and "recovery points" in runbook.lower()
@@ -117,14 +117,14 @@ def test_workload_stack_has_no_unused_placeholder_app_log_group():
 
 
 def test_project3_runbook_requires_state_kms_backend_placeholder_replacement():
-    runbook = Path("docs/DEPLOYMENT.md").read_text(encoding="utf-8")
-    project3 = runbook.split("## 3. Bootstrap Project 2 delivery", 1)[0]
+    runbook = Path("docs/OPERATIONS.md").read_text(encoding="utf-8")
+    project3 = runbook
     assert "REPLACE_WITH_TERRAFORM_STATE_KMS_KEY_ARN" in project3
     assert "state-bootstrap outputs" in project3
 
 
 def test_prod_oidc_runbook_requires_github_environment_protection():
-    runbook = Path("docs/DEPLOYMENT.md").read_text(encoding="utf-8")
+    runbook = Path("docs/OPERATIONS.md").read_text(encoding="utf-8")
     assert "GitHub Environment protection rules for `prod`" in runbook
     assert "restrict deployment branches/tags" in runbook
     assert "production authorization boundary" in runbook

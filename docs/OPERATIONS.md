@@ -93,6 +93,9 @@ The plan reviewer is intended for first-deployment scope checks, not automatic a
 
 ## Project 2: isolated ECS delivery
 
+Before using the production OIDC role, configure **GitHub Environment protection rules for `prod`**: **restrict deployment branches/tags** to approved release sources and require reviewer approval where supported. Environment protection is part of the **production authorization boundary**, because AWS trust scopes the OIDC subject to the repository and environment.
+
+
 **Locations:** `infrastructure/project-2-ecs-cicd/bootstrap-delivery/` and `infrastructure/project-2-ecs-cicd/terraform/`
 
 1. **Bootstrap delivery.** Use the bootstrap Terraform root in the intended AWS account. It manages the ECR repositories, the GitHub OIDC provider and environment-specific deployment roles. Confirm the account does not already have an independently owned OIDC provider before making changes.
@@ -119,6 +122,11 @@ python -m pytest -q tests
 These tests prove policy generation and local application logic. They do not prove that AWS enforced the policies across accounts.
 
 ### If deploying Project 3 in a real organization
+
+For each Project 3 root, copy `backend.hcl.example` to an untracked `backend.hcl`. Replace the bucket placeholder and `REPLACE_WITH_TERRAFORM_STATE_KMS_KEY_ARN` with that account's **state-bootstrap outputs** before initializing Terraform. Do not reuse another account's backend without reviewing cross-account access.
+
+When `create_member_accounts=false`, the organization stack references existing accounts; it **does not move those accounts**. Verify their OU placement: **An account outside the target OU will not inherit that OU's SCPs.** If StackSets delegated administration is enabled, activate CloudFormation trusted access (`ActivateOrganizationsAccess`) before enabling delegated administration.
+
 
 Only use a separately approved enterprise environment. Each root needs a backend in the **account where it runs**, not an assumed shared management-account backend:
 
@@ -252,6 +260,9 @@ Before cleanup, identify which resources are expendable and which must stay to p
 - Verify cleanup using **resource ARNs and direct AWS inventory**, not tags alone. Check for remaining databases, tasks, ASGs, ALBs, NAT gateways and EIPs. Reconcile retained resources and continuing charges.
 
 ## Teardown and retained-resource custody
+
+Project 1 recovery KMS keys have Terraform destruction guards; **do not expect an unrestricted `terraform destroy`** to remove protected keys, snapshots, or recovery points. Review retained data and encryption dependencies before retiring anything.
+
 
 1. Record ownership, active revisions, backend key, resource addresses, backup identifiers, encryption keys and evidence custodian before any removal. Verify snapshot completion and recovery evidence. The final snapshot and retained automated backups have separate lifecycles. Daily AWS Backup points expire after 35 days; manual final snapshots require a deliberate retention decision.
 2. For a future cleanup, prepare an explicit dev-only teardown plan with a reviewed address list for expendable resources. Separate retained recovery resources and their dependencies before execution. A whole-root destroy is blocked by protected keys. Avoid state removal as a deletion workaround. Keep the vault with its recovery points and all required KMS keys, grants and restore access. Confirm the final snapshot name is available and retain the DB key through the final snapshot. Preserve encrypted AI evidence and its key together.
