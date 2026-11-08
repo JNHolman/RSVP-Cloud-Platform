@@ -5,7 +5,7 @@ import sys
 import types
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 
 
 class RecordingClient:
@@ -56,7 +56,7 @@ def _load_module(path, module_name, env):
 
 def _project1_module():
     return _load_module(
-        ROOT / "infrastructure/project-1-cloud-platform/ai_log_summarizer.py",
+        ROOT / "project-1-cloud-foundation/terraform/ai_log_summarizer.py",
         "test_project1_ai_log_summarizer",
         {
             "LOG_GROUP_NAME": "/rsvp/test/app",
@@ -71,7 +71,7 @@ def _project1_module():
 
 def _security_module(topic=""):
     return _load_module(
-        ROOT / "infrastructure/project-3-cloud-governance/security-admin/ai_incident_analyzer.py",
+        ROOT / "project-3-cloud-governance/security-admin/ai_incident_analyzer.py",
         "test_security_ai_incident_analyzer",
         {
             "INCIDENT_TABLE": "test-incidents",
@@ -84,7 +84,7 @@ def _security_module(topic=""):
 
 def _finops_module():
     return _load_module(
-        ROOT / "infrastructure/project-3-cloud-governance/finops-ai/cost_analyzer.py",
+        ROOT / "project-3-cloud-governance/finops-ai/cost_analyzer.py",
         "test_finops_cost_analyzer",
         {
             "COST_TABLE": "test-cost-reports",
@@ -98,7 +98,7 @@ def _finops_module():
 
 def _dashboard_module():
     return _load_module(
-        ROOT / "infrastructure/project-3-cloud-governance/workload/dashboard_api.py",
+        ROOT / "project-3-cloud-governance/workload/dashboard_api.py",
         "test_dashboard_api",
         {
             "APP_REGION": "us-east-1",
@@ -546,7 +546,10 @@ def test_ai_records_write_dynamodb_ttl(monkeypatch):
         "summary": "ok", "likely_root_cause": "unknown", "user_impact": "none",
         "recommended_checks": [], "evidence_used": [], "confidence": "low",
     }
-    p1.s3_client = RecordingClient(); p1.ddb = RecordingClient(); p1.sns = RecordingClient(); p1.cloudwatch = RecordingClient()
+    p1.s3_client = RecordingClient()
+    p1.ddb = RecordingClient()
+    p1.sns = RecordingClient()
+    p1.cloudwatch = RecordingClient()
     p1.lambda_handler({"id": "event-1", "detail": {"alarmName": "a", "state": {"value": "OK"}}}, None)
     p1_item = [c for c in p1.ddb.calls if c[0] == "put_item"][0][2]["Item"]
     assert int(p1_item["expires_at"]["N"]) > 0
@@ -556,7 +559,9 @@ def test_ai_records_write_dynamodb_ttl(monkeypatch):
         "summary": "ok", "triage_priority": "P4", "likely_cause": "unknown",
         "business_impact": "low", "recommended_checks": [], "evidence_used": [], "confidence": "low",
     })
-    security.ddb = RecordingClient(); security.sns = RecordingClient(); security.cw = RecordingClient()
+    security.ddb = RecordingClient()
+    security.sns = RecordingClient()
+    security.cw = RecordingClient()
     security.handler({"detail": {"findings": [{"Id": "f-1", "Severity": {"Label": "LOW"}, "Resources": []}]}}, None)
     sec_item = [c for c in security.ddb.calls if c[0] == "put_item"][0][2]["Item"]
     assert int(sec_item["expires_at"]["N"]) > 0
@@ -564,7 +569,8 @@ def test_ai_records_write_dynamodb_ttl(monkeypatch):
     finops = _finops_module()
     finops._cost = lambda: {"start_date": "2026-09-27", "end_date": "2026-10-04", "total_cost": 1.0, "top_services": []}
     finops._analyze = lambda data: {"summary": "ok", "anomalies": [], "recommendations": [], "confidence": "low"}
-    finops.ddb = RecordingClient(); finops.sns = RecordingClient()
+    finops.ddb = RecordingClient()
+    finops.sns = RecordingClient()
     finops.handler({}, None)
     fin_item = [c for c in finops.ddb.calls if c[0] == "put_item"][0][2]["Item"]
     assert int(fin_item["expires_at"]["N"]) > 0
