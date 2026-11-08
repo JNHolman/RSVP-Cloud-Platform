@@ -1,171 +1,59 @@
-# How RSVP Cloud Platform works
+# RSVP Cloud Platform — Architecture
 
-This is the technical explanation of the story in the [main README](../README.md).
+RSVP Society moved to event-driven AWS services because its event-based traffic did not justify always-on enterprise infrastructure. This separate portfolio develops that original design across three stages.
 
-I started with infrastructure that was too expensive and complicated for RSVP Society's actual workload. RSVP Society moved to a lighter, event-driven design. RSVP Cloud Platform kept the more extensive AWS design so I could work through the engineering questions that come with a larger environment.
+## Application and boundaries
 
-The result is **one application moving through three stages**: build it, modernize how it runs, then develop the controls needed to operate it at scale.
+A small Python application provides health/version endpoints and MySQL read/write behavior. Projects 1 and 2 demonstrate different hosting and delivery models for the same application contract. They do not need to run simultaneously or share a live database.
 
-These stages are an engineering progression. They don't require three permanently running environments.
-
-## First, the application
-
-The application is deliberately small. I don't need a second event-management product to prove the infrastructure works.
-
-The same Python application and data behavior are used in the EC2 and ECS stages. It exposes a health check, identifies the running version, and reads and writes a small amount of test data in MySQL.
-
-That last part matters. A web page that displays successfully doesn't prove the database connection works. A real application request does.
-
-I can run the application locally, test it without AWS, and deploy it to either hosting model. Each live environment keeps clearly defined Terraform ownership and can be cleaned up independently. There is no requirement for both hosting models to share a live database or run simultaneously.
-
-## Stage 1 — Secure application infrastructure
+## Stage 1 — Private EC2 and RDS
 
 ```text
-User
- |
- v
-HTTPS + WAF (web firewall)
- |
- v
-Application Load Balancer
- |
- +---------------------+
- |                     |
- v                     v
-Private EC2          Private EC2
-Zone A               Zone B
- |                     |
- +----------+----------+
-            |
-            v
-  Private, encrypted MySQL
-  (Multi-AZ Amazon RDS)
+Internet → HTTPS/WAF → ALB → private EC2 (AZ A + AZ B)
+                                   ↓
+                         encrypted Multi-AZ RDS
 ```
 
-**What this solves:** Users can reach the application without exposing the machines and database that run it.
+The VPC isolates application and database resources. Security groups restrict traffic; CloudWatch and flow logs support troubleshooting. Backups and snapshots support recovery.
 
-The VPC separates internet-facing services from internal workloads. Security groups limit which components may communicate. The database remains private, while redundant application servers and a Multi-AZ database reduce dependence on one Availability Zone.
+**Incident path:** CloudWatch alarm → EventBridge → Lambda → bounded log/metric evidence → validated AI or deterministic fallback → encrypted S3 and DynamoDB. AI is advisory and cannot change infrastructure.
 
-CloudWatch collects metrics and logs. The web firewall (AWS WAF) filters unwanted requests. Backups and snapshots provide a recovery path.
+**Live evidence:** Private targets in two AZs, HTTPS, WAF rejection, alarms, and a snapshot restore verified against a known record in **10m 02s**. Daily backup delivery, point-in-time recovery, and AZ failover are design capabilities, not all independently proven by that exercise.
 
-I also built an incident analysis path:
+## Stage 2 — ECS and controlled releases
 
 ```text
-CloudWatch alarm
-       |
-       v
-   EventBridge
-       |
-       v
-      Lambda
-       |
-       +--> Collect bounded evidence from logs and metrics
-       +--> Analyze it and check the result
-       +--> Save the report in encrypted S3 and DynamoDB
-       +--> Notify an operator
+GitHub Actions → tests/scans → ECR immutable image
+                                  ↓
+                          private ECS Fargate
+                                  ↓
+                          HTTPS health checks
 ```
 
-AI is useful for organizing the evidence and suggesting what to investigate next. It doesn't get permission to terminate servers, change a firewall, or modify a database. If the model or API isn't available, a rule-based fallback still returns useful incident information.
+GitHub Actions assumes short-lived AWS credentials through OIDC. Terraform owns the infrastructure and task-definition baseline; the deployment workflow owns application releases.
 
-**Recovery:** AWS Backup, RDS point-in-time recovery, and controlled Multi-AZ failover are part of the recovery procedures. Each recovery exercise uses disposable resources, a known test record, and recorded timing so the result can be evaluated rather than assumed.
+Two recovery paths are distinct: the **ECS circuit breaker** rolls back unhealthy task deployments, while **workflow rollback** handles failed release checks. The live exercise proved the native ECS rollback in **13m 47s**, not every workflow recovery path. Scaling configuration does not by itself prove load-driven scaling.
 
-## Stage 2 — Modernize application hosting and releases
-
-The application is now packaged into a Docker image and run on ECS Fargate rather than installed directly on EC2 servers.
-
-```text
-Code change
-    |
-    v
-GitHub Actions
-    |
-    +--> Test the application
-    +--> Check dependencies and scan the container
-    +--> Build a version tied to the Git commit
-    |
-    v
-Amazon ECR (container registry)
-    |
-    v
-ECS Fargate (private tasks in two zones)
-    |
-    v
-Health check and release verification
-    |
-    +--> Healthy: keep the new release
-    |
-    +--> Failed: restore the last working release
-```
-
-The application and its data contract stay consistent; the hosting and delivery model change.
-
-GitHub Actions obtains short-lived AWS credentials through OIDC instead of storing a permanent deployment key. Amazon ECR holds versioned images. ECS runs the private application tasks behind HTTPS and uses CPU/memory policies to adjust capacity as demand changes.
-
-There are two separate recovery mechanisms, and they solve slightly different problems:
-
-- **ECS deployment circuit breaker:** Restores the last working task revision if the new tasks cannot become healthy.
-- **GitHub workflow rollback:** Restores the previous working release when a release fails its deployment checks.
-
-The first was demonstrated in an earlier live exercise with a measured **13-minute, 47-second** recovery. The second is tested as an independent workflow path, rather than being credited to the ECS circuit breaker.
-
-Terraform owns the baseline infrastructure. GitHub Actions owns the application release. That prevents an ordinary infrastructure plan from unexpectedly rolling the app back to an older version.
-
-**A cost decision:** I don't keep the EC2 and ECS versions running indefinitely. They're alternative stages of the same application's evolution, not two required production systems.
-
-## Stage 3 — Security, governance, and operations
-
-At a larger company, the people running applications shouldn't necessarily control the security records or the organization's account policies.
-
-The enterprise design separates those responsibilities:
+## Stage 3 — Governance and operations
 
 ```text
 AWS Organizations
- |
- +-- Management: account rules and cost oversight
- |
- +-- Security: findings and incident analysis
- |
- +-- Log Archive: protected audit records
- |
- +-- Workload accounts: applications and approved reporting
+ ├─ Management: policies and cost oversight
+ ├─ Security: findings and incident analysis
+ ├─ Log Archive: audit evidence
+ └─ Workload accounts: applications and reporting
 ```
 
-The Terraform design covers AWS Organizations, Service Control Policies, centralized CloudTrail logging, IAM Identity Center, security findings, and a limited operations dashboard.
+Terraform models SCPs, Identity Center, CloudTrail, security aggregation, dashboards, and cost analysis. Offline tests validate configuration contracts and handler behavior. **Live OU enforcement, cross-account integration, and identity flows remain unverified.**
 
-The security and cost analysis handlers help an operator answer two familiar questions: **What needs attention?** and **Where is the money going?**
+## Operating principles
 
-The design is modeled and tested locally. That lets me validate policy generation, data handling, permission contracts, and AI fallback behavior without maintaining a fleet of AWS accounts.
+- **Isolation:** RSVP Society production resources and DNS are out of scope for portfolio changes.
+- **Ownership:** Review backend identity, Terraform plans, and resource ownership before any apply.
+- **Recovery:** Preserve encrypted snapshots and their KMS keys; measure recovery during controlled exercises.
+- **Cost:** Time-box paid environments and track retained recovery assets.
+- **AI:** Validate outputs and keep infrastructure changes under human control.
 
-These are enterprise operating patterns, not a claim that RSVP Society itself needs them.
+## Evidence and procedures
 
-## How I keep the system safe to work on
-
-RSVP Society production and RSVP Cloud Platform have separate responsibilities. A lab change must not touch the event business.
-
-- **State ownership:** Each Terraform root has an explicit backend and owner. No other stack should start managing the same live resource.
-- **Change approval:** Terraform plans are reviewed. Infrastructure isn't automatically applied just because code changed.
-- **Account and DNS boundaries:** Dev resources and delegated DNS records stay separate from Society production.
-- **Security controls:** Workloads stay private, deployments use short-lived credentials, and AI output is checked before it is saved.
-- **Recovery protection:** Snapshots and the encryption keys required to restore them are preserved deliberately.
-- **Cost controls:** Paid test workloads are time-boxed and removed when the exercise is complete. Retained resources are tracked because cleanup does not always mean a zero-dollar bill.
-
-## Trade-offs I would explain in an interview
-
-| Decision | Why I made it | What I accepted |
-| --- | --- | --- |
-| Move RSVP Society to event-driven AWS services | The business has uneven traffic and needs manageable operating costs | More attention to event ordering, state, and retry handling |
-| Use EC2 and RDS for the foundation project | Learn and demonstrate the controls needed for a traditional hosted application | Always-on compute, networking, and database costs |
-| Move the same app to ECS | Practice safer releases, scaling, and recovery | More deployment and container configuration |
-| Use Terraform and GitHub Actions separately | Avoid confusing infrastructure changes with application releases | Clear ownership is essential |
-| Design multi-account controls but test locally | Demonstrate the architecture without paying for unnecessary accounts | Live organization-wide behavior requires its own enterprise test environment |
-| Keep AI advisory | Help with investigations without giving a model control of AWS | An operator still makes the decision |
-
-## What the evidence proves
-
-The [Project 1 live report](PROJECT-1-LIVE-2026-11-08.md) records private servers in two zones, working HTTPS, a WAF block, monitoring, and a database snapshot restore that took **10 minutes and 2 seconds** from restore request to verified record.
-
-The [Project 2 live report](PROJECT-2-LIVE-2026-11-08.md) records GitHub-driven delivery, private container placement, a failed release, and ECS recovery in **13 minutes and 47 seconds**.
-
-Those reports are dated snapshots of earlier exercises. They aren't rewritten to make later engineering changes appear to have happened during the original tests. Integration tests, workflow checks, and additional recovery exercises belong with their own code and evidence.
-
-For commands and safety requirements, use the [operations guide](OPERATIONS.md). For the evidence index, see [testing and validation](OPERATIONS.md#validation-and-recovery).
+[Project 1 live report](PROJECT-1-LIVE-2026-11-08.md) · [Project 2 live report](PROJECT-2-LIVE-2026-11-08.md) · [Operations and validation matrix](OPERATIONS.md#validation-and-recovery)
