@@ -19,7 +19,7 @@ Terraform roots require their own correct backend and keys from [shared state bo
 
 ## Keep recovery artifacts recoverable
 
-Project 1's database encryption key and protected recovery resources have Terraform `prevent_destroy` safeguards. A restored snapshot is only useful while its KMS key, permissions, and recovery credentials remain available. Retain these dependencies together with snapshots, backup recovery points, and encrypted incident evidence until the owner has approved an expiry and retirement decision.
+Project 1's RDS and AWS Backup KMS keys have Terraform `prevent_destroy` guards. **These guards protect the keys, not database snapshots or backup recovery points.** Recovery also depends on retaining the encrypted artifacts, key permissions, and credentials. Retain these dependencies and encrypted incident evidence until the owner approves an expiry and retirement decision.
 
 An unrestricted whole-root `terraform destroy`, deletion of state to bypass ownership, or removal of a destruction guard is **not** an acceptable cleanup method. Review disposable resources by address and ARN, remove only the scoped demo workload, and verify directly that EC2/ASG, ECS tasks, databases (including temporary restores), ALBs, NAT gateways, and EIPs are gone. Remove ECS runtime resources before its delivery bootstrap. Preserve shared Terraform state, relevant backups, log/evidence buckets, required KMS keys, and the account-owned OIDC provider.
 

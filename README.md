@@ -74,7 +74,7 @@ GitHub Actions deployed an identifiable container image to private ECS tasks usi
 
 The six-account design separates management, security, audit, shared services, and nonproduction/production responsibilities. Its **service control policies (SCPs)** define restrictions on leaving the organization and disabling core security services.
 
-**Verified:** Terraform policy tests checked deny rules and explicit administrator exceptions, including rejection of wildcard patterns. Python tests checked security and cost-analysis logic. The [governance CI job](https://github.com/JNHolman/RSVP-Cloud-Platform/actions/runs/42508709940/job/128816887334) passed.
+**Verified:** Terraform policy tests checked deny rules and explicit administrator exceptions, including rejection of wildcard patterns. Python tests checked security and cost-analysis logic. The [governance CI job](https://github.com/JNHolman/RSVP-Cloud-Platform/actions/runs/42513576400/job/128831638392) passed.
 
 [Governance implementation, test results, and engineering trade-off](project-3-cloud-governance/README.md)
 

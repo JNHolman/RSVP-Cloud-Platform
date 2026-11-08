@@ -39,7 +39,9 @@ The following controls were validated through automated tests:
 | **Account and audit boundaries** | Python contract tests check OU assignments, SCP attachment targets, opt-in delegated administrators, Identity Center assignments, and encrypted organization-trail configuration. |
 | **Security, dashboard, and cost logic** | Python tests check handler inputs, access/configuration boundaries, stored-record behavior, and deterministic fallback paths. |
 
-[Terraform policy tests](modules/scp-policies/tests/guardrails.tftest.hcl) · [Account-boundary tests](tests/test_governance_boundaries.py) · [Infrastructure tests](tests/test_governance_infrastructure.py) · [Passing offline policy CI](https://github.com/JNHolman/RSVP-Cloud-Platform/actions/runs/42508709940/job/128816887334)
+[Terraform policy tests](modules/scp-policies/tests/guardrails.tftest.hcl) · [Account-boundary tests](tests/test_governance_boundaries.py) · [Infrastructure tests](tests/test_governance_infrastructure.py) · [Passing offline policy CI](https://github.com/JNHolman/RSVP-Cloud-Platform/actions/runs/42513576400/job/128831638392)
+
+The separate Checkov IaC scan is advisory (`soft_fail: true`); passing CI does not mean every finding has been resolved.
 
 ## Engineering trade-off
 
