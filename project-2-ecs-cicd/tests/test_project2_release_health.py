@@ -15,7 +15,7 @@ import pytest
     ("1234567", "prod", False),
 ])
 def test_smoke_verifies_serving_revision(tmp_path, version, environment, accepted):
-    workflow = Path(__file__).resolve().parents[1] / ".github/workflows/ecs-project2-deploy.yml"
+    workflow = Path(__file__).resolve().parents[2] / ".github/workflows/ecs-project2-deploy.yml"
     smoke = workflow.read_text().split("- name: Smoke test", 1)[1]
     program = dedent(smoke.split("python - <<'PY'", 1)[1].split("\n          PY", 1)[0])
     (tmp_path / "health.json").write_text(json.dumps({

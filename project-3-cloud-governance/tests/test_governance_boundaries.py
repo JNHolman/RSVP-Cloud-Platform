@@ -1,7 +1,7 @@
 """Offline contracts on the enterprise resources that consume the policies."""
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1] / "infrastructure/project-3-cloud-governance"
+ROOT = Path(__file__).resolve().parents[2] / "project-3-cloud-governance"
 
 
 def resource(path, kind, name):

@@ -1,6 +1,6 @@
 # Operations — deployment, validation, recovery, and costs
 
-Use this runbook for deployment, validation, recovery, and costs. See [README](../README.md) for context and [Architecture](ARCHITECTURE.md) for the design. The EC2 and ECS environments are independent; never deploy them or modify AWS without verifying account, backend, ownership, and the Terraform plan.
+Use this runbook for deployment, validation, recovery, and costs. See [README](../README.md) for context and its architecture diagram. The EC2 and ECS environments are independent; never deploy them or modify AWS without verifying account, backend, ownership, and the Terraform plan.
 
 **Never use these steps to change RSVP Society production.** November 8 exercises were temporary; some recovery assets remain retained.
 
@@ -24,7 +24,7 @@ No Terraform apply or destroy is performed automatically by these workflows.
 
 ## Shared setup: state and DNS
 
-Every Terraform root must use the correct backend and workspace. Bootstrap `infrastructure/bootstrap-state` only in the account that will own that state, and retain its outputs:
+Every Terraform root must use the correct backend and workspace. Bootstrap `shared/bootstrap-state` only in the account that will own that state, and retain its outputs:
 
 - `state_bucket_name`
 - `lock_table_name`
@@ -42,98 +42,9 @@ The demos used a delegated `cloud.rsvpsociety.com` child zone. Confirm that the 
 4. P1 requires a dedicated Secrets Manager ARN, access to its encryption key, and a supported DB class/engine combination. P2 requires the existing dev GitHub Environment, matching role ARN, AWS_REGION, PROJECT_NAME and SERVICE_URL=https://ecs.cloud.rsvpsociety.com. Review environment branch/reviewer rules and OIDC audience and exact repository/environment subject. Limit bootstrap environments to dev. Check ownership of the account-singleton GitHub OIDC provider before bootstrap. If another stack owns it, pause before planning creation or import. Publish the scanned first immutable image before runtime planning. Use separate dev state keys for bootstrap and runtime.
 5. Inspect the saved workload plan locally for account, DNS zone, resource names, replacements, IAM changes and access to existing resources. Keep Society buckets, databases, DNS, IAM roles, workflows and backend outside every plan. A shared AWS account still shares quotas, billing and some account-wide services.
 
-## Project 1: isolated cloud foundation
-
-**Location:** `infrastructure/project-1-cloud-platform/`
-
-### Portfolio-dev configuration
-
-Use `environments/portfolio-dev/`, not the older `dev/` backend. The portfolio prefix is `rsvp-pf1-dev`, and the state key is `project-1-cloud-platform/portfolio-dev/terraform.tfstate`. The proposed VPC CIDR is `10.83.0.0/16`; confirm it does not conflict with networks the VPC may connect to.
-
-Prepare local copies of `backend.hcl.example` and `terraform.tfvars.example`, leaving the examples untouched. Set the delegated child-zone ID, `dev.cloud.rsvpsociety.com`, and a **dedicated** Secrets Manager ARN for the AI credential. Keep these values out of Git.
-
-After filling in and checking those local files:
-
-```sh
-cd infrastructure/project-1-cloud-platform
-export TF_DATA_DIR="$PWD/.terraform/portfolio-dev"
-terraform init -backend-config=environments/portfolio-dev/backend.hcl
-terraform workspace show
-terraform plan -var-file=environments/portfolio-dev/terraform.tfvars -out=portfolio-dev.tfplan
-```
-
-To check the intended first-deployment scope, review the plan and run the local reviewer with the independently confirmed child-zone ID:
-
-```sh
-set -o pipefail
-terraform show -json portfolio-dev.tfplan | python3 ../../scripts/review-portfolio-plan.py p1 "$CHILD_ZONE_ID"
-```
-
-A scope finding means **stop and review**, not override the check. Keep plans and raw state private; they may contain sensitive values.
-
-Only after an explicit approval should anyone apply the reviewed plan.
-
-**What to verify:** HTTPS health; two healthy private instances in different AZs; WAF response; application and VPC logs; a working app-to-database request; alarm-to-AI delivery and saved report; RDS encryption and managed credentials; AWS Backup recovery, point-in-time restore, and a controlled failover. Record observed results separately from configuration checks.
-
-For application verification, use the shared application's health, version, and database operations. Check the actual database response rather than treating a successful landing-page request as proof that the data path works.
-
-[Previously recorded Project 1 results](PROJECT-1-LIVE-2026-11-08.md)
-
-The plan reviewer is intended for first-deployment scope checks, not automatic approval of updates or deletions. It may return exit 1 for scope/action findings and exit 2 for invalid input. Keep the JSON stream out of saved logs; review IAM, budget, backend identity, shared dependencies, and ACM DNS record ownership separately.
-
-## Project 2: isolated ECS delivery
-
-Before using the production OIDC role, configure **GitHub Environment protection rules for `prod`**: **restrict deployment branches/tags** to approved release sources and require reviewer approval where supported. Environment protection is part of the **production authorization boundary**, because AWS trust scopes the OIDC subject to the repository and environment.
-
-
-**Locations:** `infrastructure/project-2-ecs-cicd/bootstrap-delivery/` and `infrastructure/project-2-ecs-cicd/terraform/`
-
-1. **Bootstrap delivery.** Use the bootstrap Terraform root in the intended AWS account. It manages the ECR repositories, the GitHub OIDC provider and environment-specific deployment roles. Confirm the account does not already have an independently owned OIDC provider before making changes.
-2. **Configure GitHub.** Set `AWS_DEPLOY_ROLE_ARN` in the matching GitHub Environment. Also set `AWS_REGION` and `PROJECT_NAME` if not using the defaults (`us-east-1`, `rsvp-project2`). For stage/prod, restrict approved branches/tags and require approval where supported.
-3. **Build the first image.** Run **ECS Project 2 - Bootstrap First Image** for the target environment. Copy the exact immutable Git-SHA image URI into the local runtime `terraform.tfvars` as `container_image`. Do not use `:latest`.
-4. **Deploy the runtime.** Initialize `infrastructure/project-2-ecs-cicd/terraform/` with its matching dev backend, review its plan, and apply only after approval.
-5. **Finish GitHub configuration.** Set `SERVICE_URL` to the service's verified HTTPS URL. Run **ECS Project 2 - Controlled Deploy**, then confirm that `/health` returns the expected release and environment.
-
-**What to verify:** Two healthy private tasks in separate AZs, HTTPS, WAF, logs, the ECR image digest and GitHub's deployment result. The ECS circuit-breaker rollback and GitHub workflow rollback are separate behaviors. Verify each through its own controlled failure path. Use bounded load for autoscaling and record both scale-out and scale-in events.
-
-**Task-definition ownership:** Terraform registers the infrastructure and security baseline, tagged `ConfigurationSource=TerraformBaseline`. The ECS service intentionally ignores `task_definition` drift so a later Terraform apply cannot roll back a GitHub-deployed application release. Therefore, after any Terraform change that modifies the ECS task definition, run **Controlled Deploy** before treating that configuration change as active. The workflow clones the latest Terraform baseline, replaces only the release image/version, and promotes that revision to the service.
-
-[Previously recorded Project 2 results](PROJECT-2-LIVE-2026-11-08.md)
-
-## Project 3 offline validation
-
-The six-account design is **not deployed** for this portfolio. With Terraform 1.6.6 and the project's Python test dependencies installed, run from the repository root:
-
-```sh
-(cd infrastructure/project-3-cloud-governance/modules/scp-policies && terraform init -backend=false && terraform validate && terraform test)
-python -m pytest -q tests
-```
-
-These tests prove policy generation and local application logic. They do not prove that AWS enforced the policies across accounts.
-
-### If deploying Project 3 in a real organization
-
-For each Project 3 root, copy `backend.hcl.example` to an untracked `backend.hcl`. Replace the bucket placeholder and `REPLACE_WITH_TERRAFORM_STATE_KMS_KEY_ARN` with that account's **state-bootstrap outputs** before initializing Terraform. Do not reuse another account's backend without reviewing cross-account access.
-
-When `create_member_accounts=false`, the organization stack references existing accounts; it **does not move those accounts**. Verify their OU placement: **An account outside the target OU will not inherit that OU's SCPs.** If StackSets delegated administration is enabled, activate CloudFormation trusted access (`ActivateOrganizationsAccess`) before enabling delegated administration.
-
-
-Only use a separately approved enterprise environment. Each root needs a backend in the **account where it runs**, not an assumed shared management-account backend:
-
-| Account | Terraform roots |
-| --- | --- |
-| Management | `organization`, `audit-trail`, `finops-ai`, `identity-center` |
-| Security | `security-admin` |
-| Log Archive | `log-archive` |
-| Workload | `workload` |
-
-Use this deployment order: **organization → log-archive → audit-trail → security-admin → finops-ai → identity-center → workload**.
-
-When referencing existing accounts, confirm OU membership: Terraform does not automatically move accounts merely because their IDs were supplied. Confirm delegated-administrator prerequisites, StackSets trusted access where used, and explicit account-scoped SCP exceptions. Configure Security and FinOps dashboard read roles before creating the workload dashboard API. No such live deployment is claimed here.
-
 ## Validation and recovery
 
-The dated exercise results below are measured historical outcomes. The integration checks that follow describe the final application contract; only dated live evidence establishes measured runtime results.
+Use the dated observations below and the evidence checklist in each layer.
 
 ## Recorded live AWS results — November 8, 2026
 
@@ -141,15 +52,15 @@ These are the **measured results from the original deployment sessions**. They s
 
 | What I tested | What happened | Evidence |
 | --- | --- | --- |
-| Private application servers | Two healthy EC2 instances served the test page from different Availability Zones, without public IP addresses | [Project 1 exercise](PROJECT-1-LIVE-2026-11-08.md) |
-| Secure web traffic | HTTPS returned a healthy response; WAF blocked a harmless simulated attack | [Project 1 exercise](PROJECT-1-LIVE-2026-11-08.md) |
-| Database recovery | A known record survived a restore to a separate encrypted RDS database. Request to verified read: **10m 02s** | [Project 1 recovery timeline](PROJECT-1-LIVE-2026-11-08.md#recovery-timeline) |
-| Monitoring | CloudWatch recorded an unhealthy-target alarm entering and leaving the alarm state | [Project 1 observations](evidence/project-1-2026-11-08/observations.json) |
-| AI handler and persistence | A direct Lambda test produced a stored, encrypted fallback report; a separate local handler test exercised a live model response | [Project 1 exercise](PROJECT-1-LIVE-2026-11-08.md) |
-| Automated container deployment | GitHub Actions authenticated through OIDC, built and scanned an image, then deployed it to private ECS tasks | [Project 2 exercise](PROJECT-2-LIVE-2026-11-08.md) |
-| Failed release recovery | A deliberately broken ECS revision recovered to the previous healthy version in **13m 47s** | [Project 2 exercise](PROJECT-2-LIVE-2026-11-08.md) |
-| Container security review | A newer image reduced ECR's HIGH findings from nine to two, with no CRITICAL findings in either image scan | [Project 2 scan comparison](evidence/project-2-2026-11-08/image-rescan.json) |
-| Enterprise governance | Terraform and Python tests exercised policies, security analysis, fallback responses, and reporting without deploying six accounts | [Offline test guide](#project-3-offline-validation) |
+| Private application servers | Two healthy EC2 instances served the test page from different Availability Zones, without public IP addresses | [Project 1 exercise](../project-1-cloud-foundation/evidence/2026-11-08.md) |
+| Secure web traffic | HTTPS returned a healthy response; WAF blocked a harmless simulated attack | [Project 1 exercise](../project-1-cloud-foundation/evidence/2026-11-08.md) |
+| Database recovery | A known record survived a restore to a separate encrypted RDS database. Request to verified read: **10m 02s** | [Project 1 recovery timeline](../project-1-cloud-foundation/evidence/2026-11-08.md#recovery-timeline) |
+| Monitoring | CloudWatch recorded an unhealthy-target alarm entering and leaving the alarm state | [Project 1 observations](../project-1-cloud-foundation/evidence/observations.json) |
+| AI handler and persistence | A direct Lambda test produced a stored, encrypted fallback report; a separate local handler test exercised a live model response | [Project 1 exercise](../project-1-cloud-foundation/evidence/2026-11-08.md) |
+| Automated container deployment | GitHub Actions authenticated through OIDC, built and scanned an image, then deployed it to private ECS tasks | [Project 2 exercise](../project-2-ecs-cicd/evidence/2026-11-08.md) |
+| Failed release recovery | A deliberately broken ECS revision recovered to the previous healthy version in **13m 47s** | [Project 2 exercise](../project-2-ecs-cicd/evidence/2026-11-08.md) |
+| Container security review | A newer image reduced ECR's HIGH findings from nine to two, with no CRITICAL findings in either image scan | [Project 2 scan comparison](../project-2-ecs-cicd/evidence/image-rescan.json) |
+| Enterprise governance | Terraform and Python tests exercised policies, security analysis, fallback responses, and reporting without deploying six accounts | [Offline test guide](../project-3-cloud-governance/README.md#operations) |
 
 The original exercises also uncovered actual problems: an AWS Lambda concurrency limit, a KMS permission issue, a container temporary-file failure, and container package vulnerabilities. The dated reports show those failures and how they were handled. That troubleshooting is part of the project, not something to hide.
 
@@ -168,7 +79,7 @@ This matrix records the scope of the November 8 exercise and its offline checks.
 | P1 alarm-to-Lambda delivery | Not yet validated | The shared account could not reserve the configured concurrency. |
 | P2 container health and headers | Automated validated | Flask tests exercise the HTTP routes. |
 | P2 private Fargate, HTTPS ALB, WAF and telemetry | Live validated | Two healthy task ENIs across two AZs without public addresses, serving SHA matched, WAF probe returned 403 and application logs arrived. |
-| P2 OIDC delivery, immutable ECR image and ECS release | Live validated in dev | GitHub assumed the environment-scoped role, built and scanned the image, then deployed the revision. The running digest matched ECR. See the [live run and scan findings](PROJECT-2-LIVE-2026-11-08.md). |
+| P2 OIDC delivery, immutable ECR image and ECS release | Live validated in dev | GitHub assumed the environment-scoped role, built and scanned the image, then deployed the revision. The running digest matched ECR. See the [live run and scan findings](../project-2-ecs-cicd/evidence/2026-11-08.md). |
 | P2 native failed-release recovery | Live validated | A controlled startup failure in revision 4 triggered ECS rollback to revision 3 in 13m 47s, with the expected HTTPS response after recovery. |
 | P2 load-driven scaling, workflow-triggered smoke-failure rollback, stage/prod boundaries | Not yet validated live | The dev scaling range and alarm configuration were observed. Only the native circuit breaker failure path was exercised. |
 | P3 six-account topology, OU attachment targets, service delegation and Identity Center grants | Automated validated, configuration contracts | Tests inspect actual Terraform blocks, opt-ins, assignment targets and managed policies. |
@@ -176,23 +87,6 @@ This matrix records the scope of the November 8 exercise and its offline checks.
 | P3 CloudTrail, log archive, dashboard trust, least privilege and Cognito GET protection | Automated validated, configuration contracts | Tests check trail, archive key policies, exact role conditions, table permissions and GET authorizer wiring. |
 | P3 GuardDuty findings imported through Security Hub, AI triage, FinOps, dashboard and fallbacks | Automated validated, local runtime | Synthetic events and recording clients exercise handler logic, pagination, severity floors, persistence, error sanitization and degraded responses. |
 | P3 OU enforcement, STS decisions, service enrollment, CloudTrail delivery, Identity Center login and real token acceptance/rejection | Not yet validated | Enterprise integration environment required for multi-account claims. No Project 3 deployment planned. |
-
-## Final integration and automation checks
-
-The finished engineering work uses **one application contract across EC2 and ECS**. Its validation covers:
-
-| Area | What the check demonstrates |
-| --- | --- |
-| Application and database | The same app can run in both hosting models and read/write synthetic MySQL data |
-| AI incident handling | A matching alarm is routed to the handler, evidence is bounded and checked, and encrypted analysis results are saved and sent to an operator |
-| Backup and recovery | AWS Backup, point-in-time recovery, and controlled database failover have a repeatable procedure with data checks and timing |
-| GitHub deployment rollback | The release workflow can detect a failed smoke test and restore a healthy revision independently of ECS-native rollback |
-| Scaling | A bounded test can drive ECS above its minimum task count and back down |
-| Container security | Images are rebuilt and scanned; outstanding vendor findings are tracked rather than ignored |
-| CI controls | Mandatory test gates fail when required checks fail; advisory checks are identified clearly |
-| Governance | Terraform and local runtime tests validate enterprise policy and operations behavior without maintaining multiple AWS accounts |
-
-**Test procedures and automated checks are different from a recorded live result.** The dated reports above remain the source for measured AWS outcomes. New live results should be added as new dated evidence rather than changing history.
 
 ## Validation windows and evidence to capture
 

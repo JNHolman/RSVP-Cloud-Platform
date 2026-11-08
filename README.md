@@ -10,11 +10,21 @@ I moved RSVP Society to event-driven services—Lambda, API Gateway, DynamoDB, a
 
 | Stage | Engineering focus | What it demonstrates |
 | --- | --- | --- |
-| **1. Foundation** | Private EC2, ALB/WAF, Multi-AZ RDS, monitoring, backups | Secure networking, availability, recovery, incident analysis |
-| **2. Delivery** | ECS Fargate, ECR, GitHub OIDC, CI/CD | Immutable releases, private containers, health checks, rollback |
-| **3. Governance** | Organizations, SCPs, identity, audit logging, security and cost analysis | Multi-account operating controls, tested offline |
+| [Cloud Foundation](project-1-cloud-foundation/README.md) | Private EC2, ALB/WAF, Multi-AZ RDS, monitoring, backups | Secure networking, availability, recovery, incident analysis |
+| [ECS & CI/CD](project-2-ecs-cicd/README.md) | ECS Fargate, ECR, GitHub OIDC, CI/CD | Immutable releases, private containers, health checks, rollback |
+| [Cloud Governance](project-3-cloud-governance/README.md) | Organizations, SCPs, identity, audit logging, security and cost analysis | Multi-account operating controls, tested offline |
 
-The first two stages use the same small application and data contract. The third models enterprise controls without claiming a live six-account deployment.
+Foundation establishes the network, recovery and monitoring boundaries. Delivery carries those requirements into the container release process. Governance models how an organization could enforce them across accounts. The historical EC2 exercise served an Apache page and verified MySQL recovery separately. The ECS exercise served a versioned Flask application.
+
+```mermaid
+flowchart LR
+  A["Foundation: HTTPS edge → private EC2"] -->|modernize delivery| B["Delivery: OIDC → ECR → private ECS"]
+  A --> C["Encrypted RDS snapshots and recovery"]
+  A --> D["CloudWatch alarms and advisory AI"]
+  B --> E["Version check and ECS rollback"]
+  B -. enterprise design .-> F["Governance: identity, SCPs, security findings and FinOps"]
+```
+
 
 ## What I verified
 
@@ -22,7 +32,7 @@ The first two stages use the same small application and data contract. The third
 - **Project 2:** GitHub OIDC delivery to private ECS tasks and a deliberately failed release recovered by the ECS circuit breaker. **Measured rollback: 13m 47s.**
 - **Project 3:** Terraform policy and application behavior validated offline. Organization-wide enforcement has not been tested live.
 
-These are dated test results, not claims that every integration is currently deployed. See the [Project 1](docs/PROJECT-1-LIVE-2026-11-08.md) and [Project 2](docs/PROJECT-2-LIVE-2026-11-08.md) reports.
+These are dated test results, not claims that every integration is currently deployed. See the [Project 1](project-1-cloud-foundation/evidence/2026-11-08.md) and [Project 2](project-2-ecs-cicd/evidence/2026-11-08.md) reports.
 
 ## Engineering decisions
 
@@ -36,6 +46,6 @@ These are dated test results, not claims that every integration is currently dep
 
 ## Documentation
 
-[Architecture](docs/ARCHITECTURE.md) · [Operations, validation, costs, and cleanup](docs/OPERATIONS.md)
+[Operations, validation, costs, and cleanup](shared/OPERATIONS.md)
 
 **Josh Holman** — Network / Cloud Infrastructure Engineer

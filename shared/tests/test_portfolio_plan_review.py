@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-SCRIPT = Path(__file__).resolve().parents[1] / "scripts/review-portfolio-plan.py"
+SCRIPT = Path(__file__).resolve().parents[2] / "shared/review-portfolio-plan.py"
 
 
 @pytest.mark.parametrize("project,host,target", [

@@ -3,8 +3,8 @@ from pathlib import Path
 
 
 def test_dynamodb_runtime_roles_do_not_receive_unnecessary_kms_or_extra_read_permissions():
-    security = Path("infrastructure/project-3-cloud-governance/security-admin/ai-operations.tf").read_text()
-    finops = Path("infrastructure/project-3-cloud-governance/finops-ai/main.tf").read_text()
+    security = Path("project-3-cloud-governance/security-admin/ai-operations.tf").read_text()
+    finops = Path("project-3-cloud-governance/finops-ai/main.tf").read_text()
 
     # DynamoDB transparently uses its table encryption key. Application execution
     # roles should be authorized for table API calls, not KMS grant administration.
@@ -24,8 +24,8 @@ def test_dynamodb_runtime_roles_do_not_receive_unnecessary_kms_or_extra_read_per
 
 
 def test_runtime_iam_matches_actual_api_calls():
-    p1 = re.sub(r"[ \t]+", " ", Path("infrastructure/project-1-cloud-platform/iam.tf").read_text())
-    finops = Path("infrastructure/project-3-cloud-governance/finops-ai/main.tf").read_text()
+    p1 = re.sub(r"[ \t]+", " ", Path("project-1-cloud-foundation/terraform/iam.tf").read_text())
+    finops = Path("project-3-cloud-governance/finops-ai/main.tf").read_text()
 
     assert 'Action = ["logs:FilterLogEvents"]' in p1
     assert 'logs:GetLogEvents' not in p1
@@ -38,19 +38,19 @@ def test_runtime_iam_matches_actual_api_calls():
 
 
 def test_project2_container_base_is_patch_and_distro_pinned():
-    dockerfile = Path("infrastructure/project-2-ecs-cicd/app/Dockerfile").read_text()
+    dockerfile = Path("project-2-ecs-cicd/app/Dockerfile").read_text()
     assert dockerfile.startswith("FROM python:3.12.15-slim-trixie\n")
     assert "FROM python:3.12-slim\n" not in dockerfile
 
 
 def test_release_validator_runs_complete_contract_suite():
-    validator = Path("scripts/validate-release.sh").read_text()
-    assert "python -m pytest -q -p no:cacheprovider tests" in validator
+    validator = Path("shared/validate-release.sh").read_text()
+    assert "python -m pytest -q -p no:cacheprovider shared/tests project-1-cloud-foundation/tests project-2-ecs-cicd/tests project-3-cloud-governance/tests" in validator
     assert "tests/test_runtime_ai.py tests/test_infra_contracts.py" not in validator
 
 
 def test_project1_asg_replacement_can_honor_create_before_destroy():
-    ec2 = Path("infrastructure/project-1-cloud-platform/ec2.tf").read_text()
+    ec2 = Path("project-1-cloud-foundation/terraform/ec2.tf").read_text()
     block = ec2.split('resource "aws_autoscaling_group" "app_asg" {', 1)[1].split('\n}', 1)[0]
     assert 'name_prefix               = "${local.name_prefix}-asg-"' in block
     assert 'create_before_destroy = true' in block
@@ -59,7 +59,7 @@ def test_project1_asg_replacement_can_honor_create_before_destroy():
 
 def test_ci_runs_complete_top_level_contract_suite():
     workflow = Path(".github/workflows/ci.yml").read_text()
-    assert "infrastructure/project-2-ecs-cicd/app/tests\n          tests" in workflow
+    assert "project-2-ecs-cicd/app/tests\n          shared/tests project-1-cloud-foundation/tests project-2-ecs-cicd/tests project-3-cloud-governance/tests" in workflow
     assert "tests/test_runtime_ai.py\n          tests/test_infra_contracts.py" not in workflow
 
 
@@ -77,7 +77,7 @@ def test_checkov_retention_exception_is_explicit_and_narrow():
 
 
 def test_remote_state_examples_require_customer_managed_kms_key():
-    backend_examples = list(Path("infrastructure").glob("**/backend.hcl.example"))
+    backend_examples = list(Path(".").glob("**/backend.hcl.example"))
     assert backend_examples
     for path in backend_examples:
         text = path.read_text()
@@ -86,7 +86,7 @@ def test_remote_state_examples_require_customer_managed_kms_key():
 
 
 def test_state_bucket_rejects_non_kms_or_wrong_key_writes():
-    state = Path("infrastructure/bootstrap-state/main.tf").read_text()
+    state = Path("shared/bootstrap-state/main.tf").read_text()
     assert 'sid     = "DenyStateWritesWithoutKMS"' in state
     assert 'variable = "s3:x-amz-server-side-encryption"' in state
     assert 'values   = ["aws:kms"]' in state
@@ -96,7 +96,7 @@ def test_state_bucket_rejects_non_kms_or_wrong_key_writes():
 
 
 def test_dashboard_cors_origin_is_a_single_explicit_https_origin():
-    variables = Path("infrastructure/project-3-cloud-governance/workload/variables.tf").read_text()
+    variables = Path("project-3-cloud-governance/workload/variables.tf").read_text()
     assert '^https://[A-Za-z0-9.-]+(:[0-9]{1,5})?$' in variables
     assert '!strcontains(var.dashboard_allowed_origin, "*")' in variables
     assert '!strcontains(var.dashboard_allowed_origin, ",")' in variables
@@ -105,28 +105,28 @@ def test_dashboard_cors_origin_is_a_single_explicit_https_origin():
 
 def test_cleanup_docs_do_not_claim_protected_recovery_keys_are_disposable():
     readme = Path("README.md").read_text(encoding="utf-8")
-    runbook = Path("docs/OPERATIONS.md").read_text(encoding="utf-8")
+    runbook = Path("shared/OPERATIONS.md").read_text(encoding="utf-8")
     assert "Project 1 recovery KMS keys have intentional Terraform destruction guards" in readme
     assert "do not expect an unrestricted `terraform destroy`" in runbook.lower()
     assert "snapshots" in runbook.lower() and "recovery points" in runbook.lower()
 
 
 def test_workload_stack_has_no_unused_placeholder_app_log_group():
-    workload = Path("infrastructure/project-3-cloud-governance/workload")
+    workload = Path("project-3-cloud-governance/workload")
     terraform = "\n".join(p.read_text(encoding="utf-8") for p in workload.glob("*.tf"))
     assert "workload_app_logs" not in terraform
     assert "/workload/app" not in terraform
 
 
 def test_project3_runbook_requires_state_kms_backend_placeholder_replacement():
-    runbook = Path("docs/OPERATIONS.md").read_text(encoding="utf-8")
+    runbook = Path("project-3-cloud-governance/README.md").read_text(encoding="utf-8")
     project3 = runbook
     assert "REPLACE_WITH_TERRAFORM_STATE_KMS_KEY_ARN" in project3
     assert "state-bootstrap outputs" in project3
 
 
 def test_prod_oidc_runbook_requires_github_environment_protection():
-    runbook = Path("docs/OPERATIONS.md").read_text(encoding="utf-8")
+    runbook = Path("project-2-ecs-cicd/README.md").read_text(encoding="utf-8")
     assert "GitHub Environment protection rules for `prod`" in runbook
     assert "restrict deployment branches/tags" in runbook
     assert "production authorization boundary" in runbook
@@ -138,23 +138,23 @@ def test_project3_project_name_inputs_are_bounded_for_generated_aws_names():
         "security-admin", "workload", "finops-ai",
     ]
     for root in roots:
-        text = Path(f"infrastructure/project-3-cloud-governance/{root}/variables.tf").read_text()
+        text = Path(f"project-3-cloud-governance/{root}/variables.tf").read_text()
         assert 'project_name must be 1-32 characters' in text, root
         assert '^[a-z0-9]([a-z0-9-]{0,30}[a-z0-9])?$' in text, root
 
 
 def test_dashboard_cross_account_reader_configuration_cannot_be_half_set():
     for root in ["security-admin", "finops-ai"]:
-        prereq = Path(f"infrastructure/project-3-cloud-governance/{root}/prerequisites.tf").read_text()
-        variables = Path(f"infrastructure/project-3-cloud-governance/{root}/variables.tf").read_text()
+        prereq = Path(f"project-3-cloud-governance/{root}/prerequisites.tf").read_text()
+        variables = Path(f"project-3-cloud-governance/{root}/variables.tf").read_text()
         assert 'dashboard_reader_account_id and dashboard_reader_role_name must either both be set or both be empty.' in prereq
         assert '^[A-Za-z0-9+=,.@_-]{1,64}$' in variables
         assert 'must be empty or a valid SNS topic ARN.' in variables
 
 
 def test_strict_release_validator_cannot_skip_ci_security_gates_silently():
-    script = Path("scripts/validate-release.sh").read_text()
-    for gate in ["ruff check", "pip-audit -r", "checkov -d infrastructure", "tflint --init", "trivy image"]:
+    script = Path("shared/validate-release.sh").read_text()
+    for gate in ["ruff check", "pip-audit -r", "checkov -d .", "tflint --init", "trivy image"]:
         assert gate in script, gate
     for message in [
         "Python lint gate not executed",
@@ -168,10 +168,10 @@ def test_strict_release_validator_cannot_skip_ci_security_gates_silently():
 
 def test_checkov_lambda_exceptions_are_scoped_and_explained():
     lambda_files = {
-        "infrastructure/project-1-cloud-platform/ai-logs.tf": ["CKV_AWS_117"],
-        "infrastructure/project-3-cloud-governance/security-admin/ai-operations.tf": ["CKV_AWS_117"],
-        "infrastructure/project-3-cloud-governance/finops-ai/main.tf": ["CKV_AWS_117"],
-        "infrastructure/project-3-cloud-governance/workload/api.tf": ["CKV_AWS_116", "CKV_AWS_117"],
+        "project-1-cloud-foundation/terraform/ai-logs.tf": ["CKV_AWS_117"],
+        "project-3-cloud-governance/security-admin/ai-operations.tf": ["CKV_AWS_117"],
+        "project-3-cloud-governance/finops-ai/main.tf": ["CKV_AWS_117"],
+        "project-3-cloud-governance/workload/api.tf": ["CKV_AWS_116", "CKV_AWS_117"],
     }
     for path, checks in lambda_files.items():
         text = Path(path).read_text()
