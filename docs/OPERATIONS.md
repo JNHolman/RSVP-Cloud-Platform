@@ -137,7 +137,7 @@ Before cleanup, identify which resources are expendable and which must stay to p
 
 The November 8 cost plan estimated approximately **$0.72/hour** for Project 1 and **$0.18/hour** for Project 2 while running, before variable usage. The billed amount is not established by those figures. The next billing review is scheduled for **November 15, 2026**.
 
-[Original live AWS exercises](#original-live-aws-exercises--november-8-2026)
+[Original live AWS exercises](#the-original-live-aws-exercises--november-8-2026)
 
 
 ---
@@ -158,7 +158,7 @@ These are the **measured results from the original deployment sessions**. They s
 | Automated container deployment | GitHub Actions authenticated through OIDC, built and scanned an image, then deployed it to private ECS tasks | [Project 2 exercise](PROJECT-2-LIVE-2026-11-08.md) |
 | Failed release recovery | A deliberately broken ECS revision recovered to the previous healthy version in **13m 47s** | [Project 2 exercise](PROJECT-2-LIVE-2026-11-08.md) |
 | Container security review | A newer image reduced ECR's HIGH findings from nine to two, with no CRITICAL findings in either image scan | [Project 2 scan comparison](evidence/project-2-2026-11-08/image-rescan.json) |
-| Enterprise governance | Terraform and Python tests exercised policies, security analysis, fallback responses, and reporting without deploying six accounts | [Offline test guide](DEPLOYMENT.md#project-3-offline-validation) |
+| Enterprise governance | Terraform and Python tests exercised policies, security analysis, fallback responses, and reporting without deploying six accounts | [Offline test guide](OPERATIONS.md#project-3-offline-validation) |
 
 The original exercises also uncovered actual problems: an AWS Lambda concurrency limit, a KMS permission issue, a container temporary-file failure, and container package vulnerabilities. The dated reports show those failures and how they were handled. That troubleshooting is part of the project, not something to hide.
 
