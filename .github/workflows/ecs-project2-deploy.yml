@@ -9,6 +9,10 @@ on:
         type: choice
         options: [dev, stage, prod]
         default: dev
+      exercise_rollback:
+        description: Dev only. Deploy a deliberately mismatched version to exercise smoke-test rollback.
+        type: boolean
+        default: false
 
 permissions:
   id-token: write
@@ -28,7 +32,14 @@ jobs:
       CONTAINER_NAME: app
     steps:
       - name: Resolve deployment configuration
+        env:
+          EXERCISE_ROLLBACK: ${{ inputs.exercise_rollback }}
+          TARGET_ENV: ${{ inputs.environment }}
         run: |
+          if [[ "$EXERCISE_ROLLBACK" == "true" && "$TARGET_ENV" != "dev" ]]; then
+            echo "Rollback exercises require the dev environment" >&2
+            exit 1
+          fi
           REGION="${AWS_REGION:-us-east-1}"
           PROJECT="${PROJECT_NAME:-rsvp-project2}"
           test -n "$REGION"
@@ -144,7 +155,13 @@ jobs:
           echo "BASE_TASK_DEF=$BASE_TASK_DEF" >> "$GITHUB_ENV"
 
       - name: Build next task definition
+        env:
+          EXERCISE_ROLLBACK: ${{ inputs.exercise_rollback }}
         run: |
+          release_version="${GITHUB_SHA::7}"
+          if [[ "$EXERCISE_ROLLBACK" == "true" ]]; then
+            release_version="rollback-exercise-$release_version"
+          fi
           aws ecs describe-task-definition \
             --task-definition "$BASE_TASK_DEF" \
             --query taskDefinition > task-definition.json
@@ -152,7 +169,7 @@ jobs:
           jq \
             --arg IMAGE "$IMAGE_URI" \
             --arg CONTAINER "$CONTAINER_NAME" \
-            --arg SHA "${GITHUB_SHA::7}" \
+            --arg SHA "$release_version" \
             '.containerDefinitions |= map(
               if .name == $CONTAINER then
                 .image = $IMAGE |

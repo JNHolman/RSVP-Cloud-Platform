@@ -31,7 +31,7 @@ cat >/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json <<CWA
             "log_stream_name": "{instance_id}/access"
           },
           {
-            "file_path": "/var/log/rsvp/application.log",
+            "file_path": "/var/log/rsvp-application.log",
             "log_group_name": "/${local.name_prefix}/app",
             "log_stream_name": "{instance_id}/application"
           },
@@ -71,8 +71,7 @@ Environment=AWS_REGION=${var.aws_region}
 Environment=RDS_CA_FILE=/opt/rsvp/rds-ca.pem
 Environment=ENV_NAME=${var.environment}
 Environment=APP_VERSION=${substr(filesha256("${path.module}/../../project-2-ecs-cicd/app/app.py"), 0, 12)}
-LogsDirectory=rsvp
-StandardError=append:/var/log/rsvp/application.log
+StandardError=append:/var/log/rsvp-application.log
 ExecStart=/opt/rsvp/venv/bin/gunicorn --bind 127.0.0.1:8080 app:app
 Restart=on-failure
 NoNewPrivileges=yes
