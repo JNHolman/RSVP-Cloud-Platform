@@ -102,7 +102,7 @@ resource "aws_route_table_association" "public_assoc" {
 ##############################################
 
 resource "aws_eip" "nat" {
-  count = length(aws_subnet.public)
+  count  = length(aws_subnet.public)
   domain = "vpc"
 
   tags = {

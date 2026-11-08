@@ -159,14 +159,14 @@ resource "aws_sqs_queue" "ai_analysis_dlq" {
 
 resource "aws_lambda_function" "ai_log_summarizer" {
   #checkov:skip=CKV_AWS_117:This function only needs public AWS/OpenAI endpoints; VPC attachment would add NAT dependency without protecting a private data path.
-  function_name = "${local.name_prefix}-ai-log-summarizer"
-  runtime       = "python3.12"
-  handler       = "ai_log_summarizer.lambda_handler"
-  role          = aws_iam_role.ai_lambda_role.arn
-  filename         = data.archive_file.ai_lambda_zip.output_path
-  source_code_hash = data.archive_file.ai_lambda_zip.output_base64sha256
-  timeout          = 45
-  memory_size      = 256
+  function_name                  = "${local.name_prefix}-ai-log-summarizer"
+  runtime                        = "python3.12"
+  handler                        = "ai_log_summarizer.lambda_handler"
+  role                           = aws_iam_role.ai_lambda_role.arn
+  filename                       = data.archive_file.ai_lambda_zip.output_path
+  source_code_hash               = data.archive_file.ai_lambda_zip.output_base64sha256
+  timeout                        = 45
+  memory_size                    = 256
   reserved_concurrent_executions = 2
   kms_key_arn                    = aws_kms_key.observability.arn
 
@@ -185,7 +185,7 @@ resource "aws_lambda_function" "ai_log_summarizer" {
 
   environment {
     variables = {
-      LOG_GROUP_NAME   = aws_cloudwatch_log_group.app_logs.name
+      LOG_GROUP_NAME    = aws_cloudwatch_log_group.app_logs.name
       OPENAI_SECRET_ARN = var.openai_secret_arn
       OPENAI_MODEL      = var.ai_model
       S3_BUCKET         = aws_s3_bucket.ai_logs.bucket
@@ -200,7 +200,7 @@ resource "aws_cloudwatch_event_rule" "ai_alarm_rule" {
   name        = "${local.name_prefix}-ai-alarm-rule"
   description = "Send production alarm state changes for advisory AI analysis"
   event_pattern = jsonencode({
-    source = ["aws.cloudwatch"]
+    source        = ["aws.cloudwatch"]
     "detail-type" = ["CloudWatch Alarm State Change"]
     detail = {
       alarmName = [
