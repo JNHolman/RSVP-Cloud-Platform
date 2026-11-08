@@ -98,7 +98,7 @@ On the container side, I used GitHub Actions to release an application to privat
 
 Those are measured results, not estimates. The dated reports preserve the exact test conditions and engineering problems encountered along the way. The shared-application integration and additional automation checks are covered by the project's final test plan and code-level validation.
 
-[Project 1 test record](docs/PROJECT-1-LIVE-2026-11-08.md) · [Project 2 test record](docs/PROJECT-2-LIVE-2026-11-08.md) · [Validation details](docs/PORTFOLIO-VALIDATION.md)
+[The full testing record and measured results](docs/OPERATIONS.md#validation-and-evidence)
 
 ## The trade-off is the point
 
@@ -117,13 +117,9 @@ The biggest lesson from the whole project isn't that I learned how to configure 
 
 It's that **good engineering includes knowing when not to use them.**
 
-## Take a closer look
+## Technical details
 
-- [How the platform is designed](docs/ARCHITECTURE.md) — the three stages, how they fit together, and the decisions behind them.
-- [Testing and evidence](docs/PORTFOLIO-VALIDATION.md) — what the AWS exercises demonstrated and how the remaining checks are organized.
-- [Deployment and recovery guide](docs/DEPLOYMENT.md) — the technical procedures and safety controls.
-- [Infrastructure code](infrastructure/) — Terraform, workloads, and governance.
-- [GitHub workflows](.github/workflows/) — tests, security checks, and application deployment.
+The [architecture](docs/ARCHITECTURE.md) explains how the system works. The [operations guide](docs/OPERATIONS.md) contains deployment procedures, security checks, recovery tests, cost calculations, and original test evidence.
 
 ---
 
