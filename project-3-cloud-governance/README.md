@@ -1,46 +1,40 @@
 # Part 3 — Cloud Governance
 
-**What changes when a protected application becomes an organization-wide responsibility?**
+**A reference design for applying the same security and operational discipline across an AWS organization.**
 
-The first two parts are about running and delivering workloads safely. This part explores how to apply those principles across AWS accounts, teams, and operational responsibilities.
+A single workload can use private networks, encryption, monitoring, and careful deployment controls. As the number of teams and accounts grows, the harder question becomes who is allowed to change those controls—and who can independently see what happened.
+
+This part explores that question with Terraform and Python. It is an **offline-tested six-account design**, not a running six-account AWS deployment.
 
 ```text
-AWS Organizations + Service Control Policies
-                  |
-     Identity and account boundaries
-                  |
-  +---------------+----------------+
-  |               |                |
-Security       Log archive      Workloads
-  |               |                |
-Findings and   Audit trail      Applications
-AI triage      retention        and dashboards
-                  |
-           Cost visibility
+Management / AWS Organizations
+  ├── Security account          → central findings and incident analysis
+  ├── Log archive account       → separated audit evidence
+  ├── Shared services account   → shared infrastructure responsibilities
+  ├── Nonproduction account     → workload testing boundary
+  └── Production account        → protected workload boundary
 ```
 
-## The design
+## The engineering work
 
-**Account boundaries.** The Terraform design separates management, security, logging, shared services, and workload responsibilities. This reduces the risk of one application account controlling its own security evidence.
+**Separate duties across accounts.** Organizations and service control policies (SCPs) model limits on what member accounts can change. IAM Identity Center defines human access. Security and log archive responsibilities sit outside the application accounts so audit and security controls don't depend solely on the teams being monitored.
 
-**Guardrails and identity.** Service Control Policies (SCPs) describe organization-wide limits. IAM Identity Center models how people receive access. Existing AWS accounts can be referenced, but the configuration does not automatically move them into organizational units; OU placement determines which SCPs apply.
+**Apply guardrails where they matter.** Terraform models organizational-unit policy attachments and defined administrator exceptions. Referencing existing accounts **does not automatically move them into organizational units**; **OU placement determines which SCPs apply**. These are configuration and enforcement boundaries, not merely labels.
 
-**Security and operations.** GuardDuty, Security Hub, AWS Config aggregation, CloudTrail, and central dashboards are represented in the design. Config aggregation only covers accounts **where Config recording is enabled**. The AI handlers summarize approved security, incident, and cost evidence; they don't take remediation actions.
+**Centralize signals without handing AI the controls.** GuardDuty, Security Hub, CloudTrail, and AWS Config aggregation are included in the design, alongside incident analysis and dashboards. Config aggregation covers accounts only **where Config recording is enabled**. Analysis functions have bounded inputs and fallback handling; they report findings rather than automatically changing resources.
 
-**Cost and accountability.** The FinOps component analyzes Cost Explorer data. In keeping with the original RSVP Society lesson, the goal is to understand what infrastructure costs and whether the business justifies it.
+**Make costs visible.** FinOps analysis works with Cost Explorer data. This closes the loop on the original RSVP Society lesson: enterprise infrastructure should be justified by its workload and operating cost, not just by how much can be provisioned.
 
-Separate Terraform roots exist here for a technical reason: management, security, log archive, and workload accounts must not accidentally share the same state or permissions. This is intentional separation, not three more independent portfolios.
+Separate Terraform roots keep management, security, archive, and workload deployments in their appropriate state and permission boundaries. Their separation protects those responsibilities while the work remains one coherent platform design.
 
-## What I verified
+## What was validated
 
-This is a **six-account reference design tested offline**, not a live six-account deployment.
+Terraform tests exercised policy generation and SCP exceptions. Python tests covered configuration contracts, security/incident handling, dashboard reads, cost analysis, and fallback behavior.
 
-Terraform tests exercised generated policy rules and exceptions. Python tests exercised identity/security configuration, finding analysis, dashboard behavior, cost handling, and deterministic fallbacks. That demonstrates the logic and implementation contracts—not live AWS enforcement.
+These checks demonstrate that the **policies and application logic are implemented and tested offline**. They do **not** prove that a live AWS organization enforced SCPs, Identity Center grants, cross-account audit delivery, or security aggregation. There is no live six-account console evidence to claim.
 
-There are no genuine AWS console screenshots for this part because it has not been deployed across six accounts. I have not substituted a simulated console view.
+[Policy test source](modules/scp-policies/tests/guardrails.tftest.hcl) · [Governance test suite](tests/)
 
-[Policy test source](modules/scp-policies/tests/guardrails.tftest.hcl) · [Governance test source](tests/)
+Foundation established the workload controls. Delivery applied them to releases. Governance shows how I would extend them across an organization.
 
-This completes the progression: establish reliable infrastructure, deliver changes safely, then design the controls that would govern a larger environment.
-
-[Back to the full platform](../README.md)
+[Platform overview](../README.md)

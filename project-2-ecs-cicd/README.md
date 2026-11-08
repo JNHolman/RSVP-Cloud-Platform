@@ -1,50 +1,41 @@
 # Part 2 — ECS & CI/CD
 
-**The next question: how do you change a running application without making the environment less reliable?**
+**The same emphasis on private networking and recovery, applied to shipping application changes.**
 
-The foundation focused on hosting and protecting a workload. This part applies those same networking and reliability principles to container delivery.
+Hosting a workload safely is only half the problem. Releases introduce new failure modes: bad images, unhealthy containers, unexpected configuration changes, and uncertainty about which version is running. I used ECS Fargate and GitHub Actions to make those changes traceable and recoverable.
 
 ```text
-GitHub Actions (tests and scanning)
-           |
-Short-lived AWS credentials via OIDC
-           |
-Immutable Git-SHA container image in ECR
-           |
-Private ECS Fargate tasks behind HTTPS + WAF
-           |
-Health validation and release recovery
+GitHub Actions → tests / scan → OIDC role → ECR image tagged with Git SHA
+                                              |
+                                    private ECS Fargate
+                                              |
+                                    HTTPS / WAF / ALB
 ```
 
-## Engineering choices
+## The engineering work
 
-**No stored AWS deployment keys.** GitHub Actions assumes a scoped AWS role through OIDC. Deployment permissions are limited by repository and GitHub Environment; production approval and branch restrictions are part of that boundary.
+**Scoped release credentials.** GitHub Actions uses OIDC to assume a temporary AWS role rather than storing long-lived deployment keys. The trust is restricted by repository and GitHub Environment; production access depends on the appropriate environment and branch protections.
 
-**Traceable releases.** A container image is associated with a specific Git commit. The release process checks health and the expected version after deployment, so a healthy endpoint serving the wrong version isn't mistaken for success.
+**Knowing exactly what shipped.** Images are identified by Git commit rather than a mutable `latest` tag. The workflow verifies the expected version through the live health endpoint and confirms the release against the task definition and image.
 
-**Clear ownership.** Terraform defines the infrastructure and task-definition baseline. GitHub Actions manages application releases. The ECS service is configured so an infrastructure-only Terraform change does not silently roll back the current release. When a baseline changes, the release process needs to promote that new configuration.
+**Separate ownership for separate changes.** Terraform owns the ECS infrastructure and tagged task-definition baseline. GitHub Actions owns application revision updates. The service ignores Terraform's task-definition drift so an infrastructure-only apply cannot quietly roll a release back. When the baseline changes, the release workflow must pick up that configuration explicitly.
 
-**Two different failure paths.** The ECS deployment circuit breaker can recover from unhealthy task deployments. The GitHub workflow also has a rollback path for failed release checks. These are separate mechanisms; one successful test does not prove both.
+**Recovery without manual guesswork.** ECS can revert an unhealthy deployment through its circuit breaker. The GitHub workflow has a different rollback path for failed deployment or smoke checks. Those protections overlap in purpose but are not the same test.
 
-**Operational security.** Tasks use private networking and a read-only root filesystem. The image build and release workflow include testing and vulnerability scanning.
+## What the AWS exercise actually proved
 
-## What I verified in AWS
+![Live ECS application page displaying its Git revision](evidence/live-homepage.png)
 
-![Versioned application served by private ECS tasks during the live exercise](evidence/live-homepage.png)
+On November 8, 2026, GitHub Actions used OIDC to deploy an immutable image. Two ECS tasks were healthy in private subnets across two Availability Zones. HTTPS, WAF rejection, CloudWatch logging, and the running image digest were verified.
 
-The November 8, 2026 exercise confirmed:
+The first container launch failed because Gunicorn couldn't write its worker temporary file on a read-only root filesystem. Moving the worker heartbeat location to `/dev/shm` solved the startup problem while preserving the filesystem restriction.
 
-- An OIDC-authenticated GitHub release with an immutable ECR image.
-- Two healthy ECS tasks running in different Availability Zones without public IP addresses.
-- HTTPS, WAF behavior, application logs, and the serving Git revision.
-- An intentionally broken ECS task revision recovering to the previous healthy revision in **13 minutes 47 seconds**.
+I also introduced a deliberately broken ECS revision. The circuit breaker restored the previous healthy version in **13 minutes 47 seconds**, without a manual service update. After the demo, an updated base image reduced HIGH ECR scan findings from **nine to two**; the remaining findings were not represented as fixed.
 
-The first container attempt failed because its worker needed a writable temporary location. I corrected that without removing the read-only root-filesystem constraint. After the exercise, rebuilding the image on a newer Debian base reduced ECR HIGH findings from **nine to two**, without claiming those last two were fixed.
+**The limits:** the live failure test proved native ECS rollback, not the separate workflow smoke-test rollback. Autoscaling was configured but not load-tested, and stage/prod deployment was not demonstrated.
 
-The native ECS rollback was proven. Load-driven autoscaling, stage/prod promotion, and the separate GitHub smoke-test rollback were not part of that live exercise.
+[Original release and rollback record](evidence/2026-11-08.md) · [Image scan comparison](evidence/image-rescan.json) · [Controlled deploy workflow run](https://github.com/JNHolman/RSVP-Cloud-Platform/actions/runs/42458363871)
 
-[Full dated release and rollback results](evidence/2026-11-08.md) · [Scan comparison](evidence/image-rescan.json) · [Controlled release run](https://github.com/JNHolman/RSVP-Cloud-Platform/actions/runs/42458363871)
+This layer extends the foundation's security and reliability decisions into how software gets delivered. Part 3 considers how an organization would govern those decisions across accounts.
 
-This part demonstrates that delivery is an engineering system of its own—not just a command that replaces a container.
-
-[Back to the full platform](../README.md) · [Part 3: Governance](../project-3-cloud-governance/README.md)
+[Platform overview](../README.md) · [Part 3: Cloud Governance](../project-3-cloud-governance/README.md)

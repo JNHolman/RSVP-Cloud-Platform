@@ -1,47 +1,41 @@
 # Part 1 — Cloud Foundation
 
-**The infrastructure baseline: secure traffic paths, private workloads, monitoring, and data recovery.**
+**A traditional AWS application architecture, built to test how networking, security, monitoring, and recovery work together.**
 
-I started with the kind of AWS design I would expect to encounter in a traditional enterprise environment: a public entry point, private application servers, and a private database. The goal was not just to make the page load. It was to understand what happens when an instance becomes unhealthy, a request is blocked, or data needs to be recovered.
+This is where the platform's engineering principles began. A public application needs to accept requests, but that doesn't mean its servers or database belong on the public internet. I designed the traffic path around an HTTPS load balancer, private compute across two Availability Zones, and a private encrypted database.
 
 ```text
-Internet
-   |
-HTTPS load balancer + AWS WAF
-   |
-Private EC2 targets (two Availability Zones)
-   |
-Private, encrypted Multi-AZ RDS
+Client → HTTPS / WAF / ALB → private EC2 targets (AZ A and AZ B)
+                                      |
+                           Intended private RDS tier
 ```
 
-## Engineering choices
+The application-to-database path is represented in Terraform, but the original live test served a separate demo page and validated RDS recovery independently.
 
-**Network boundaries.** The load balancer accepts public HTTPS traffic; the application and database don't require public addresses. Security groups control which tier can communicate with the next. The VPC, subnets, and routing are defined in Terraform.
+## The engineering work
 
-**Availability and visibility.** Application targets run across Availability Zones. CloudWatch, VPC Flow Logs, application logs, and alarms expose what the platform is doing rather than leaving failures hidden.
+**Networking and availability.** The VPC separates public entry points from private application subnets. Security-group rules limit access from the ALB to application instances and from the application tier to the database. Each Availability Zone has its own NAT gateway for private outbound access, avoiding a single-AZ egress dependency. An Auto Scaling Group places instances behind the load balancer.
 
-**Data protection.** RDS uses encrypted storage, managed credentials, snapshots, and backup configuration. Recovery depends on keeping the database encryption key available; that key has a Terraform destruction guard. I tested one snapshot restore—not every possible recovery method.
+**Monitoring and security.** WAF filters requests at the edge. VPC Flow Logs, application logs, and CloudWatch alarms provide visibility into traffic, failed requests, and unhealthy targets. An EventBridge-to-Lambda incident-analysis path is defined to examine bounded logs and metrics; results are advisory and stored in encrypted S3 and DynamoDB, with a deterministic fallback.
 
-**Incident analysis.** A CloudWatch alarm can feed bounded evidence into a Lambda-based analyzer, which stores a structured result in encrypted storage. AI is advisory, with a deterministic fallback. It does not make infrastructure changes.
+**Database recovery.** RDS uses encrypted storage, managed credentials, and snapshot/backup configuration. The RDS encryption key has a Terraform destruction guard because retaining a snapshot without its decryption key is not meaningful recovery. My live recovery test used a native RDS snapshot and a separate restored database.
 
-The trade-off is cost. Multiple Availability Zones, a database, NAT gateways, and monitoring are reasonable controls for some workloads, but they were excessive as the everyday architecture for RSVP Society.
+The trade-off is cost. These controls are useful for an enterprise workload, but running compute, a Multi-AZ database, and network egress infrastructure continuously would have been excessive for RSVP Society's intermittent events.
 
-## What I verified in AWS
+## What the AWS exercise actually proved
 
-![Application page served during the November 8 EC2 exercise](evidence/live-homepage.png)
+![Live foundation application page](evidence/live-homepage.png)
 
-On November 8, 2026, the environment demonstrated:
+On November 8, 2026, the test environment had two healthy private EC2 targets in different Availability Zones. HTTPS served the demo page, WAF rejected a synthetic malicious request, logs arrived, and an unhealthy-target alarm entered and exited ALARM.
 
-- Two healthy private application targets in different Availability Zones.
-- Working HTTPS and a WAF response blocking a harmless test request.
-- CloudWatch alarm activity and application/network logging.
-- An encrypted RDS snapshot restored to a separate database; a known test record was read back in **10 minutes 2 seconds**.
-- A directly invoked incident-analysis Lambda producing an encrypted, stored fallback result. A separate local handler test produced an AI result.
+For recovery, I wrote a known database record, created an encrypted snapshot, restored it to a separate private RDS instance, and read the same record over TLS. **Measured restore: 10 minutes 2 seconds.**
 
-The browser page and the database record were tested separately. That exercise **did not** demonstrate an application request reading from RDS. Automatic alarm-to-Lambda delivery, point-in-time recovery, and AZ failover were not measured.
+One incident-analysis Lambda invocation initially failed on DynamoDB key access. After restricting the required decrypt permission to the demo encryption key and context, a direct retry stored a fallback result. A separate local handler test exercised a live AI response.
 
-[Full dated findings and recovery timeline](evidence/2026-11-08.md) · [Recorded observations](evidence/observations.json)
+**The limits:** the demo page did not query RDS; alarm-to-Lambda delivery was not verified; and this exercise did not measure point-in-time recovery or AZ failover. Those distinctions matter when evaluating the architecture.
 
-This part established the security, observability, and recovery principles that shaped the next part of the platform.
+[Full dated test record](evidence/2026-11-08.md) · [Captured observations](evidence/observations.json)
 
-[Back to the full platform](../README.md) · [Part 2: ECS & CI/CD](../project-2-ecs-cicd/README.md)
+This established the network boundaries, failure visibility, and recovery discipline carried into Part 2.
+
+[Platform overview](../README.md) · [Part 2: ECS & CI/CD](../project-2-ecs-cicd/README.md)
