@@ -98,7 +98,7 @@ On the container side, I used GitHub Actions to release an application to privat
 
 Those are measured results, not estimates. The dated reports preserve the exact test conditions and engineering problems encountered along the way. The shared-application integration and additional automation checks are covered by the project's final test plan and code-level validation.
 
-[The full testing record and measured results](docs/OPERATIONS.md#validation-and-evidence)
+[The full testing record and measured results](docs/OPERATIONS.md#validation-and-recovery)
 
 ## The trade-off is the point
 

@@ -168,4 +168,4 @@ The [Project 2 live report](PROJECT-2-LIVE-2026-11-08.md) records GitHub-driven 
 
 Those reports are dated snapshots of earlier exercises. They aren't rewritten to make later engineering changes appear to have happened during the original tests. Integration tests, workflow checks, and additional recovery exercises belong with their own code and evidence.
 
-For commands and safety requirements, use the [operations guide](OPERATIONS.md). For the evidence index, see [testing and validation](OPERATIONS.md#validation-and-evidence).
+For commands and safety requirements, use the [operations guide](OPERATIONS.md). For the evidence index, see [testing and validation](OPERATIONS.md#validation-and-recovery).
