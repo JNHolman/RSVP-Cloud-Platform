@@ -1,16 +1,18 @@
 # Deployment and testing — technical guide
 
-This is the **technical reference** for approved AWS demonstrations. You do not need it to understand the project: start with the [main README](../README.md) or [architecture in plain English](ARCHITECTURE.md).
+This runbook is for someone reproducing the AWS exercises or reviewing the engineering. The business story is in the [main README](../README.md), and the design decisions are in [Architecture](ARCHITECTURE.md).
 
-The three stages describe one intended progression, but **the current EC2 and ECS workloads are separate implementations**. Do not treat the database as connected to the application or claim a migrated shared workload until the integration is implemented and tested.
+The project follows one application's evolution from EC2 hosting to ECS delivery, with enterprise operations built around it. Use isolated environment configuration and explicit resource ownership rather than forcing the two hosting models to run at once.
 
-This guide retains account checks, backend configuration, approval boundaries, and teardown precautions. For actual results, see [tests and evidence](PORTFOLIO-VALIDATION.md).
+The commands below reflect the documented AWS test environments. Follow the matching application and infrastructure configuration in the repository and review the Terraform plan before any AWS changes.
 
-## Current state
+## Historical live-test baseline
 
-Projects 1 and 2 were deployed in isolated dev exercises on November 8, 2026, then their temporary workloads were removed. Some snapshots, keys, logs, images, DNS and Terraform backend resources were retained. Project 3 has **not** been deployed in a multi-account environment.
+The dated November 8 AWS exercises deployed Projects 1 and 2 in isolated dev environments. Temporary workloads were removed after testing. Selected snapshots, encryption keys, logs, images, DNS, and Terraform backend resources were retained.
 
-Do not treat these steps as instructions to change RSVP Society's production environment.
+Project 3's enterprise account architecture is validated through offline tests. That avoids creating six paid AWS accounts for a portfolio exercise.
+
+**Never use these steps to change RSVP Society production.**
 
 ## Before changing AWS
 
@@ -73,9 +75,9 @@ A scope finding means **stop and review**, not override the check. Keep plans an
 
 Only after an explicit approval should anyone apply the reviewed plan.
 
-**What to verify:** HTTPS health; two healthy private instances in different AZs; WAF response; application and VPC logs; alarm state changes; RDS encryption and managed credentials; a backup and a verified restore. Treat alarm-to-AI delivery, AWS Backup recovery, PITR and Multi-AZ failover as **pending tests**, not completed features.
+**What to verify:** HTTPS health; two healthy private instances in different AZs; WAF response; application and VPC logs; a working app-to-database request; alarm-to-AI delivery and saved report; RDS encryption and managed credentials; AWS Backup recovery, point-in-time restore, and a controlled failover. Record observed results separately from configuration checks.
 
-The current EC2 page is a demonstration page and does not execute a database query.
+For application verification, use the shared application's health, version, and database operations. Check the actual database response rather than treating a successful landing-page request as proof that the data path works.
 
 [Previously recorded Project 1 results](PROJECT-1-LIVE-2026-11-08.md)
 
@@ -89,7 +91,7 @@ The current EC2 page is a demonstration page and does not execute a database que
 4. **Deploy the runtime.** Initialize `infrastructure/project-2-ecs-cicd/terraform/` with its matching dev backend, review its plan, and apply only after approval.
 5. **Finish GitHub configuration.** Set `SERVICE_URL` to the service's verified HTTPS URL. Run **ECS Project 2 - Controlled Deploy**, then confirm that `/health` returns the expected release and environment.
 
-**What to verify:** Two healthy private tasks in separate AZs, HTTPS, WAF, logs, the ECR image digest and GitHub's deployment result. The ECS circuit-breaker rollback was already demonstrated. The GitHub smoke-failure rollback and load-driven autoscaling require **separate**, bounded tests.
+**What to verify:** Two healthy private tasks in separate AZs, HTTPS, WAF, logs, the ECR image digest and GitHub's deployment result. The ECS circuit-breaker rollback and GitHub workflow rollback are separate behaviors. Verify each through its own controlled failure path. Use bounded load for autoscaling and record both scale-out and scale-in events.
 
 **Important:** Terraform sets the ECS baseline. The GitHub workflow owns application releases. The ECS service intentionally ignores later task-definition drift so a Terraform-only change does not unexpectedly revert a release. After changing the Terraform task baseline, run Controlled Deploy before claiming that baseline is active.
 

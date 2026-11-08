@@ -1,102 +1,131 @@
 # RSVP Cloud Platform
 
-**Building, modernizing, and operating an application on AWS — with security, automation, and recovery built into the work.**
+**A real business decision that turned into a larger cloud engineering project.**
 
-Imagine a company putting an application in the cloud. Getting the website online is only the beginning. It also needs to protect customer data, release updates safely, detect problems, recover from failures, and keep costs under control.
+This project actually started with [RSVP Society](https://github.com/JNHolman/rsvp-society), the event platform I built for my business. I needed a reliable way to manage members, invitations, RSVPs, guest lists, text messages, and check-in without doing everything manually.
 
-That's the engineering problem I wanted to work through.
+That led to a bigger question: **How should I run the system without spending more on technology than the business needs?**
 
-RSVP Cloud Platform follows that journey in three stages:
+## How I ended up here
 
-| Stage | The question I wanted to answer | What I built |
+My first approach was to move RSVP Society to AWS using a fairly traditional setup: servers, load balancers, private networks, a relational database, backup systems, and layers of monitoring and security.
+
+The design made technical sense. But as I kept building, I realized I was creating a Mack truck for a business that didn't need one.
+
+RSVP Society isn't getting constant traffic all day, every day. Activity picks up when invitations go out, when people respond, and when events are happening. Paying for several servers and networking components to sit there around the clock wasn't a smart business decision.
+
+**Just because I could build it didn't mean the business should pay for it.**
+
+So I changed course.
+
+RSVP Society now uses a lighter, event-driven AWS design. Services such as Lambda, DynamoDB, API Gateway, and EventBridge do work when there's actually work to do. CloudFront handles delivery. Jade, the text assistant, helps with guest conversations, while the application itself enforces the rules around membership, invitations, capacity, and attendance.
+
+I didn't make the business less capable. I removed infrastructure that wasn't helping it.
+
+I also didn't want to throw away the engineering behind that first design. It still had value—just not as the right solution for RSVP Society.
+
+**That's why I kept building RSVP Cloud Platform separately.**
+
+## What RSVP Cloud Platform became
+
+The goal here is different from the goal of RSVP Society.
+
+RSVP Society shows how I built a real business application and made practical decisions about what it needs.
+
+RSVP Cloud Platform shows how I would engineer and operate a **larger AWS environment when the requirements actually justify it**.
+
+I took the original infrastructure idea and developed it in three stages. It's one application and operating model that becomes more capable as the engineering requirements grow.
+
+| Stage | In everyday terms | What I built |
 | --- | --- | --- |
-| **1. Build it** | How do I host an application securely and recover its data? | A private AWS network with EC2 servers, a load balancer, an encrypted database, monitoring, and backups |
-| **2. Modernize it** | How do I release updates without breaking the service? | A containerized application with automated tests, deployments, health checks, scaling rules, and rollback |
-| **3. Operate it** | How do I manage security, access, incidents, and spending as the environment grows? | A multi-account governance design with automated security and cost analysis, tested locally |
+| **1. Build the foundation** | Get an application online, protect it, and make sure its data can be recovered. | Private AWS servers, a database, secure networking, monitoring, backups, and incident analysis |
+| **2. Modernize it** | Make updates easier to release and recover when something goes wrong. | The same application running in containers, with automated testing, deployment, scaling, and rollback |
+| **3. Operate it at scale** | Think about how teams keep a larger environment secure, accountable, and affordable. | Central security, access controls, audit records, cost analysis, and AI-assisted operations |
 
-**This is one engineering journey, not three unrelated AWS service lists.** The code currently uses separate demonstration workloads for the EC2 and container stages; making them one shared application is the remaining integration work. The six-account governance design is deliberately not deployed.
+### Stage 1 — Build the foundation
 
-## What I've demonstrated
+I started with the traditional application setup that first made me consider AWS for RSVP Society.
 
-These aren't just diagrams or planned features. In isolated AWS test environments, I:
+The application runs on private EC2 servers behind a secure public entry point. It reads and writes test data in an encrypted MySQL database. The environment runs across two AWS Availability Zones so it doesn't depend on one location.
 
-- **Protected application traffic.** Served HTTPS through a load balancer and web firewall, while keeping compute instances and containers off the public internet.
-- **Tested real recovery.** Restored an encrypted database snapshot, connected to the restored database, and confirmed the original test record was there. The restore request to verified read took **10 minutes 2 seconds**.
-- **Deployed updates through automation.** Used GitHub Actions and short-lived AWS credentials to test, build, scan, and release a container to ECS.
-- **Broke a release on purpose.** Watched AWS ECS automatically restore the previous healthy version in **13 minutes 47 seconds**.
-- **Tested incident analysis.** Ran the AI handler against test alarm data, verified its safe fallback, and separately checked a live model response. The complete automatic alarm-to-AI path still needs a live test.
+I added monitoring, alerts, backups, and recovery procedures because getting a website to load is only part of running a system. You also need to know when it breaks and how to get it back.
 
-I also wrote offline tests for the governance and security design. **Offline validation is not the same as running a six-account AWS environment.**
+The incident workflow collects relevant alarm and log information and uses AI to help explain what happened. It stores the findings for review. **The AI advises; it doesn't make infrastructure changes.**
 
-[See exactly what passed, what failed, and what remains open](docs/PORTFOLIO-VALIDATION.md).
+### Stage 2 — Modernize the same application
 
-## How the platform grows
+Next, I took the application from Stage 1 and made it run in containers rather than managing the application directly on EC2 servers.
 
-### 1 — Start with a secure foundation
+That let me focus on something every engineering team deals with: **how to release changes without taking down a working service**.
 
-The first stage uses a traditional AWS design: a public entry point, private servers in two Availability Zones, a private MySQL database, monitoring, and backups.
+GitHub Actions tests the code, scans the container, and sends a versioned release to AWS. ECS runs the application, checks its health, adjusts capacity when demand changes, and can return to a working version if a release fails.
 
-I wanted to answer practical questions: Can someone reach the servers directly? Will traffic reach a healthy server if one fails? Can I restore the database and prove the data survived?
+The application behavior stays consistent. What changes is how I package, deploy, and operate it.
 
-**What is working:** The networking, HTTPS, firewall, monitoring signals, and database restore were tested in AWS.
+I don't need to keep both versions running permanently to demonstrate that progression. The test environments can be brought up, validated, and shut down.
 
-**What remains:** The current EC2 demo page does not yet make an application-level query to RDS. Additional backup and failover scenarios also need live testing.
+### Stage 3 — Add the operational controls
 
-### 2 — Make releases safer
+Once an application is running and being updated regularly, the questions change.
 
-The next stage uses a Python application running in containers on ECS Fargate. GitHub Actions tests the application, scans its image, and deploys a version that can be traced back to the source code.
+Who has access? Where do security alerts go? How do you investigate an incident? Who can see audit records? And how do you keep an eye on the AWS bill?
 
-Why? Because a deployment is only successful if the new version actually works — and the team needs a way back when it doesn't.
+This stage develops those capabilities through a multi-account AWS design, centralized security and logging, identity controls, cost analysis, and AI-assisted investigation.
 
-**What is working:** A GitHub-driven release, two healthy private containers across two Availability Zones, and an ECS-managed rollback were demonstrated.
+I modeled the larger enterprise setup and tested its policies and analysis code locally. There's no reason to keep six AWS accounts running just to show how those responsibilities should be separated.
 
-**What remains:** The GitHub workflow's separate rollback path and load-driven autoscaling need live tests. The newer container image also has two reported high-severity findings that need to be resolved or assessed.
+## The engineering behind it
 
-### 3 — Prepare to operate at a larger scale
+A few things matter more to me than the number of services in the architecture.
 
-The final stage asks how the same operating approach would work across teams and AWS accounts.
+**Protect the traffic.** The servers and database stay private. Customers reach the application through HTTPS and a web firewall, not by connecting directly to internal systems.
 
-The design separates applications, security administration, and audit logs. It includes account-level guardrails, restricted access, security-event analysis, and cost reporting. AI helps interpret evidence; it does **not** make changes to infrastructure on its own.
+**Know what changed.** Infrastructure is defined with Terraform. Application versions can be traced to a Git commit, and GitHub Actions handles releases without storing permanent AWS deployment keys.
 
-**What is working:** The Terraform policies and application logic have automated offline tests.
+**Prove recovery works.** I tested restoring database data and recovering from a broken container release. A backup or rollback setting doesn't mean much until you've exercised it.
 
-**What remains:** Cross-account access, AWS security-service enrollment, centralized log delivery, and real user sign-in have not been validated in a deployed multi-account environment.
+**Make problems easier to investigate.** Logs, alarms, and AI-assisted summaries help an engineer understand what's happening. They don't replace judgment or automatically change the environment.
 
-## Why I built it
+**Pay attention to the bill.** Some enterprise controls cost real money even when nobody is using the application. I use controlled test windows, keep only the evidence and recovery assets I need, and shut down temporary workloads afterward.
 
-This project started as a proposal to move [RSVP Society](https://github.com/JNHolman/rsvp-society), my private-event platform, onto AWS.
+## What the AWS tests showed
 
-The original three-tier infrastructure was more expensive and complex than that business needed. Instead of forcing the business to use it, I separated the projects. RSVP Society follows its actual operating needs; RSVP Cloud Platform became the place where I could explore larger-scale cloud engineering.
+The earlier live exercises established that the foundation could serve traffic privately across two Availability Zones, that the web firewall blocked a test request, and that an encrypted database snapshot could be restored with its data intact.
 
-My background is enterprise network engineering. During an outage, the most useful questions are usually straightforward: **What's failing? What changed? Who is affected? How do we prove the cause and restore service?**
+That database restore took **10 minutes and 2 seconds**, measured from the restore request to successfully reading the test record.
 
-I wanted to apply that same thinking to AWS, Terraform, containers, deployment automation, security, and AI-assisted operations.
+On the container side, I used GitHub Actions to release an application to private ECS tasks. I also deliberately deployed a broken revision. ECS restored the previous healthy version in **13 minutes and 47 seconds**.
 
-## A few decisions that matter
+Those are measured results, not estimates. The dated reports preserve the exact test conditions and engineering problems encountered along the way. The shared-application integration and additional automation checks are covered by the project's final test plan and code-level validation.
 
-| Decision | Why I chose it | Trade-off |
-| --- | --- | --- |
-| Keep application servers private | Limit what is exposed directly to the internet | More network components |
-| Run workloads across two Availability Zones | Reduce dependence on a single location | Higher running cost |
-| Use GitHub Actions for application releases | Make changes repeatable and recoverable | Release permissions must be protected |
-| Use Terraform for infrastructure | Make configuration reviewable and reproducible | Infrastructure changes still need careful approval |
-| Keep AI advisory | Help engineers interpret incidents without giving a model control of production | People still make the changes |
-| Test briefly, then tear down | Demonstrate real AWS behavior without a permanent enterprise-sized bill | Some tests must be scheduled separately |
+[Project 1 test record](docs/PROJECT-1-LIVE-2026-11-08.md) · [Project 2 test record](docs/PROJECT-2-LIVE-2026-11-08.md) · [Validation details](docs/PORTFOLIO-VALIDATION.md)
 
-**This repository is an engineering portfolio, not a claim that all three stages are running together in production.** Projects 1 and 2 were deployed for controlled tests and their temporary workloads were removed. Retained backups, encryption keys, logs, and images may still incur charges. RSVP Society production is separate and must not be affected by this work.
+## The trade-off is the point
 
-## Explore the work
-
-| Start here | What you'll find |
+| RSVP Society — the actual business | RSVP Cloud Platform — the engineering project |
 | --- | --- |
-| [Architecture](docs/ARCHITECTURE.md) | How the three stages fit together, their AWS components, and the design choices |
-| [Tests and evidence](docs/PORTFOLIO-VALIDATION.md) | Live results, outstanding tests, and the limits of each claim |
-| [Project 1 live exercise](docs/PROJECT-1-LIVE-2026-11-08.md) | Private networking, HTTPS, alarms, and the timed database restore |
-| [Project 2 live exercise](docs/PROJECT-2-LIVE-2026-11-08.md) | Automated deployment, failed release, ECS rollback, and image scan |
-| [Deployment and testing guide](docs/DEPLOYMENT.md) | Technical prerequisites, safe execution procedures, and cleanup |
+| Traffic comes in bursts around events. | Models an environment with larger reliability and operational needs. |
+| Use services that run when needed. | Explore private servers, containers, managed databases, and multi-zone infrastructure. |
+| Keep ongoing costs and maintenance practical. | Demonstrate how to build, automate, secure, troubleshoot, and recover a more complex platform. |
+| Put the complexity into event rules and guest experience. | Put the engineering depth into infrastructure, delivery, security, and operations. |
 
-The implementation is under [`infrastructure/`](infrastructure/), the workflows are under [`.github/workflows/`](.github/workflows/), and automated tests are under [`tests/`](tests/).
+Neither architecture is automatically better. **The right one depends on what the business is trying to accomplish.**
+
+I came into this with a background in enterprise networking—troubleshooting outages, understanding traffic paths, managing changes, and restoring service. I wanted to apply that same mindset to cloud engineering.
+
+The biggest lesson from the whole project isn't that I learned how to configure more AWS services.
+
+It's that **good engineering includes knowing when not to use them.**
+
+## Take a closer look
+
+- [How the platform is designed](docs/ARCHITECTURE.md) — the three stages, how they fit together, and the decisions behind them.
+- [Testing and evidence](docs/PORTFOLIO-VALIDATION.md) — what the AWS exercises demonstrated and how the remaining checks are organized.
+- [Deployment and recovery guide](docs/DEPLOYMENT.md) — the technical procedures and safety controls.
+- [Infrastructure code](infrastructure/) — Terraform, workloads, and governance.
+- [GitHub workflows](.github/workflows/) — tests, security checks, and application deployment.
 
 ---
 
-**Josh Holman** · Network / Cloud Infrastructure Engineer
+**Josh Holman**  
+Network / Cloud Infrastructure Engineer

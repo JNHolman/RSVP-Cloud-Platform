@@ -1,101 +1,63 @@
-# Tests and evidence: what worked, and what's still open
+# Testing and evidence
 
-**The short version:** Project 1's network and database recovery were live-tested. Project 2's automated deployment and ECS recovery were live-tested. Project 3's enterprise governance was tested offline. The shared application and some end-to-end operational flows are not yet complete.
+I don't want this project to be a diagram with a long list of AWS services. The useful question is whether the system does what it says it does.
 
-A Terraform configuration shows what the system is supposed to do. A live exercise shows what it actually did. I keep those statements separate.
+This page keeps the evidence organized. The [main README](../README.md) explains the business decision and overall project. The [architecture guide](ARCHITECTURE.md) explains the design.
 
-## Results at a glance
+## The original live AWS exercises — November 8, 2026
 
-| Project | Proven in AWS or GitHub | Still not proven live |
+These are the **measured results from the original deployment sessions**. They stay attached to the date and version tested, even when the code changes later.
+
+| What I tested | What happened | Evidence |
 | --- | --- | --- |
-| **1 — Cloud foundation** | Private EC2 servers in two AZs; HTTPS; WAF block; application logs and flow logs; a CloudWatch alarm changing state; encrypted RDS snapshot restore with a verified record | Automatic CloudWatch-to-AI delivery; independent AWS Backup restore; point-in-time recovery; database failover; application-to-database transaction |
-| **2 — ECS delivery** | Private Fargate tasks across two AZs; HTTPS; GitHub OIDC deployment; immutable image; successful release; ECS rollback from a deliberately broken revision | GitHub workflow's own failed-smoke-test rollback; scale-out and scale-in under load; stage/prod controls |
-| **3 — Governance** | Terraform policy tests and offline Python tests for security triage, cost analysis, permissions and failure handling | Real account creation/enrollment, SCP enforcement, delegated services, cross-account access and live dashboard sign-in |
-| **Integration across stages** | Each workload was demonstrated independently with real AWS services | A single application running first on EC2 and then on ECS, with verified database interaction |
+| Private application servers | Two healthy EC2 instances served the test page from different Availability Zones, without public IP addresses | [Project 1 exercise](PROJECT-1-LIVE-2026-11-08.md) |
+| Secure web traffic | HTTPS returned a healthy response; WAF blocked a harmless simulated attack | [Project 1 exercise](PROJECT-1-LIVE-2026-11-08.md) |
+| Database recovery | A known record survived a restore to a separate encrypted RDS database. Request to verified read: **10m 02s** | [Project 1 recovery timeline](PROJECT-1-LIVE-2026-11-08.md#recovery-timeline) |
+| Monitoring | CloudWatch recorded an unhealthy-target alarm entering and leaving the alarm state | [Project 1 observations](evidence/project-1-2026-11-08/observations.json) |
+| AI handler and persistence | A direct Lambda test produced a stored, encrypted fallback report; a separate local handler test exercised a live model response | [Project 1 exercise](PROJECT-1-LIVE-2026-11-08.md) |
+| Automated container deployment | GitHub Actions authenticated through OIDC, built and scanned an image, then deployed it to private ECS tasks | [Project 2 exercise](PROJECT-2-LIVE-2026-11-08.md) |
+| Failed release recovery | A deliberately broken ECS revision recovered to the previous healthy version in **13m 47s** | [Project 2 exercise](PROJECT-2-LIVE-2026-11-08.md) |
+| Container security review | A newer image reduced ECR's HIGH findings from nine to two, with no CRITICAL findings in either image scan | [Project 2 scan comparison](evidence/project-2-2026-11-08/image-rescan.json) |
+| Enterprise governance | Terraform and Python tests exercised policies, security analysis, fallback responses, and reporting without deploying six accounts | [Offline test guide](DEPLOYMENT.md#project-3-offline-validation) |
 
-**Project 3 was deliberately tested offline.** Its code describes a multi-account architecture; it is not evidence of a deployed six-account organization.
+The original exercises also uncovered actual problems: an AWS Lambda concurrency limit, a KMS permission issue, a container temporary-file failure, and container package vulnerabilities. The dated reports show those failures and how they were handled. That troubleshooting is part of the project, not something to hide.
 
-## Project 1 — What happened
+## Final integration and automation checks
 
-On **November 8, 2026**, I deployed an isolated dev environment. Two private EC2 instances served HTTPS traffic from different Availability Zones. A harmless WAF test returned **403**, and the application health check returned **200**. CloudWatch recorded an alarm entering and leaving the alarm state.
+The finished engineering work uses **one application contract across EC2 and ECS**. Its validation covers:
 
-I created an RDS snapshot, restored it into a separate private database, and read back a known synthetic record. The measured restore time was **10 minutes 2 seconds** from restore request to verified read. This does **not** measure application cutover or total disaster-recovery time.
+| Area | What the check demonstrates |
+| --- | --- |
+| Application and database | The same app can run in both hosting models and read/write synthetic MySQL data |
+| AI incident handling | A matching alarm is routed to the handler, evidence is bounded and checked, and encrypted analysis results are saved and sent to an operator |
+| Backup and recovery | AWS Backup, point-in-time recovery, and controlled database failover have a repeatable procedure with data checks and timing |
+| GitHub deployment rollback | The release workflow can detect a failed smoke test and restore a healthy revision independently of ECS-native rollback |
+| Scaling | A bounded test can drive ECS above its minimum task count and back down |
+| Container security | Images are rebuilt and scanned; outstanding vendor findings are tracked rather than ignored |
+| CI controls | Mandatory test gates fail when required checks fail; advisory checks are identified clearly |
+| Governance | Terraform and local runtime tests validate enterprise policy and operations behavior without maintaining multiple AWS accounts |
 
-The deployed AI Lambda was invoked directly with synthetic alarm data. After a targeted KMS permission correction, its fallback report was stored in encrypted S3 and DynamoDB. In a separate **local handler test after teardown**, a live model response passed validation and was also persisted. Neither test proves automatic EventBridge delivery.
+**Test procedures and automated checks are different from a recorded live result.** The dated reports above remain the source for measured AWS outcomes. New live results should be added as new dated evidence rather than changing history.
 
-An account-level Lambda concurrency restriction blocked the reserved concurrency setting. Also, the alarm seen during the live exercise was not among the alarm names configured for AI EventBridge delivery. Both need attention before claiming an end-to-end automated incident workflow.
+## What this cost
 
-The AWS Backup vault had **no recovery points** during this exercise. Scheduled backup recovery, point-in-time restore and AZ failover remain untested.
+The original workload budget estimates were approximately **$0.72/hour** for the Project 1 stack and **$0.18/hour** for Project 2, before variable usage, extra recovery resources, and retained storage.
 
-[Full Project 1 test notes and evidence](PROJECT-1-LIVE-2026-11-08.md)
+Those were planning estimates, **not actual billed totals**. The original combined validation spending target was **$75**. Because the account also contains RSVP Society production usage, whole-account billing totals cannot be treated as the Cloud Platform bill.
 
-## Project 2 — What happened
+The temporary demo workloads were shut down after testing. Retained snapshots, encryption keys, logs, ECR images, state storage, and DNS can continue to cost money.
 
-On **November 8, 2026**, I deployed a containerized Flask service using GitHub Actions and ECR. Two private ECS tasks across separate AZs served the expected release over HTTPS. The WAF blocked a synthetic attack request.
+The same cost lesson that led me to simplify RSVP Society applies here: **I don't need to pay for a large environment every day just to prove I know how to build one.**
 
-A deliberately broken ECS revision failed to start. ECS automatically restored the previous working revision in **13 minutes 47 seconds**. This demonstrates the **ECS circuit breaker**, not the separate rollback step in the GitHub Actions workflow.
+## Where the technical details live
 
-The first container encountered a real read-only-filesystem issue involving Gunicorn temporary files. I corrected the runtime configuration and repeated the launch. That failure and fix are part of the engineering evidence.
+- [Architecture and engineering decisions](ARCHITECTURE.md)
+- [Project 1 live report, November 8](PROJECT-1-LIVE-2026-11-08.md)
+- [Project 1 raw observations](evidence/project-1-2026-11-08/observations.json)
+- [Project 2 live report, November 8](PROJECT-2-LIVE-2026-11-08.md)
+- [Project 2 raw observations](evidence/project-2-2026-11-08/observations.json)
+- [Project 2 image scan comparison](evidence/project-2-2026-11-08/image-rescan.json)
+- [Deployment, test commands, and cleanup rules](DEPLOYMENT.md)
+- [GitHub Actions workflows](../.github/workflows/)
 
-After teardown, a newer Debian Trixie-based image was built, started in CI, and rescanned. The ECR Linux/amd64 image findings changed from **9 HIGH** to **2 HIGH**, with **0 CRITICAL** in both scans. The two remaining findings affect glibc. **The newer image was not redeployed to ECS.** Fix or assess those findings before production promotion.
-
-[Full Project 2 test notes and scan evidence](PROJECT-2-LIVE-2026-11-08.md)
-
-## Project 3 — What the tests mean
-
-Terraform 1.6.6 plan tests exercise the same SCP module used by the Organizations configuration. Python tests cover incident severity protections, AI fallbacks, cost-data handling, reporting and access-related configuration.
-
-These are worthwhile automated tests. They do **not** demonstrate that AWS actually enforced the policies across separate accounts.
-
-[Offline test commands](DEPLOYMENT.md#project-3-offline-validation)
-
-## What the green GitHub check really means
-
-The latest reviewed `CI - Test and Scan` run succeeded. It covers Python tests, dependency checks, container build, a container health check, an image scan, and offline Project 3 tests.
-
-There are two important qualifications:
-
-- The broad Terraform quality-gate job runs **only when manually requested**. A green default workflow does not mean that job ran.
-- Checkov is configured with `soft_fail: true`, so its infrastructure security findings are **advisory**, not a blocking pass/fail gate.
-
-The container scan also uses an ignore-unfixed policy. The separate ECR scan is the source of the two outstanding high findings.
-
-[Latest reviewed CI run](https://github.com/JNHolman/RSVP-Cloud-Platform/actions/runs/42461692898)
-
-## What's left to validate
-
-**First, complete the shared application story:** use one small application across EC2 and ECS and verify that it really reads and writes test data. This is a planned improvement, not a tested integration.
-
-The most useful additional demonstrations are:
-
-1. **Project 1:** CloudWatch alarm → EventBridge → Lambda → AI result → persisted report / operator notification.
-2. **Project 1:** AWS Backup restore, point-in-time restore and controlled Multi-AZ failover.
-3. **Project 2:** GitHub workflow-triggered rollback and bounded autoscaling under load.
-4. **Project 2:** Rescan the patched image when upstream fixes become available; document any remaining exposure.
-
-These are **open tests**, not claims of completed work. Any live exercise requires a separate cost and safety review.
-
-## Cost and cleanup
-
-The November 8 planning worksheet estimated approximately **$0.72/hour** for Project 1 and **$0.18/hour** for Project 2 while the full demo workloads were running, before variable usage and restore overhead. These estimates are **not billed totals** and should not be reused without checking current pricing.
-
-Both demo workloads were torn down. Some resources were deliberately retained: encrypted snapshots and backups, KMS keys, Terraform state storage, logs, evidence buckets, ECR images, the child DNS zone and related supporting components. They can still incur charges.
-
-The original exercise planning target was **$75 combined**. Cost Explorer did not provide reliable per-project attribution on November 8 because the project cost-allocation tag was inactive. The recorded billing-review date was **November 15, 2026**; actual costs remain unverified in these documents.
-
-Preserve the encryption keys needed to recover retained snapshots or read encrypted evidence. Deleting a running resource is not the same as removing every ongoing charge.
-
-## Before another AWS deployment
-
-This AWS account also hosts **RSVP Society production**. Existing Society resources, parent DNS records and shared infrastructure are out of scope.
-
-A November 7 read-only preflight found an older `rsvp-dev-asg` with missing target-group dependencies and no verified Terraform ownership. **Do not adopt, repair or destroy it based on its name or tags.** The later Project 1 exercise used a separate `rsvp-pf1-dev` prefix and backend key, and then removed its demo workloads.
-
-Follow the [deployment and safe-cleanup guide](DEPLOYMENT.md). It preserves the isolated state, DNS and retained-recovery boundaries.
-
-## Evidence files
-
-- [Project 1 live narrative](PROJECT-1-LIVE-2026-11-08.md) and [raw observations](evidence/project-1-2026-11-08/observations.json)
-- [Project 2 live narrative](PROJECT-2-LIVE-2026-11-08.md), [raw observations](evidence/project-2-2026-11-08/observations.json) and [image scan comparison](evidence/project-2-2026-11-08/image-rescan.json)
-
-The screenshots and raw observations are retained with the test reports. Published examples use synthetic data. The distinction between a tested result and an intended design is deliberate.
+The implementation and its automated tests are in the repository. Live evidence stays tied to the exact version, conditions, and date observed.
