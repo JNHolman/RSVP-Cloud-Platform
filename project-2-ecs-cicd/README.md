@@ -1,60 +1,86 @@
-# Project 2 — ECS & CI/CD
+# Project 2 — ECS Delivery and Automated Recovery
 
-A healthy container can still serve the wrong software. I used two independent checks in the dev release. ECS monitored task health. GitHub Actions checked the version that clients actually received over HTTPS.
+An application can pass its infrastructure health checks and still serve the wrong release. ECS may report healthy tasks because the process answers `/health`, while customers are receiving an outdated version—or a release that cannot read its database.
 
-I moved the foundation application onto managed containers so a release could be identified, repeated and reversed. GitHub Actions exchanged its workflow identity (OIDC) for temporary AWS credentials. The build tagged the container image with its Git revision in the ECR registry. Immutable tags kept a later build from silently taking the same name. I could compare the digest in the registry with the image running on both private Fargate tasks, and inspect the Trivy and ECR scan results for that build. [Build run](https://github.com/JNHolman/RSVP-Cloud-Platform/actions/runs/42534475017) · [Successful release](https://github.com/JNHolman/RSVP-Cloud-Platform/actions/runs/42535097319) · [Serving application](evidence/live-rds-reader.png)
+**I built an AWS container delivery pipeline that checks what the application actually serves, not just whether its containers are running.** It reuses the reservation service and private RDS database from [Project 1](../project-1-cloud-foundation/README.md), but runs the application on ECS Fargate in a second private VPC.
 
-## Live integrated release on November 8
+The central design decision is to keep **infrastructure recovery** and **release correctness** independent. Each catches failures the other can miss.
 
-**Live AWS results.** GitHub Actions detected a healthy endpoint serving the wrong version and verified rollback in **3m 23s**. In a separate exercise, ECS recovered an unhealthy deployment in **13m 47s**. The EC2 and ECS applications also returned the same three rows from private RDS.
+## What I built
 
-**Simulated workflow tests.** The database-aware checks were added after those exercises. Tests cover accepting or rejecting a candidate and verifying the restored revision against its expected database. The AWS runtime had already been retired.
+- **Container runtime:** Private ECS Fargate tasks in two Availability Zones, an HTTPS Application Load Balancer, WAF, CloudWatch monitoring, autoscaling and immutable images stored in ECR.
+- **Controlled deployment:** GitHub Actions runs tests and image scanning, obtains temporary AWS credentials through OIDC, publishes an image tagged with its Git revision, deploys it and checks the actual HTTPS response.
+- **Two recovery controls:** ECS's deployment circuit breaker handles unhealthy tasks. The workflow can separately reject a stable task serving the wrong version and restore the prior task definition.
+- **Private database access:** VPC peering, return routes, scoped security groups and IAM-authenticated TLS let the Fargate tasks read the foundation's RDS database without making it public.
 
-| GitHub Actions step | Recorded result | Why it matters |
-|---|---|---|
-| Smoke test · 23:34:10 UTC | “Unexpected release health, version or environment” | The candidate answered health requests but served the deliberately incorrect version. |
-| Roll back failed deployment · 23:37:34 UTC | “Previous release verified after rollback” | The workflow restored revision 6 and verified the prior serving version, `43ef326`, in **3m 23s**. |
+![How deployment verification separates unhealthy tasks from a healthy but incorrect release](evidence/delivery-flow.svg)
 
-### Two ways to reject a release
+## Key engineering decisions
 
-```mermaid
-flowchart TD
-  build["GitHub Actions tests application and scans image"] --> deploy["Deploy immutable image to private ECS tasks"]
-  deploy --> stable{"Can ECS stabilize the tasks?"}
-  stable -->|No| ecs["Unhealthy tasks · ECS circuit breaker<br/>13m 47s to recover"]
-  stable -->|Yes| probe{"Does HTTPS serve the expected version?"}
-  probe -->|No| restore["Healthy tasks, wrong version · GitHub rollback<br/>3m 23s to verify previous release"]
-  probe -->|Yes| active["Confirm active task definition"]
-  classDef recovery fill:#e7f4ee,color:#173a2b,stroke:#47785c
-  class ecs,restore recovery
-```
+### Task health and software correctness are different signals
 
-The failed status on the [version-mismatch run](https://github.com/JNHolman/RSVP-Cloud-Platform/actions/runs/42535446228) records the rejected candidate. The public endpoint answered, so task health alone would have accepted it. In the separate **13m 47s** circuit-breaker drill, ECS itself detected the unhealthy revision. The clocks start at different failure signals. [Circuit-breaker timeline](evidence/2026-11-08.md)
+ECS can tell whether a task becomes healthy. It cannot establish that the right Git revision is serving over the customer-facing endpoint. The deployment workflow therefore tests **health, environment and serving version**, and confirms the restored version after a failed release.
 
-### Capacity under load
+This is the same reason a network engineer distinguishes a responsive host from a functioning service: a positive result at one layer does not prove the next layer is correct.
 
-![ECS desired and running task counts sampled during the exercise](evidence/scale-out.svg)
+The two recovery controls were tested **separately**, and their reported durations start from different failure signals. [Controlled-deploy workflow](../.github/workflows/ecs-project2-deploy.yml)
 
-I sent 1,625 requests with a temporary 10% CPU target. The chart distinguishes the scheduler asking for more capacity from another task actually running. Desired capacity rose first, then a third task reached running state. Observation ended before scale-in was confirmed.
+### Prove the artifact running in private tasks
 
-**Task-definition ownership.** Terraform tagged the infrastructure baseline `ConfigurationSource=TerraformBaseline`. The release workflow cloned it and selected the image. That separation explains why, after any Terraform change that modifies the ECS task definition, operators run **Controlled Deploy** to promote the updated baseline. The exercises used dev. The AWS deployment role’s OIDC trust checks the repository and environment identity. GitHub Environment protection rules for `prod` must be configured separately to restrict deployment branches/tags. On November 9, 2026, the repository environment API returned `deployment_branch_policy: null` and `protection_rules: []`. The production authorization boundary therefore had no environment-level branch/tag restriction or reviewer gate at inspection. [Role trust policy](bootstrap-delivery/main.tf) · [Environment API](https://api.github.com/repos/JNHolman/RSVP-Cloud-Platform/environments/prod)
+A moving image tag makes it difficult to establish exactly what was deployed. The build uses an immutable Git-SHA tag, and I compared the registry's digest with the digests reported by both private tasks.
 
+GitHub Actions uses an environment-bound OIDC identity to assume a scoped AWS role instead of storing long-lived deployment keys. That AWS trust policy is **not a substitute** for branch/tag restrictions or reviewer approvals in GitHub Environments. [OIDC role and registry bootstrap](bootstrap-delivery/main.tf)
 
-## Crossing the network boundary
+### Task-definition ownership: Terraform versus GitHub Actions
 
-The container release had its own private network. Giving the database a public endpoint would have bypassed the boundary I wanted to exercise. Instead, I connected the two networks through VPC peering with a return route, limited MySQL access to the task security group, and scoped its role to the database reader. Network reachability and permission to read a row were separate checks.
+Terraform owns the ECS infrastructure baseline; GitHub Actions promotes application task revisions. Otherwise, a later Terraform apply could unintentionally move the service backward or override a workflow release.
 
-| Private database path | Observed result |
-|---|---|
-| Foundation EC2 in the database VPC | The instance role read the rehearsal data through a TLS-verified MySQL connection. |
-| Fargate in the delivery VPC | Peering and return routes carried the task’s connection to the same private database. Both HTTPS endpoints returned the same three rows. |
+The workflow selects the task definition tagged `ConfigurationSource=TerraformBaseline`, clones it, changes the image and deploys a new revision. Operators run **Controlled Deploy** after any Terraform change that modifies the ECS task definition, promoting the updated baseline deliberately. [ECS configuration](terraform/ecs.tf) · [Service configuration](terraform/ecs_service.tf)
 
-The revised smoke check now exercises the reservation API as well as liveness and version. Each revision’s task definition determines the expected backend. SQLite must return the rehearsal seed. Integrated releases must also return the environment’s RDS-only marker (`RDS_SMOKE_EVENT`), an operator-owned event distinct from the fixture seed and visible in the first ten rows. The workflow checks the restored revision against its own mode. No database address or credential travels in the response. A failed read rejects the release. Rollback must also serve the row before the workflow reports recovery. Exercising the revised checks live would require restoring the retired ECS and foundation RDS environments. Candidate and rollback tests used simulated workflow responses; the recorded AWS drill above exercised the earlier version check. [Deployment workflow](../.github/workflows/ecs-project2-deploy.yml) · [Reservation verifier](verify-reservations.py) · [Candidate and rollback tests](tests/test_project2_release_health.py) · [Peering and access rules](terraform/foundation-db.tf)
+### A successful release must be able to read data
 
-**Image security.** The original Bookworm image had nine HIGH findings in ECR. Rebuilding the same application on the Trixie base reduced the measured count to two. The scan does not establish whether the application can exercise the vulnerable functionality. Both remaining findings affected glibc (CVE-2026-5435 and CVE-2026-19499). The Trivy gate rejects qualifying HIGH or CRITICAL findings with known fixes. Checkov reports infrastructure findings in advisory mode, so a green job can still contain findings. [Scan comparison](evidence/2026-11-08.md#post-demo-image-remediation)
+The original live rollback checked health and version. After the AWS lab was retired, I strengthened the workflow to check `/api/reservations` as well. A fixture-backed revision must return its expected seed; an RDS-backed revision must return an operator-owned marker that isn't present in the fixture. Rollback verifies the *restored revision's* expected backend, not the failed candidate's configuration.
 
-<details><summary>Technical evidence records</summary>
+This prevents a release from passing merely because a static health page works. **These newer database-aware checks were tested with simulated workflow responses, not a second live ECS/RDS deployment.** [Reservation verifier](verify-reservations.py) · [Candidate and rollback tests](tests/test_project2_release_health.py)
 
-[Task digests and shared database readback](evidence/live-release-recovery.json) · [Timestamped task counts](evidence/live-scaling.json) · [ECR findings](evidence/image-rescan.json)
+## What I verified in AWS
 
-</details>
+### Live release and recovery
+
+In a controlled dev exercise, the candidate answered HTTPS health requests but exposed the deliberately wrong version. GitHub Actions rejected it and restored the previous task definition:
+
+- **23:34:10 UTC:** the workflow rejected the version-mismatched candidate.
+- **23:37:34 UTC:** the previous release was verified again.
+- **3m 23s:** recorded recovery duration in the exercise.
+
+In a separate drill, ECS detected tasks that could not stabilize and recovered the previously healthy revision in **13m 47s**. Neither number measures general deployment availability or guaranteed production recovery time.
+
+[Rejected GitHub Actions run](https://github.com/JNHolman/RSVP-Cloud-Platform/actions/runs/42535446228) · [Live recovery record](evidence/live-release-recovery.json) · [Circuit-breaker timeline](evidence/2026-11-08.md)
+
+### Private database reachability
+
+The foundation EC2 application and delivery Fargate application returned the **same three reservation rows** from private RDS. I verified the tasks had no public IPs, and their image digests matched the ECR artifact.
+
+The peering connection and return routes established network reachability; the task role and database permissions established authorization. Neither check alone was sufficient. [Peering and reader access](terraform/foundation-db.tf) · [Live database-backed application](evidence/live-rds-reader.png)
+
+### Capacity and image security
+
+I sent **1,625 requests** with a temporary 10% CPU target to exercise scaling. ECS desired capacity rose, then running capacity increased from **two tasks to three**. I did not observe a confirmed scale-in.
+
+![Recorded ECS desired and running tasks during the load exercise](evidence/scale-out.svg)
+
+The original Bookworm-based image had **nine HIGH** findings in ECR. Rebuilding the same application on Trixie reduced the recorded HIGH count to **two**, both glibc findings (CVE-2026-5435 and CVE-2026-19499). This is a scan result, not proof that either vulnerability is exploitable or that the candidate is risk-free. The Trivy gate rejects qualifying HIGH/CRITICAL findings with known fixes; Checkov infrastructure findings are advisory. [Image comparison and remaining findings](evidence/2026-11-08.md#post-demo-image-remediation)
+
+## What was not demonstrated
+
+The live AWS rollback verified **serving version and health**; the later database-aware candidate and rollback checks have **simulated test coverage only** because the ECS/RDS lab was retired. Scale-in was not confirmed. The development exercises did not validate a protected production deployment.
+
+GitHub Environment protection rules for `prod` must be configured to restrict deployment branches/tags and require any intended reviewer approvals; they belong in the production authorization boundary alongside OIDC trust. At inspection on November 9, 2026, the repository's GitHub `prod` Environment returned `deployment_branch_policy: null` and `protection_rules: []`. Its environment-level branch/tag restrictions and reviewer gate were therefore absent; the AWS role's OIDC trust restriction alone did not supply those controls. [Environment settings response](https://api.github.com/repos/JNHolman/RSVP-Cloud-Platform/environments/prod)
+
+The live runtime has been shut down to avoid continuing infrastructure charges. This repository retains the workflow, Terraform, tests and evidence—not a continuously running demo.
+
+## Inspect the implementation
+
+[Deployment workflow](../.github/workflows/ecs-project2-deploy.yml) · [Application and tests](app/) · [Release-health check](verify-release-health.py) · [Reservation check](verify-reservations.py) · [Infrastructure Terraform](terraform/) · [Earlier live evidence](evidence/2026-11-08.md)
+
+The next project addresses a different question: [who may change the rules or audit records around these workloads?](../project-3-cloud-governance/README.md)

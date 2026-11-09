@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="680" height="1080" viewBox="0 0 680 1080" role="img" aria-labelledby="title desc">
+<title id="title">Six-account AWS Cloud Governance design</title>
+<desc id="desc">Terraform design for six accounts: the AWS Organizations management account controls organization structure, three organization units organize five member accounts. Security and Log Archive are in the Security OU; Shared Services is in Infrastructure; NonProd and Prod are in distinct workload OUs. This structure was validated offline, not deployed as a six-account organization.</desc>
+<rect width="680" height="1080" rx="18" fill="#f7f8f6"/>
+<rect x="0" y="0" width="680" height="12" fill="#655083"/>
+<g font-family="Arial,Helvetica,sans-serif" fill="#192e35">
+<text x="35" y="64" font-size="31" font-weight="700">Cloud governance boundaries</text>
+<text x="35" y="99" font-size="21" fill="#53656b">Six-account design · Terraform / offline validation</text>
+<rect x="35" y="133" width="610" height="104" rx="14" fill="#e5dcf0" stroke="#a79ac1" stroke-width="2"/>
+<text x="57" y="170" font-size="25" font-weight="700">Management account</text>
+<text x="57" y="202" font-size="20">AWS Organizations · OU and SCP attachments</text>
+<path d="M340 237 v30 m-9 -11 l9 11 9 -11" stroke="#655083" stroke-width="3" fill="none"/>
+<rect x="35" y="278" width="610" height="238" rx="16" fill="#ffffff" stroke="#b5a5c7" stroke-width="2"/>
+<rect x="35" y="278" width="610" height="51" rx="14" fill="#655083"/>
+<text x="56" y="312" font-size="23" font-weight="700" fill="#ffffff">SECURITY OU</text>
+<rect x="55" y="343" width="570" height="74" rx="11" fill="#f1ecf7"/>
+<text x="75" y="373" font-size="24" font-weight="700">Security account</text>
+<text x="75" y="399" font-size="19">Findings · central controls · AI triage</text>
+<rect x="55" y="426" width="570" height="74" rx="11" fill="#f1ecf7"/>
+<text x="75" y="456" font-size="24" font-weight="700">Log Archive account</text>
+<text x="75" y="482" font-size="19">Encrypted organization audit records</text>
+<rect x="35" y="538" width="610" height="153" rx="16" fill="#ffffff" stroke="#b5a5c7" stroke-width="2"/>
+<rect x="35" y="538" width="610" height="51" rx="14" fill="#655083"/>
+<text x="56" y="572" font-size="23" font-weight="700" fill="#ffffff">INFRASTRUCTURE OU</text>
+<rect x="55" y="601" width="570" height="74" rx="11" fill="#f1ecf7"/>
+<text x="75" y="631" font-size="24" font-weight="700">Shared Services account</text>
+<text x="75" y="657" font-size="19">Common infrastructure and services</text>
+<rect x="35" y="713" width="610" height="238" rx="16" fill="#ffffff" stroke="#b5a5c7" stroke-width="2"/>
+<rect x="35" y="713" width="610" height="51" rx="14" fill="#655083"/>
+<text x="56" y="747" font-size="23" font-weight="700" fill="#ffffff">WORKLOADS OU</text>
+<rect x="55" y="778" width="570" height="74" rx="11" fill="#f1ecf7"/>
+<text x="75" y="808" font-size="24" font-weight="700">NonProd account</text>
+<text x="75" y="834" font-size="19">Development and test · NonProd child OU</text>
+<rect x="55" y="861" width="570" height="74" rx="11" fill="#f1ecf7"/>
+<text x="75" y="891" font-size="24" font-weight="700">Prod account</text>
+<text x="75" y="917" font-size="19">Production workloads · Prod child OU</text>
+<rect x="35" y="982" width="610" height="71" rx="14" fill="#253f4b"/>
+<text x="55" y="1011" font-size="20" font-weight="700" fill="#ffffff">DESIGN, NOT A LIVE SIX-ACCOUNT DEPLOYMENT</text>
+<text x="55" y="1036" font-size="18" fill="#e4eceb">Account placement · identity · SCPs · audit separation</text>
+</g></svg>
