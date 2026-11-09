@@ -32,7 +32,7 @@ Designed a six-account AWS organization that separates administration, security,
 
 ![Animated reconstruction of recorded Cloud Foundation, ECS release recovery and governance exercises](shared/platform-exercises.gif)
 
-*25-second reconstruction of three recorded exercises, not live console footage.* [Incident report](project-1-cloud-foundation/README.md#ai-assisted-investigation) · [Release rollback](project-2-ecs-cicd/README.md#two-independent-recovery-controls) · [Security priority decision](project-3-cloud-governance/README.md#the-live-security-exercise)
+*25-second reconstruction of three recorded exercises, not live console footage.* [Incident report](project-1-cloud-foundation/README.md#ai-assisted-investigation) · [Release rollback](project-2-ecs-cicd/README.md#key-engineering-decisions) · [Security priority decision](project-3-cloud-governance/README.md#the-live-security-exercise)
 
 ## How the architecture fits together
 
@@ -47,7 +47,7 @@ The automation is deliberately separate from the application:
 ## What I verified
 
 - **77 application log entries** were collected in an AI-assisted incident run after I deliberately set the development alarm to ALARM. The logs included real earlier 503 responses; the model suggested a *likely* backend connection problem rather than a proven root cause. [Investigation evidence](project-1-cloud-foundation/README.md#ai-assisted-investigation)
-- **3m 23s** to reject a healthy-but-wrong release and verify that the previous version was serving again. A separate unhealthy-task exercise recovered through the ECS circuit breaker in **13m 47s**. [Delivery evidence](project-2-ecs-cicd/README.md#live-aws-results)
+- **3m 23s** to reject a healthy-but-wrong release and verify that the previous version was serving again. A separate unhealthy-task exercise recovered through the ECS circuit breaker in **13m 47s**. [Delivery evidence](project-2-ecs-cicd/README.md#live-release-and-recovery)
 - **10m 02s** from an encrypted database snapshot restore request to a successful private TLS read of a known row. Point-in-time recovery, AWS Backup and Multi-AZ failover were exercised separately with different completion criteria. [Recovery evidence](project-1-cloud-foundation/README.md#database-recovery)
 - **Two to three running ECS tasks** under a measured load exercise. Scale-in was not confirmed. [Capacity evidence](project-2-ecs-cicd/README.md#capacity-and-image-security)
 - **P3 proposed, P1 enforced** for a labeled critical finding. DynamoDB retained both decisions; SNS delivered the alert to an encrypted SQS subscriber. [Security evidence](project-3-cloud-governance/README.md#the-live-security-exercise)
