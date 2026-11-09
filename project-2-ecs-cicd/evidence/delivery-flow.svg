@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="680" height="930" viewBox="0 0 680 930" role="img" aria-labelledby="title desc">
+<title id="title">ECS delivery and two independent release recovery controls</title>
+<desc id="desc">GitHub Actions tests, scans and tags an immutable release, deploys private Fargate tasks, then two different controls catch unhealthy tasks or the wrong serving application version. ECS circuit breaker recovers unhealthy tasks; GitHub Actions can roll back a healthy but incorrect application. Private tasks read Foundation RDS over VPC peering.</desc>
+<rect width="680" height="930" rx="18" fill="#f7f8f6"/>
+<rect x="0" y="0" width="680" height="12" fill="#214f7b"/>
+<g font-family="Arial,Helvetica,sans-serif" fill="#192e35">
+<text x="35" y="65" font-size="32" font-weight="700">ECS release verification</text>
+<text x="35" y="100" font-size="21" fill="#50666c">Two recovery controls, different failure signals</text>
+<rect x="35" y="140" width="610" height="95" rx="14" fill="#ffffff" stroke="#a9bed1" stroke-width="2"/>
+<rect x="35" y="140" width="9" height="95" rx="4" fill="#214f7b"/>
+<text x="60" y="178" font-size="25" font-weight="700">Build and identify the release</text>
+<text x="60" y="212" font-size="21">GitHub Actions · tests · scan · immutable ECR tag</text>
+<path d="M340 235 v30 m-9 -11 l9 11 9 -11" fill="none" stroke="#214f7b" stroke-width="3"/>
+<rect x="35" y="271" width="610" height="95" rx="14" fill="#ffffff" stroke="#a9bed1" stroke-width="2"/>
+<rect x="35" y="271" width="9" height="95" rx="4" fill="#214f7b"/>
+<text x="60" y="309" font-size="25" font-weight="700">Deploy private Fargate tasks</text>
+<text x="60" y="343" font-size="21">ECS · two AZs · HTTPS load balancer</text>
+<text x="35" y="422" font-size="19" font-weight="700" fill="#214f7b" letter-spacing="1">INDEPENDENT RECOVERY CONTROLS</text>
+<rect x="35" y="448" width="610" height="164" rx="14" fill="#e6eff7" stroke="#a9bed1" stroke-width="2"/>
+<text x="60" y="485" font-size="25" font-weight="700">A · Tasks cannot stabilize</text>
+<text x="60" y="525" font-size="21">ECS health and deployment circuit breaker</text>
+<text x="60" y="562" font-size="25" font-weight="700" fill="#214f7b">13m 47s</text>
+<text x="231" y="562" font-size="20">recovery in separate live exercise</text>
+<text x="60" y="590" font-size="18" fill="#46647b">Infrastructure failure path</text>
+<rect x="35" y="633" width="610" height="164" rx="14" fill="#e6eff7" stroke="#a9bed1" stroke-width="2"/>
+<text x="60" y="670" font-size="25" font-weight="700">B · Tasks healthy; version wrong</text>
+<text x="60" y="710" font-size="21">GitHub HTTPS smoke check rejects candidate</text>
+<text x="60" y="747" font-size="25" font-weight="700" fill="#214f7b">3m 23s</text>
+<text x="231" y="747" font-size="20">to verify restored release</text>
+<text x="60" y="775" font-size="18" fill="#46647b">Application correctness failure path</text>
+<rect x="35" y="830" width="610" height="76" rx="14" fill="#253f4b"/>
+<text x="56" y="860" font-size="21" font-weight="700" fill="#ffffff">DATA ACCESS CHECK</text>
+<text x="56" y="889" font-size="20" fill="#f1f5f2">VPC peering → Foundation RDS over private TLS</text>
+</g></svg>
