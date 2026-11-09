@@ -41,7 +41,7 @@ An operator set the CloudWatch alarm `rsvp-pf1-dev-target-5xx-high` to **ALARM**
 
 #### From the saved AI report
 
-At 23:24:01 UTC on November 8 the analyst recorded the following excerpts from the 77-entry investigation. The quoted text comes from the original encrypted report. Raw log lines and infrastructure identifiers are omitted.
+At 23:24:01 UTC on November 8 the analyst recorded the following excerpts from the 77-entry investigation. All six excerpts below were checked against the original report in encrypted S3 storage. The repository contains the excerpts and execution record. An authorized reader with the full report can verify its SHA-256 digest: `53a5efd6d23b93dc24a7db25169caeaeee13ddf34e2dd8b924af2da3b8bfd69f`.
 
 **Observed in the logs** (report field `evidence_used`):
 
