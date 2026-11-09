@@ -84,7 +84,13 @@ The model did **not** establish a real attack or confirmed business impact. The 
 
 **Not validated live:** Creation and enforcement of all six accounts, OU-wide SCP behavior, Identity Center assignments, organization CloudTrail delivery into the Log Archive, a deployed dashboard, cross-account read roles, and production Security Hub/GuardDuty/Config integrations. The lab did not enable shared-account security services solely to generate portfolio screenshots or incur extra cost.
 
-The live exercise began at EventBridge with an intentionally labeled sample, **not an actual Security Hub detection**. The dashboard and FinOps paths have code and offline coverage but no claimed live cross-account integration. The example backend placeholder `REPLACE_WITH_TERRAFORM_STATE_KMS_KEY_ARN` must be replaced with the owning account's key for a real deployment. CloudFormation StackSets delegated administration also depends on trusted access being activated correctly.
+The live exercise began at EventBridge with an intentionally labeled sample, **not an actual Security Hub detection**. The dashboard and FinOps paths have code and offline coverage but no claimed live cross-account integration.
+
+### Deployment prerequisites, not completed work
+
+Using `existing_account_ids` references other accounts; it **does not move those accounts** into the intended organizational units. An account outside the target OU will not inherit that OU's SCPs. Operators must verify account placement before relying on OU-level restrictions.
+
+Each account's backend uses separate **state-bootstrap outputs** for the state bucket, locking and encryption. The example `REPLACE_WITH_TERRAFORM_STATE_KMS_KEY_ARN` must be replaced with the owning account's real encryption key before deployment. CloudFormation StackSets delegated administration additionally requires `ActivateOrganizationsAccess` to establish trusted access before the Terraform configuration can use it.
 
 These are deployment requirements and validation boundaries, not completed live controls.
 
