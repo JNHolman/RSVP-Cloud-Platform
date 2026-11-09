@@ -8,6 +8,12 @@ I originally built a more traditional AWS environment for the application: priva
 
 I used that lab to answer three practical questions: **Can I establish why a service failed? Can I reject and recover a bad release? Can I keep security decisions and audit evidence outside the control of the workload team?**
 
+## See the controls in action
+
+![Animated reconstruction of recorded Cloud Foundation, ECS release recovery and governance exercises](shared/platform-exercises.gif)
+
+*25-second reconstruction of three recorded exercises, not live console footage.* [Incident report](project-1-cloud-foundation/README.md#ai-assisted-investigation) · [Release rollback](project-2-ecs-cicd/README.md#key-engineering-decisions) · [Security priority decision](project-3-cloud-governance/README.md#the-live-security-exercise)
+
 ## Three projects, one engineering story
 
 ### [1. Cloud Foundation — private infrastructure and incident investigation](project-1-cloud-foundation/README.md)
@@ -27,12 +33,6 @@ Deployed the same read-only application on private ECS Fargate tasks in a separa
 Designed a six-account AWS organization that separates administration, security, audit records, shared services and workloads. Built Terraform for access policies, audit infrastructure, security operations and cost reporting. Exercised one AI security decision in a single AWS account: a model proposed P3 for a critical sample, but deterministic policy enforced P1.
 
 **The engineering question:** How do you let teams operate their systems without letting them weaken the controls or rewrite the evidence used to investigate them?
-
-## See the controls in action
-
-![Animated reconstruction of recorded Cloud Foundation, ECS release recovery and governance exercises](shared/platform-exercises.gif)
-
-*25-second reconstruction of three recorded exercises, not live console footage.* [Incident report](project-1-cloud-foundation/README.md#ai-assisted-investigation) · [Release rollback](project-2-ecs-cicd/README.md#key-engineering-decisions) · [Security priority decision](project-3-cloud-governance/README.md#the-live-security-exercise)
 
 ## How the architecture fits together
 
