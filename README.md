@@ -6,6 +6,8 @@ I originally designed traditional AWS infrastructure for [RSVP Society](https://
 
 I moved RSVP Society to event-driven services—Lambda, API Gateway, DynamoDB, and EventBridge—and kept the original enterprise infrastructure work as a separate engineering project.
 
+My network engineering background shaped the exercises. I wanted to trace a failed request across the network, identify which release was serving traffic, and prove that a recovered database could answer an application query.
+
 ## Three stages
 
 | Stage | Engineering focus | What it demonstrates |
@@ -34,7 +36,7 @@ flowchart LR
 
 These are dated test results, not claims that every integration is currently deployed. See the [Project 1](project-1-cloud-foundation/evidence/2026-11-08.md) and [Project 2](project-2-ecs-cicd/evidence/2026-11-08.md) reports.
 
-The GitHub release workflow also detected a deliberately wrong serving version and verified rollback in approximately **3m 23s**. The advisory incident workflow analyzed **77 log entries** and delivered an encrypted evidence reference to its test subscriber. [Release evidence](project-2-ecs-cicd/evidence/live-release-recovery.json) · [Incident evidence](project-1-cloud-foundation/evidence/live-incident.json)
+The GitHub release workflow also detected a deliberately wrong serving version and verified rollback in approximately **3m 23s**. The advisory incident workflow analyzed **77 log entries** and delivered an encrypted evidence reference to its test subscriber. [Release walkthrough](project-2-ecs-cicd/README.md#live-integrated-release-on-november-8) · [AI investigation](project-1-cloud-foundation/README.md#ai-incident-analysis)
 
 ## Engineering decisions
 

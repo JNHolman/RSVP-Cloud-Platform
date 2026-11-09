@@ -31,15 +31,11 @@ The dev workflow released Git revision `43ef326` to private Fargate tasks. The s
 
 A separate dev-only workflow run deliberately served a mismatched version. The smoke check detected it at 23:34:10 UTC and the workflow verified the previous serving revision at 23:37:34 UTC, approximately 3m 23s later. The workflow ended with a failure status as designed. [Controlled rollback workflow](https://github.com/JNHolman/RSVP-Cloud-Platform/actions/runs/42535446228)
 
-## Original exercise checklist
+During the [bounded load exercise](evidence/live-scaling.json), 1,625 requests drove the service from two running tasks to three with a temporary 10% CPU target. Observation ended before scale-in was confirmed.
 
-[Exercise report and homepage screenshot](evidence/2026-11-08.md) · [Recorded observations](evidence/observations.json)
+![Private Fargate application reading the shared foundation database](evidence/live-rds-reader.png)
 
-| Area | Evidence available | Evidence still needed |
-|---|---|---|
-| Delivery and networking | GitHub OIDC release, ECR digest, private targets and serving Git revision | Capture a release summary alongside the serving revision |
-| Security and monitoring | WAF 403, CloudWatch streams and ECR scan comparison | Rebuild and rescan after a supported fix for the two remaining high findings |
-| Recovery and scaling | ECS restored the previous healthy revision in 13m 47s | Exercise GitHub smoke-test rollback and measure scale-out and scale-in |
+[Earlier WAF, image scan and circuit-breaker observations](evidence/2026-11-08.md)
 
 ## Read the foundation database
 
@@ -67,5 +63,3 @@ Before using the production OIDC role, configure **GitHub Environment protection
 **Task-definition ownership:** Terraform registers the infrastructure and security baseline, tagged `ConfigurationSource=TerraformBaseline`. The ECS service intentionally ignores `task_definition` drift so a later Terraform apply cannot roll back a GitHub-deployed application release. Therefore, after any Terraform change that modifies the ECS task definition, run **Controlled Deploy** before treating that configuration change as active. The workflow clones the latest Terraform baseline, replaces only the release image/version, and promotes that revision to the service.
 
 [Platform overview](../README.md) · [Shared state, DNS, costs and teardown](../shared/OPERATIONS.md)
-
-During the [bounded load exercise](evidence/live-scaling.json), 1,625 requests drove the service from two running tasks to three with a temporary 10% CPU target. Observation ended before scale-in was confirmed.

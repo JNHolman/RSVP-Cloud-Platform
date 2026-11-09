@@ -15,12 +15,13 @@ flowchart TB
   alarm -->|State change| eb["EventBridge rule"]
   eb --> fn["Lambda incident analyst"]
   logs -->|Bounded, redacted log window| fn
-  fn --> ai{"Model output passes validation?"}
+  fn --> model["OpenAI · advisory investigation"]
+  model --> ai{"Model output passes validation?"}
   ai -->|Yes| report["Evidence-backed advisory report"]
   ai -->|No| fallback["Deterministic fallback"]
   fallback --> report
   report --> store[("Encrypted S3 report + DynamoDB index")]
-  report -->|ALARM| sns["SNS → operator subscriber"]
+  store -->|Report reference on ALARM| sns["SNS → operator subscriber"]
   classDef data fill:#eaf3fb,stroke:#376b98,color:#102c42
   classDef ops fill:#e9f5ef,stroke:#35815a,color:#133d28
   class db,store data
@@ -50,15 +51,21 @@ An operator set the development load balancer’s 5xx alarm to **ALARM**. From t
 
 [Supporting incident record](evidence/live-incident.json)
 
-## Original exercise checklist
+#### From the saved AI report
 
-[Exercise report and homepage screenshot](evidence/2026-11-08.md) · [Recorded observations](evidence/observations.json)
+At 23:24 UTC the model identified two separate events. The operator had deliberately set the alarm. Earlier, Apache had returned 503 to load balancer health checks because its connection to the local application was refused. By 23:19:59 UTC, checks were returning 200. The logs supported a temporarily unavailable backend. They did not establish why the process stopped listening.
 
-| Area | Evidence available | Evidence still needed |
-|---|---|---|
-| Networking and security | Two private targets in different AZs, issued certificate, WAF 403, active flow logs | Capture an AZ/target view if another exercise is authorized |
-| Monitoring and AI | Alarm history, direct Lambda fallback, encrypted S3/DynamoDB persistence and a separate live-model handler test | Correlate a real alarm with invocation, model result and subscriber delivery |
-| Recovery | Restored a known marker over TLS in 10m 02s | AWS Backup restore, PITR, Multi-AZ failover and application cutover |
+The report recommended comparing target health with Gunicorn and service-supervisor logs during the failure window, then checking the health endpoint and a database-backed request before closing the incident. SNS delivered the report reference to the exercise subscriber. An operator decides whether to restart a service, change configuration or close the incident.
+
+*Sanitized summary of the stored model response from November 8 at 23:24:01 UTC.*
+
+## Recovery evidence
+
+AWS Backup completed a separate restore in 16m 48s. A later private TLS read confirmed the expected row. RDS also reported a Multi-AZ failover start and completion 19.85 seconds apart. [AWS recovery evidence](evidence/live-recovery.json)
+
+The [point-in-time recovery readback](evidence/live-pitr.json) records a TLS query against the private, encrypted restored database. The expected rehearsal row was readable 13m 50s after the restore request.
+
+[Earlier networking, WAF and recovery exercise](evidence/2026-11-08.md)
 
 ## Operations
 
@@ -99,7 +106,3 @@ The historical EC2 page and the database marker were tested separately. An appli
 The plan reviewer is intended for first-deployment scope checks, not automatic approval of updates or deletions. It may return exit 1 for scope/action findings and exit 2 for invalid input. Keep the JSON stream out of saved logs; review IAM, budget, backend identity, shared dependencies, and ACM DNS record ownership separately.
 
 [Platform overview](../README.md) · [Shared state, DNS, costs and teardown](../shared/OPERATIONS.md)
-
-AWS Backup completed a separate restore in 16m 48s. A later private TLS read confirmed the expected row. RDS also reported a Multi-AZ failover start and completion 19.85 seconds apart. [AWS recovery evidence](evidence/live-recovery.json)
-
-The [point-in-time recovery readback](evidence/live-pitr.json) records a TLS query against the private, encrypted restored database. The expected rehearsal row was readable 13m 50s after the restore request.

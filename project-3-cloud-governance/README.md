@@ -28,6 +28,10 @@ The [hosted CI screenshot](evidence/offline-ci.png) shows the completed Terrafor
 | Security and monitoring | Local handler tests exercise finding analysis, bounded inputs, fallback and dashboard reads | Cross-account finding ingestion, central audit delivery |
 | Cost management | Local tests cover Cost Explorer input and deterministic fallback | Attributed live costs and operator review of generated recommendations |
 
+### Limits of the single-account lab
+
+Read-only inventory in us-east-1 found no AWS Config recorder status, CloudTrail trail or GuardDuty detector. The account was unsubscribed from Security Hub CSPM. Enabling these shared services would expand collection and cost beyond the portfolio resources. The live exercise therefore starts at EventBridge with a labeled sample. The security dashboard API assumes dedicated Security and FinOps read roles to query both tables. Its behavior has offline coverage; a deployed dashboard and cross-account access remain unverified.
+
 ## Operations
 
 The six-account design is **not deployed** for this portfolio. With Terraform 1.6.6 and the project's Python test dependencies installed, run from the repository root:
