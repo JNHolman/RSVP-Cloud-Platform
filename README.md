@@ -1,45 +1,25 @@
 # RSVP Cloud Platform
 
-**An AWS engineering portfolio built from a real business decision.**
+I designed a private AWS network, application servers and a highly available database for RSVP Society, my event-management business. Most of our traffic arrives around invitations and events. Paying for servers and database capacity between those bursts made little business sense, so I moved the production application toward event-driven services and kept the enterprise design as a separate engineering portfolio. [RSVP Society](https://github.com/JNHolman/rsvp-society)
 
-I originally designed traditional AWS infrastructure for [RSVP Society](https://github.com/JNHolman/rsvp-society), my event-management platform. It worked as an architecture, but it was too expensive for a business with traffic concentrated around invitations and events.
+My network engineering background shaped how I tested it. I started with the path from an HTTPS request to a database row, ran the same application on containers, and exercised the controls that help an operator investigate a failure or recover a release.
 
-I moved RSVP Society to event-driven services—Lambda, API Gateway, DynamoDB, and EventBridge—and kept the original enterprise infrastructure work as a separate engineering project.
+## What I built and verified
 
-My network engineering background shaped the exercises. I wanted to trace a failed request across the network, identify which release was serving traffic, and prove that a recovered database could answer an application query.
+**1 · Cloud Foundation.** Behind the web application firewall and load balancer, private EC2 instances in two Availability Zones read from an encrypted RDS database. During a controlled alarm exercise, the incident pipeline collected **77 log entries**. The model identified refused backend connections, traced the return of healthy responses, and recommended checks. The system saved the report and delivered a notification. Remediation stayed with the operator. A separate encrypted snapshot restore returned a known database row in **10m 02s**. [Infrastructure, AI report and recovery evidence](project-1-cloud-foundation/README.md)
 
-## Three stages
+**2 · Software Delivery.** Private ECS containers ran the same application and read the same rows from RDS over verified TLS. A deliberately incorrect release answered health checks but served the wrong version. GitHub Actions detected the mismatch and verified the previous release in **3m 23s**. In a separate failure, the ECS circuit breaker recovered an unhealthy revision in **13m 47s**. Under load, the service grew from two running tasks to three. [Release records and scaling chart](project-2-ecs-cicd/README.md)
 
-| Stage | Engineering focus | What it demonstrates |
-| --- | --- | --- |
-| [Cloud Foundation](project-1-cloud-foundation/README.md) | Private EC2, ALB/WAF, Multi-AZ RDS, monitoring, backups | Secure networking, availability, recovery, incident analysis |
-| [ECS & CI/CD](project-2-ecs-cicd/README.md) | ECS Fargate, ECR, GitHub OIDC, CI/CD | Immutable releases, private containers, health checks, rollback |
-| [Cloud Governance](project-3-cloud-governance/README.md) | Organizations, SCPs, identity, audit logging, security and cost analysis | Live incident triage and SCP document validation |
+**3 · Cloud Governance.** In a single AWS account, a labeled sample critical finding triggered an AI investigation. The model proposed **P3** because it recognized a rehearsal. The severity policy enforced **P1**, and the system stored the decision and delivered the alert. AWS also validated the two generated service control policy documents. The six-account design and its trust boundaries have offline coverage. Live enforcement across accounts remains unverified. [Investigation, policy results and design limits](project-3-cloud-governance/README.md)
 
-Foundation establishes the network, recovery and monitoring boundaries. Delivery carries those requirements into the container release process. Governance models how an organization could enforce them across accounts. The integrated dev exercise served the same Flask application from private EC2 and ECS. Both HTTPS paths read the same operator-inserted row from private RDS using IAM authentication and verified TLS.
+## Engineering Decisions and Trade-offs
 
-## What I verified
+**Production isolation.** The lab shared an AWS account with Society. Dedicated resource names, Terraform state keys and a delegated DNS zone under `cloud.rsvpsociety.com` bounded the exercise. Reviewed plans excluded Society’s database, IAM identities and production DNS. An older development resource with unclear ownership was left alone.
 
-- **Project 1:** Two private application targets across two Availability Zones, HTTPS, WAF blocking, monitoring, and an encrypted RDS snapshot restore. **Measured restore: 10m 02s.**
-- **Project 2:** GitHub OIDC delivery to private ECS tasks and a deliberately failed release recovered by the ECS circuit breaker. **Measured rollback: 13m 47s.**
-- **Project 3:** AWS validated both SCP documents. A sample critical finding triggered AI triage, priority enforcement and notification in AWS. Organization-wide enforcement has not been tested live.
+**Release ownership.** Foundation owned the database and private network. Delivery owned the peering connection, return routes and reader permissions. Separate state let me retire the consumer first. Terraform managed the infrastructure baseline, while GitHub Actions promoted application revisions. In the governance design, AWS Config aggregation covers accounts only where Config recording is enabled.
 
-These are dated test results, not claims that every integration is currently deployed. See the [Project 1](project-1-cloud-foundation/evidence/2026-11-08.md) and [Project 2](project-2-ecs-cicd/evidence/2026-11-08.md) reports.
+**Recovery and cost.** Terraform retired 80 foundation resources, 60 ECS runtime resources and two temporary delivery resources. Release task definitions 6 and 7 remained registered after service retirement. The final RDS snapshot was available and encrypted. RDS recovery points inherit the database encryption key. Project 1 recovery KMS keys have intentional Terraform destruction guards, so I do not expect an unrestricted `terraform destroy` to remove them alongside the runtime.
 
-The GitHub release workflow also detected a deliberately wrong serving version and verified rollback in approximately **3m 23s**. The advisory incident workflow analyzed **77 log entries** and delivered an encrypted evidence reference to its test subscriber. [Release walkthrough](project-2-ecs-cicd/README.md#live-integrated-release-on-november-8) · [AI investigation](project-1-cloud-foundation/README.md#ai-incident-analysis)
-
-## Engineering decisions
-
-**Business fit:** RSVP Society uses lighter event-driven infrastructure; this portfolio explores controls justified by larger workloads.
-
-**Operational safety:** Terraform owns infrastructure; GitHub Actions owns application releases. Environments are temporary, and the lab must not affect Society production.
-
-**Recovery over configuration:** I measure restoration and rollback instead of assuming that configured safeguards work.
-
-**Security boundaries:** AWS Config aggregation covers accounts only **where Config recording is enabled**. **RDS recovery points inherit the database encryption key**; recovery depends on retaining that key and access. **Project 1 recovery KMS keys have intentional Terraform destruction guards**.
-
-## Documentation
-
-[State ownership, recovery dependencies and retained costs](shared/OPERATIONS.md)
+The encrypted snapshots, completed AWS Backup recovery point, log buckets and incident index were retained. Keys and storage can continue to incur charges. No cost-allocation tags were active during the exercise, so the portfolio’s share of the bill could not be established.
 
 **Josh Holman** — Network / Cloud Infrastructure Engineer
