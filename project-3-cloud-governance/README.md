@@ -12,7 +12,7 @@ Terraform models SCPs, Identity Center, CloudTrail, security aggregation, dashbo
 
 ## Evidence checklist
 
-There is no AWS console screenshot or live six-account exercise. Inspect the [policy tests](modules/scp-policies/tests/guardrails.tftest.hcl) and [governance tests](tests/).
+The [hosted CI screenshot](evidence/offline-ci.png) shows the completed Terraform policy tests. The six-account control plane has no live AWS evidence. Inspect the [policy tests](modules/scp-policies/tests/guardrails.tftest.hcl) and [governance tests](tests/).
 
 | Area | Evidence available | Evidence still needed |
 |---|---|---|
@@ -30,6 +30,18 @@ python -m pytest -q project-3-cloud-governance/tests shared/tests
 ```
 
 These tests prove policy generation and local application logic. They do not prove that AWS enforced the policies across accounts.
+
+### Proposed single-account AWS exercise
+
+Use one short-lived portfolio deployment in us-east-1 with its own state, roles and resource names. Approval is pending. The account also hosts RSVP Society, so every write must target a portfolio resource.
+
+| Exercise | Evidence to capture |
+|---|---|
+| Submit the Terraform-generated SCP documents to IAM Access Analyzer | AWS validation findings for each document. Effective OU enforcement still requires a member account. |
+| Replay a labeled sample finding through a private EventBridge bus into the existing incident handler | Correlated event, Lambda analysis or fallback, stored report and notification receipt. Record the sample origin separately from real AWS delivery. |
+| Invoke the existing FinOps handler with a portfolio cost-allocation tag filter | Sanitized report with the billing period and observed attribution. The current handler queries the whole account, so add and test the filter before invocation. Skip the query if the tag is unavailable. |
+
+Budget a two-hour exercise with at most 20 Lambda invocations, ten Cost Explorer API pages and two bounded model calls. Allow $5 for AWS and $1 for the model, including teardown headroom. These are planning allowances. Remove triggers first, then retire the temporary runtime and check for retained logs and storage. OU attachments, Identity Center assignments, organization trails and delegated security administration remain enterprise architecture with offline coverage.
 
 ### If deploying Project 3 in a real organization
 

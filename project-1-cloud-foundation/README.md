@@ -1,18 +1,43 @@
 # Project 1 — Cloud Foundation
 
-```text
-Internet → HTTPS/WAF → ALB → private EC2 (AZ A + AZ B)
-                                   ↓
-                         encrypted Multi-AZ RDS
+An HTTPS request crosses a protected public edge to a private application tier. When a health alarm changes state, the platform gathers evidence and sends an advisory report to the operator.
+
+```mermaid
+flowchart TB
+  client["Browser"] -->|HTTPS| edge["Application Load Balancer · ACM + AWS WAF"]
+  subgraph vpc["Foundation VPC · us-east-1"]
+    edge --> asg["Private EC2 Auto Scaling group · two Availability Zones"]
+    asg -->|IAM reader · MySQL over TLS| db[("Encrypted Multi-AZ RDS")]
+    db --> backup["Native snapshots · PITR · AWS Backup"]
+  end
+  asg -->|Application logs| logs["CloudWatch Logs"]
+  edge -->|Target health and 5xx metrics| alarm["CloudWatch alarms"]
+  alarm -->|State change| eb["EventBridge rule"]
+  eb --> fn["Lambda incident analyst"]
+  logs -->|Bounded, redacted log window| fn
+  fn --> ai{"Model output passes validation?"}
+  ai -->|Yes| report["Evidence-backed advisory report"]
+  ai -->|No| fallback["Deterministic fallback"]
+  fallback --> report
+  report --> store[("Encrypted S3 report + DynamoDB index")]
+  report -->|ALARM| sns["SNS → operator subscriber"]
+  classDef data fill:#eaf3fb,stroke:#376b98,color:#102c42
+  classDef ops fill:#e9f5ef,stroke:#35815a,color:#133d28
+  class db,store data
+  class alarm,eb,fn,ai,report,fallback,sns ops
 ```
 
-The VPC isolates application and database resources. Security groups restrict traffic; CloudWatch and flow logs support troubleshooting. Backups and snapshots support recovery.
+**Recovery benchmark:** the historical encrypted snapshot restore recovered a known database row in **10m 02s**. [Timestamped recovery timeline](evidence/2026-11-08.md#recovery-timeline)
 
-**Incident path:** CloudWatch alarm → EventBridge → Lambda → bounded log/metric evidence → validated AI or deterministic fallback → encrypted S3 and DynamoDB. AI is advisory and cannot change infrastructure.
+## Live integration on November 8
 
-**Live evidence:** Private targets in two AZs, HTTPS, WAF rejection, alarms, and a snapshot restore verified against a known record in **10m 02s**. Daily backup delivery, point-in-time recovery, and AZ failover are design capabilities, not all independently proven by that exercise.
+The shared Flask application read an operator-inserted marker from private MySQL through the EC2 role and a TLS-verified IAM connection. Both HTTPS endpoints later returned the same three records. The EC2 screenshot captures the first two, before the recovery checkpoint marker was added. [Live foundation page](evidence/live-rds-reader.png) · [ECS read-back](../project-2-ecs-cicd/evidence/live-release-recovery.json)
 
-## Evidence checklist
+On the first rollout, Gunicorn failed before startup because systemd could not open its stderr file. Correcting the log path restored the service. The real load-balancer metrics capture the target-health transitions. [CloudWatch target health](evidence/live-target-health.png)
+
+A controlled CloudWatch alarm state change reached EventBridge and Lambda. The handler analyzed 77 log entries with the model, persisted an encrypted report and linked DynamoDB item, and published a notification received by an encrypted SQS test subscriber. Human email delivery was outside this exercise. [Incident evidence](evidence/live-incident.json)
+
+## Original exercise checklist
 
 [Exercise report and homepage screenshot](evidence/2026-11-08.md) · [Recorded observations](evidence/observations.json)
 
@@ -61,3 +86,7 @@ The historical EC2 page and the database marker were tested separately. An appli
 The plan reviewer is intended for first-deployment scope checks, not automatic approval of updates or deletions. It may return exit 1 for scope/action findings and exit 2 for invalid input. Keep the JSON stream out of saved logs; review IAM, budget, backend identity, shared dependencies, and ACM DNS record ownership separately.
 
 [Platform overview](../README.md) · [Shared state, DNS, costs and teardown](../shared/OPERATIONS.md)
+
+AWS Backup completed a separate restore in 16m 48s. A later private TLS read confirmed the expected row. RDS also reported a Multi-AZ failover start and completion 19.85 seconds apart. [AWS recovery evidence](evidence/live-recovery.json)
+
+The [point-in-time recovery readback](evidence/live-pitr.json) records a TLS query against the private, encrypted restored database. The expected rehearsal row was readable 13m 50s after the restore request.

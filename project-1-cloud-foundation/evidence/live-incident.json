@@ -1,0 +1,13 @@
+{
+  "test": "Operator-set alarm state via CloudWatch; automatic EventBridge, Lambda and SNS delivery",
+  "alarm": "rsvp-pf1-dev-target-5xx-high",
+  "state": "ALARM",
+  "analysis_status": "ai_generated",
+  "timestamp": "2026-11-08T23:24:01.384457+00:00",
+  "source_log_count": 77,
+  "guardrail": "advisory_only_no_automatic_remediation",
+  "s3_encryption": "aws:kms",
+  "dynamodb_record_verified": true,
+  "subscriber": "temporary encrypted SQS queue",
+  "human_email_receipt_tested": false
+}

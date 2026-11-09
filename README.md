@@ -14,7 +14,7 @@ I moved RSVP Society to event-driven services—Lambda, API Gateway, DynamoDB, a
 | [ECS & CI/CD](project-2-ecs-cicd/README.md) | ECS Fargate, ECR, GitHub OIDC, CI/CD | Immutable releases, private containers, health checks, rollback |
 | [Cloud Governance](project-3-cloud-governance/README.md) | Organizations, SCPs, identity, audit logging, security and cost analysis | Multi-account operating controls, tested offline |
 
-Foundation establishes the network, recovery and monitoring boundaries. Delivery carries those requirements into the container release process. Governance models how an organization could enforce them across accounts. The historical EC2 exercise served an Apache page and verified MySQL recovery separately. The ECS exercise served a versioned Flask application.
+Foundation establishes the network, recovery and monitoring boundaries. Delivery carries those requirements into the container release process. Governance models how an organization could enforce them across accounts. The integrated dev exercise served the same Flask application from private EC2 and ECS. Both HTTPS paths read the same operator-inserted row from private RDS using IAM authentication and verified TLS.
 
 ```mermaid
 flowchart LR
@@ -33,6 +33,8 @@ flowchart LR
 - **Project 3:** Terraform policy and application behavior validated offline. Organization-wide enforcement has not been tested live.
 
 These are dated test results, not claims that every integration is currently deployed. See the [Project 1](project-1-cloud-foundation/evidence/2026-11-08.md) and [Project 2](project-2-ecs-cicd/evidence/2026-11-08.md) reports.
+
+The GitHub release workflow also detected a deliberately wrong serving version and verified rollback in approximately **3m 23s**. The advisory incident workflow analyzed **77 log entries** and delivered an encrypted evidence reference to its test subscriber. [Release evidence](project-2-ecs-cicd/evidence/live-release-recovery.json) · [Incident evidence](project-1-cloud-foundation/evidence/live-incident.json)
 
 ## Engineering decisions
 

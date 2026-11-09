@@ -1,0 +1,40 @@
+{
+  "aws_backup": {
+    "status": "COMPLETED",
+    "started": "2026-11-08T18:43:59.519000-05:00",
+    "completed": "2026-11-08T19:00:47.666000-05:00"
+  },
+  "later_tls_verification": {
+    "observed_utc": "2026-11-09T04:39:24.395190+00:00",
+    "instance": "rsvp-pf1-dev-backup-1108",
+    "tls_cipher": "TLS_AES_256_GCM_SHA384",
+    "rows": [
+      [
+        1,
+        "Portfolio rehearsal"
+      ],
+      [
+        2,
+        "Live AWS validation 2026-11-08"
+      ]
+    ],
+    "requested_utc": "2026-11-08T23:43:59.519000+00:00",
+    "duration_to_read_seconds": 17725,
+    "encrypted": true,
+    "private": true
+  },
+  "rds_failover_events": [
+    [
+      "2026-11-08T23:29:34.350000+00:00",
+      "Multi-AZ instance failover started. "
+    ],
+    [
+      "2026-11-08T23:29:54.200000+00:00",
+      "Multi-AZ instance failover completed"
+    ],
+    [
+      "2026-11-08T23:29:54.200000+00:00",
+      "The user requested a failover of the DB instance."
+    ]
+  ]
+}
