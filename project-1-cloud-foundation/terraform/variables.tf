@@ -252,3 +252,15 @@ variable "ai_reserved_concurrency" {
     error_message = "Choose -1 or a positive whole number."
   }
 }
+
+variable "availability_zone_suffixes" {
+  description = "Ordered standard AZ suffixes for the two subnet pairs. Existing environments must retain their deployed order."
+  type        = tuple([string, string])
+  default     = ["a", "b"]
+  nullable    = false
+
+  validation {
+    condition     = length(distinct(var.availability_zone_suffixes)) == 2 && alltrue([for suffix in var.availability_zone_suffixes : can(regex("^[a-z]$", suffix))])
+    error_message = "Choose two distinct single-letter Availability Zone suffixes."
+  }
+}

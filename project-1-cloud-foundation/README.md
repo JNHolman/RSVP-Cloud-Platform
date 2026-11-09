@@ -41,17 +41,27 @@ An operator set the CloudWatch alarm `rsvp-pf1-dev-target-5xx-high` to **ALARM**
 
 #### From the saved AI report
 
-At 23:24 UTC the model identified two separate events. The operator had deliberately set the alarm. Earlier, Apache had returned 503 to load balancer health checks because its connection to the local application was refused. By 23:19:59 UTC, checks were returning 200. The logs supported a temporarily unavailable backend. They did not establish why the process stopped listening.
+At 23:24:01 UTC on November 8 the analyst recorded the following excerpts from the 77-entry investigation. The quoted text comes from the original encrypted report. Raw log lines and infrastructure identifiers are omitted.
 
-The report recommended comparing target health with Gunicorn and service-supervisor logs during the failure window, then checking the health endpoint and a database-backed request before closing the incident. SNS delivered the report reference to the exercise subscriber. An operator decides whether to restart a service, change configuration or close the incident.
+**Observed in the logs** (report field `evidence_used`):
 
-Two checks from the generated report:
+> At 23:18:59, /health returned 503 to ELB-HealthChecker/2.0.
+>
+> Additional /health 503 responses occurred at 23:19:29 and 23:19:32.
+
+**Model assessment** (from `summary` and `likely_root_cause`):
+
+> Health checks recovered to HTTP 200 by 23:19:59 and remained healthy through the end of the supplied logs, including after later Gunicorn/Apache startup messages.
+>
+> Separately, the observed earlier 503s were likely caused by Apache proxy failures to connect to the local backend service on 127.0.0.1:8080, consistent with the backend not listening or restarting at that time. The supplied evidence does not prove why the backend was unavailable.
+
+**Recommended checks** (from `recommended_checks`):
 
 > Confirm in CloudWatch alarm history whether the ALARM transition was operator-set rather than metric-driven.
 >
 > Verify current /health, /api/reservations, and target group status remain healthy before closing the incident.
 
-*Sanitized summary of the stored model response from November 8 at 23:24:01 UTC.*
+The operator had set the alarm to exercise the notification path. The earlier 503s were real observations within the collected window. Restarting the service, changing configuration and closing the incident remained operator decisions.
 
 ## Recovery evidence
 

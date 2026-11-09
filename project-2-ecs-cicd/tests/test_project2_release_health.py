@@ -23,12 +23,18 @@ def test_smoke_verifies_serving_revision(tmp_path, version, environment, accepte
     assert (result.returncode == 0) == accepted, result.stderr
 
 
+SEED = {"id": 1, "event": "Portfolio rehearsal"}
+MARKER = {"id": 2, "event": "DB marker"}
+
+
 @pytest.mark.parametrize("active,version,rows,mode,verified", [
-    ("previous", "1234567", True, "fixture", True),
-    ("previous", "1234567", True, "rds", False),
-    ("candidate", "1234567", True, "fixture", False),
-    ("previous", "7654321", True, "fixture", False),
-    ("previous", "1234567", False, "fixture", False),
+    ("previous", "1234567", [SEED], "fixture", True),
+    ("previous", "1234567", [SEED, MARKER], "rds", True),
+    ("previous", "1234567", [SEED], "rds", False),
+    ("previous", "1234567", [SEED, {"id": 2, "event": "Other database"}], "rds", False),
+    ("candidate", "1234567", [SEED], "fixture", False),
+    ("previous", "7654321", [SEED], "fixture", False),
+    ("previous", "1234567", [], "fixture", False),
 ])
 def test_rollback_verifies_previous_release(tmp_path, active, version, rows, mode, verified):
     workflow = Path(__file__).resolve().parents[2] / ".github/workflows/ecs-project2-deploy.yml"
@@ -46,7 +52,7 @@ def test_rollback_verifies_previous_release(tmp_path, active, version, rows, mod
                             "GITHUB_WORKSPACE": str(workflow.parents[2]), "ACTIVE": active, "PREVIOUS_TASK_DEF": "previous", "ECS_CLUSTER": "dev",
                             "ECS_SERVICE": "demo", "EXPECTED_ENV": "dev", "PREVIOUS_VERSION": "1234567", "PREVIOUS_DB_MODE": mode, "RDS_SMOKE_EVENT": "DB marker",
                             "SERVICE_URL": "https://example.invalid",
-                            "ROWS": json.dumps({"reservations": [{"id": 1, "event": "Portfolio rehearsal"}] if rows else []}),
+                            "ROWS": json.dumps({"reservations": rows}),
                             "HEALTH": json.dumps({"status": "ok", "env": "dev", "version": version})})
     assert result.returncode != 0
     assert ("Previous release verified" in result.stdout) == verified
