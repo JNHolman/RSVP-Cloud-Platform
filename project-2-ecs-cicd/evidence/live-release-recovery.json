@@ -1,0 +1,49 @@
+{
+  "observed_at": "2026-11-08T23:38:17.404906+00:00",
+  "build_run": 42534475017,
+  "release_run": 42535097319,
+  "rollback_exercise_run": 42535446228,
+  "recovered_revision": 6,
+  "recovered_health": {
+    "env": "dev",
+    "status": "ok",
+    "timestamp": "2026-11-08T23:38:11.754816+00:00",
+    "version": "43ef326"
+  },
+  "candidate_health": {
+    "env": "dev",
+    "status": "ok",
+    "timestamp": "2026-11-08T23:36:07.354370+00:00",
+    "version": "rollback-exercise-d60bf47"
+  },
+  "both_endpoints_returned": {
+    "reservations": [
+      {
+        "event": "Portfolio rehearsal",
+        "id": 1
+      },
+      {
+        "event": "Live AWS validation 2026-11-08",
+        "id": 2
+      },
+      {
+        "event": "After recovery checkpoint",
+        "id": 3
+      }
+    ]
+  },
+  "ecr_sha_tag": "43ef326329c423a86096de57bce6cb207e9c0af6",
+  "ecr_index_digest": "sha256:46312e6d86b45e1d9dc528c8857e053b0675eb9a7f47ebbc82e64b3c2aa4e00a",
+  "private_tasks": [
+    {
+      "availability_zone": "us-east-1a",
+      "public_ip": false,
+      "image_digest": "sha256:46312e6d86b45e1d9dc528c8857e053b0675eb9a7f47ebbc82e64b3c2aa4e00a"
+    },
+    {
+      "availability_zone": "us-east-1b",
+      "public_ip": false,
+      "image_digest": "sha256:46312e6d86b45e1d9dc528c8857e053b0675eb9a7f47ebbc82e64b3c2aa4e00a"
+    }
+  ]
+}

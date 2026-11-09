@@ -101,3 +101,16 @@ resource "aws_iam_role_policy_attachment" "ai_lambda_policy_attach" {
   role       = aws_iam_role.ai_lambda_role.name
   policy_arn = aws_iam_policy.ai_lambda_policy.arn
 }
+
+resource "aws_iam_role_policy" "read_demo_database" {
+  name = "${local.name_prefix}-read-demo-database"
+  role = aws_iam_role.ec2_role.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = "rds-db:connect"
+      Resource = "arn:aws:rds-db:${var.aws_region}:${data.aws_caller_identity.current.account_id}:dbuser:${aws_db_instance.app_db.resource_id}/rsvp_reader"
+    }]
+  })
+}

@@ -105,10 +105,9 @@ def test_dashboard_cors_origin_is_a_single_explicit_https_origin():
 
 def test_cleanup_docs_do_not_claim_protected_recovery_keys_are_disposable():
     readme = Path("README.md").read_text(encoding="utf-8")
-    runbook = Path("shared/OPERATIONS.md").read_text(encoding="utf-8")
     assert "Project 1 recovery KMS keys have intentional Terraform destruction guards" in readme
-    assert "do not expect an unrestricted `terraform destroy`" in runbook.lower()
-    assert "snapshots" in runbook.lower() and "recovery points" in runbook.lower()
+    assert "do not expect an unrestricted `terraform destroy`" in readme.lower()
+    assert "snapshots" in readme.lower() and "recovery points" in readme.lower()
 
 
 def test_workload_stack_has_no_unused_placeholder_app_log_group():

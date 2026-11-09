@@ -167,7 +167,7 @@ resource "aws_lambda_function" "ai_log_summarizer" {
   source_code_hash               = data.archive_file.ai_lambda_zip.output_base64sha256
   timeout                        = 45
   memory_size                    = 256
-  reserved_concurrent_executions = 2
+  reserved_concurrent_executions = var.ai_reserved_concurrency
   kms_key_arn                    = aws_kms_key.observability.arn
 
   tracing_config {
@@ -205,6 +205,8 @@ resource "aws_cloudwatch_event_rule" "ai_alarm_rule" {
     detail = {
       alarmName = [
         aws_cloudwatch_metric_alarm.alb_5xx_high.alarm_name,
+        aws_cloudwatch_metric_alarm.target_5xx_high.alarm_name,
+        aws_cloudwatch_metric_alarm.unhealthy_targets.alarm_name,
         aws_cloudwatch_metric_alarm.asg_cpu_high.alarm_name,
         aws_cloudwatch_metric_alarm.rds_cpu_high.alarm_name,
         aws_cloudwatch_metric_alarm.rds_free_storage_low.alarm_name

@@ -7,20 +7,17 @@ data "aws_ssm_parameter" "amazon_linux_2023_ami" {
 }
 
 ##############################################
-#  User Data – Apache + RSVP landing page + /health
+#  User Data – Apache proxy + shared Flask service
 ##############################################
 
 locals {
   user_data = <<-EOF2
 #!/bin/bash
-set -xe
+set -eu -o pipefail
 
-dnf install -y httpd amazon-cloudwatch-agent
+dnf install -y httpd amazon-cloudwatch-agent python3.12 python3.12-pip
 
-systemctl enable httpd
-systemctl start httpd
-
-HOSTNAME=$(hostname -f)
+mkdir -p /opt/rsvp
 
 cat >/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json <<CWA
 {
@@ -32,6 +29,11 @@ cat >/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json <<CWA
             "file_path": "/var/log/httpd/access_log",
             "log_group_name": "/${local.name_prefix}/app",
             "log_stream_name": "{instance_id}/access"
+          },
+          {
+            "file_path": "/var/log/rsvp-application.log",
+            "log_group_name": "/${local.name_prefix}/app",
+            "log_stream_name": "{instance_id}/application"
           },
           {
             "file_path": "/var/log/httpd/error_log",
@@ -50,23 +52,40 @@ CWA
   -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json \
   -s
 
-cat >/var/www/html/index.html <<HTML
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <title>RSVP Cloud Platform</title>
-</head>
-<body>
-  <h1>RSVP Cloud Platform</h1>
-  <p>Private application tier behind an HTTPS Application Load Balancer.</p>
-  <p>Instance: $HOSTNAME</p>
-</body>
-</html>
-HTML
-
-echo "ok" > /var/www/html/health
-chmod 644 /var/www/html/health
+echo '${filebase64("${path.module}/../../project-2-ecs-cicd/app/app.py")}' | base64 -d > /opt/rsvp/app.py
+echo '${filebase64("${path.module}/../../project-2-ecs-cicd/app/requirements.txt")}' | base64 -d > /opt/rsvp/requirements.txt
+python3.12 -m venv /opt/rsvp/venv
+/opt/rsvp/venv/bin/pip install -r /opt/rsvp/requirements.txt
+curl -fsS --retry 3 https://truststore.pki.rds.amazonaws.com/${var.aws_region}/${var.aws_region}-bundle.pem -o /opt/rsvp/rds-ca.pem
+cat >/etc/systemd/system/rsvp.service <<'UNIT'
+[Unit]
+Description=RSVP application
+After=network-online.target
+[Service]
+DynamicUser=yes
+WorkingDirectory=/opt/rsvp
+Environment=DB_MODE=rds
+Environment=DB_HOST=${aws_db_instance.app_db.address}
+Environment=DB_NAME=${var.db_name}
+Environment=AWS_REGION=${var.aws_region}
+Environment=RDS_CA_FILE=/opt/rsvp/rds-ca.pem
+Environment=ENV_NAME=${var.environment}
+Environment=APP_VERSION=${substr(filesha256("${path.module}/../../project-2-ecs-cicd/app/app.py"), 0, 12)}
+StandardError=append:/var/log/rsvp-application.log
+ExecStart=/opt/rsvp/venv/bin/gunicorn --bind 127.0.0.1:8080 app:app
+Restart=on-failure
+NoNewPrivileges=yes
+PrivateTmp=yes
+[Install]
+WantedBy=multi-user.target
+UNIT
+cat >/etc/httpd/conf.d/rsvp.conf <<'HTTPD'
+ProxyPass / http://127.0.0.1:8080/
+ProxyPassReverse / http://127.0.0.1:8080/
+HTTPD
+setsebool -P httpd_can_network_connect on
+systemctl daemon-reload
+systemctl enable --now rsvp httpd
 EOF2
 }
 
@@ -151,6 +170,7 @@ resource "aws_autoscaling_group" "app_asg" {
   # propagated. Do not launch first-boot instances until SSM and CloudWatch
   # Agent permissions are actually attached to the role.
   depends_on = [
+    aws_iam_role_policy.read_demo_database,
     aws_iam_role_policy_attachment.ec2_basic_ssm,
     aws_iam_role_policy_attachment.ec2_cloudwatch_logs,
   ]

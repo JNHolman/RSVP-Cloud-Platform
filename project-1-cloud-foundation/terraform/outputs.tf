@@ -93,3 +93,16 @@ output "backup_vault_name" {
   description = "AWS Backup vault used for independent RDS recovery points"
   value       = aws_backup_vault.production.name
 }
+
+output "foundation_db" {
+  description = "Non-secret connection metadata for the optional ECS reader. Export after the foundation is healthy."
+  value = {
+    vpc_id                  = aws_vpc.main.id
+    vpc_cidr                = aws_vpc.main.cidr_block
+    private_route_table_ids = aws_route_table.private[*].id
+    security_group_id       = aws_security_group.db_sg.id
+    resource_id             = aws_db_instance.app_db.resource_id
+    hostname                = aws_db_instance.app_db.address
+    database                = aws_db_instance.app_db.db_name
+  }
+}

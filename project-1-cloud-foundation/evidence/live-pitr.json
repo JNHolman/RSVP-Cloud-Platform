@@ -1,0 +1,19 @@
+{
+  "observed_utc": "2026-11-08T23:40:27.591579+00:00",
+  "instance": "rsvp-pf1-dev-pitr-1108",
+  "tls_cipher": "TLS_AES_256_GCM_SHA384",
+  "rows": [
+    [
+      1,
+      "Portfolio rehearsal"
+    ],
+    [
+      2,
+      "Live AWS validation 2026-11-08"
+    ]
+  ],
+  "requested_utc": "2026-11-08T23:26:37.870354+00:00",
+  "duration_to_read_seconds": 830,
+  "encrypted": true,
+  "private": true
+}

@@ -150,6 +150,8 @@ jobs:
             "http://$endpoint/health" --output "$RUNNER_TEMP/project2-health.json"
           jq -e --arg sha "$GITHUB_SHA" \
             '.status == "ok" and .env == "ci" and .version == $sha' "$RUNNER_TEMP/project2-health.json"
+          curl --fail --silent --show-error "http://$endpoint/api/reservations" |
+            jq -e '.reservations == [{"id":1,"event":"Portfolio rehearsal"}]'
       - name: Trivy image scan
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:

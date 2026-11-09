@@ -118,6 +118,7 @@ def test_project1_ai_dependency_failure_falls_back_and_persists():
     module.ddb = RecordingClient()
     module.sns = RecordingClient()
     module.cloudwatch = RecordingClient()
+    module.SNS_TOPIC_ARN = "arn:aws:sns:us-east-1:123456789012:demo"
     module._fetch_recent_logs = lambda: ["application error"]
 
     def fail_ai(_evidence):
@@ -143,6 +144,8 @@ def test_project1_ai_dependency_failure_falls_back_and_persists():
     ddb_calls = [call for call in module.ddb.calls if call[0] == "put_item"]
     assert ddb_calls
     assert ddb_calls[0][2]["Item"]["analysis_status"]["S"] == "fallback"
+    notification = next(args for name, _, args in module.sns.calls if name == "publish")
+    assert json.loads(notification["Message"])["evidence_record"].endswith(s3_calls[0][2]["Key"])
 
 
 def test_project1_log_collection_failure_does_not_drop_alarm():

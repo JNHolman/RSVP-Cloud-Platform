@@ -1,63 +1,80 @@
 # Project 1 — Cloud Foundation
 
-```text
-Internet → HTTPS/WAF → ALB → private EC2 (AZ A + AZ B)
-                                   ↓
-                         encrypted Multi-AZ RDS
+An HTTPS request crosses a protected public edge to a private application tier. When a health alarm changes state, the platform gathers evidence and sends an advisory report to the operator.
+
+```mermaid
+flowchart TB
+  client["Browser"] -->|HTTPS| edge["Application Load Balancer · ACM + AWS WAF"]
+  subgraph vpc["Foundation VPC · us-east-1"]
+    edge --> asg["Private EC2 Auto Scaling group · two Availability Zones"]
+    asg -->|IAM reader · MySQL over TLS| db[("Encrypted Multi-AZ RDS")]
+  end
+  db --> backup["Native snapshots · PITR · AWS Backup"]
+  asg -->|Application logs| logs["CloudWatch Logs"]
+  edge -->|Target health and 5xx metrics| alarm["CloudWatch alarms"]
+  classDef data fill:#eaf3fb,stroke:#376b98,color:#102c42
+  classDef ops fill:#e9f5ef,stroke:#35815a,color:#133d28
+  class db,backup data
+  class alarm,logs ops
 ```
 
-The VPC isolates application and database resources. Security groups restrict traffic; CloudWatch and flow logs support troubleshooting. Backups and snapshots support recovery.
+**Recovery benchmark:** the historical encrypted snapshot restore recovered a known database row in **10m 02s**. [Timestamped recovery timeline](evidence/2026-11-08.md#recovery-timeline)
 
-**Incident path:** CloudWatch alarm → EventBridge → Lambda → bounded log/metric evidence → validated AI or deterministic fallback → encrypted S3 and DynamoDB. AI is advisory and cannot change infrastructure.
+## Live integration on November 8
 
-**Live evidence:** Private targets in two AZs, HTTPS, WAF rejection, alarms, and a snapshot restore verified against a known record in **10m 02s**. Daily backup delivery, point-in-time recovery, and AZ failover are design capabilities, not all independently proven by that exercise.
+The shared Flask application read an operator-inserted marker from private MySQL through the EC2 role and a TLS-verified IAM connection. Both HTTPS endpoints later returned the same three records. The EC2 screenshot captures the first two, before the recovery checkpoint marker was added. [Live foundation page](evidence/live-rds-reader.png)
 
-## Evidence checklist
+On the first rollout, Gunicorn failed before startup because systemd could not open its stderr file. Correcting the log path restored the service. The real load-balancer metrics capture the target-health transitions.
 
-[Exercise report and homepage screenshot](evidence/2026-11-08.md) · [Recorded observations](evidence/observations.json)
+![CloudWatch load balancer target health during the EC2 rollout](evidence/live-target-health.png)
 
-| Area | Evidence available | Evidence still needed |
-|---|---|---|
-| Networking and security | Two private targets in different AZs, issued certificate, WAF 403, active flow logs | Capture an AZ/target view if another exercise is authorized |
-| Monitoring and AI | Alarm history, direct Lambda fallback, encrypted S3/DynamoDB persistence and a separate live-model handler test | Correlate a real alarm with invocation, model result and subscriber delivery |
-| Recovery | Restored a known marker over TLS in 10m 02s | AWS Backup restore, PITR, Multi-AZ failover and application cutover |
+### AI incident analysis
 
-## Operations
+An operator set the CloudWatch alarm `rsvp-pf1-dev-target-5xx-high` to **ALARM**. From there the investigation ran automatically.
 
-**Location:** `project-1-cloud-foundation/terraform/`
+| Step | What happened in AWS |
+|---|---|
+| Trigger | EventBridge routed the alarm change to the incident Lambda. |
+| Investigation | Lambda collected **77 log entries**. OpenAI returned an advisory analysis. |
+| Report | The pipeline saved the report in KMS-encrypted S3 storage and recorded the incident in DynamoDB. |
+| Notification | SNS delivered the notification to an encrypted SQS test subscriber. Human email delivery remains unverified. |
 
-### Portfolio-dev configuration
+#### From the saved AI report
 
-Use `environments/portfolio-dev/`, not the older `dev/` backend. The portfolio prefix is `rsvp-pf1-dev`, and the state key is `project-1-cloud-platform/portfolio-dev/terraform.tfstate`. The proposed VPC CIDR is `10.83.0.0/16`; confirm it does not conflict with networks the VPC may connect to.
+At 23:24:01 UTC on November 8 the analyst recorded the following excerpts from the 77-entry investigation. All six excerpts below were checked against the original report in encrypted S3 storage. The repository contains the excerpts and execution record. An authorized reader with the full report can verify its SHA-256 digest: `53a5efd6d23b93dc24a7db25169caeaeee13ddf34e2dd8b924af2da3b8bfd69f`.
 
-Prepare local copies of `backend.hcl.example` and `terraform.tfvars.example`, leaving the examples untouched. Set the delegated child-zone ID, `dev.cloud.rsvpsociety.com`, and a **dedicated** Secrets Manager ARN for the AI credential. Keep these values out of Git.
+**Observed in the logs** (report field `evidence_used`):
 
-After filling in and checking those local files:
+> At 23:18:59, /health returned 503 to ELB-HealthChecker/2.0.
+>
+> Additional /health 503 responses occurred at 23:19:29 and 23:19:32.
 
-```sh
-cd project-1-cloud-foundation/terraform
-export TF_DATA_DIR="$PWD/.terraform/portfolio-dev"
-terraform init -backend-config=environments/portfolio-dev/backend.hcl
-terraform workspace show
-terraform plan -var-file=environments/portfolio-dev/terraform.tfvars -out=portfolio-dev.tfplan
-```
+**Model assessment** (from `summary` and `likely_root_cause`):
 
-To check the intended first-deployment scope, review the plan and run the local reviewer with the independently confirmed child-zone ID:
+> Health checks recovered to HTTP 200 by 23:19:59 and remained healthy through the end of the supplied logs, including after later Gunicorn/Apache startup messages.
+>
+> Separately, the observed earlier 503s were likely caused by Apache proxy failures to connect to the local backend service on 127.0.0.1:8080, consistent with the backend not listening or restarting at that time. The supplied evidence does not prove why the backend was unavailable.
 
-```sh
-set -o pipefail
-terraform show -json portfolio-dev.tfplan | python3 ../../shared/review-portfolio-plan.py p1 "$CHILD_ZONE_ID"
-```
+**Recommended checks** (from `recommended_checks`):
 
-A scope finding means **stop and review**, not override the check. Keep plans and raw state private; they may contain sensitive values.
+> Confirm in CloudWatch alarm history whether the ALARM transition was operator-set rather than metric-driven.
+>
+> Verify current /health, /api/reservations, and target group status remain healthy before closing the incident.
 
-Only after an explicit approval should anyone apply the reviewed plan.
+The operator had set the alarm to exercise the notification path. The earlier 503s were real observations within the collected window. Restarting the service, changing configuration and closing the incident remained operator decisions.
 
-**What to verify:** HTTPS health; two healthy private instances in different AZs; WAF response; application and VPC logs; a working app-to-database request; alarm-to-AI delivery and saved report; RDS encryption and managed credentials; AWS Backup recovery, point-in-time restore, and a controlled failover. Record observed results separately from configuration checks.
+## Recovery evidence
 
-The historical EC2 page and the database marker were tested separately. An application-to-database claim requires a request that returns a row from RDS.
+AWS Backup completed a separate restore in 16m 48s. A later private TLS read confirmed the expected row. RDS also reported a Multi-AZ failover start and completion 19.85 seconds apart.
 
+The point-in-time recovery readback records a TLS query against the private, encrypted restored database. The expected rehearsal row was readable 13m 50s after the restore request.
 
-The plan reviewer is intended for first-deployment scope checks, not automatic approval of updates or deletions. It may return exit 1 for scope/action findings and exit 2 for invalid input. Keep the JSON stream out of saved logs; review IAM, budget, backend identity, shared dependencies, and ACM DNS record ownership separately.
+[Earlier networking, WAF and recovery exercise](evidence/2026-11-08.md)
 
-[Platform overview](../README.md) · [Shared state, DNS, costs and teardown](../shared/OPERATIONS.md)
+The alarm handler bounds and redacts its log sample before requesting analysis. The Terraform configuration defines the access path and database recovery settings. [Investigation handler](terraform/ai_log_summarizer.py) · [Network boundaries](terraform/vpc.tf) · [Database configuration](terraform/rds.tf)
+
+<details><summary>Technical evidence records</summary>
+
+[Incident delivery](evidence/live-incident.json) · [Recovery observations](evidence/live-recovery.json) · [Point-in-time readback](evidence/live-pitr.json)
+
+</details>

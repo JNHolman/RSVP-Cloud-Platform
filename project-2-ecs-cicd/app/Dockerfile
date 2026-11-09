@@ -12,10 +12,13 @@ RUN apt-get update \
     && addgroup --system app \
     && adduser --system --ingroup app app
 
+RUN python -c "from urllib.request import urlretrieve; urlretrieve('https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem', '/app/rds-ca.pem')"
+
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY --chown=app:app app.py .
+COPY app.py demo.sql ./
+RUN python -c "import sqlite3; from pathlib import Path; db = sqlite3.connect('demo.sqlite'); db.executescript(Path('demo.sql').read_text()); db.close()"
 
 USER app
 EXPOSE 8080

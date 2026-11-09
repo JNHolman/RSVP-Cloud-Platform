@@ -1,7 +1,3 @@
-data "aws_availability_zones" "available" {
-  state = "available"
-}
-
 resource "aws_vpc" "this" {
   cidr_block           = "10.20.0.0/16"
   enable_dns_support   = true
@@ -29,7 +25,7 @@ resource "aws_default_security_group" "default" {
 resource "aws_subnet" "public_a" {
   vpc_id                  = aws_vpc.this.id
   cidr_block              = "10.20.1.0/24"
-  availability_zone       = data.aws_availability_zones.available.names[0]
+  availability_zone       = "${var.aws_region}${var.availability_zone_suffixes[0]}"
   map_public_ip_on_launch = false
 
   tags = {
@@ -43,7 +39,7 @@ resource "aws_subnet" "public_a" {
 resource "aws_subnet" "public_b" {
   vpc_id                  = aws_vpc.this.id
   cidr_block              = "10.20.2.0/24"
-  availability_zone       = data.aws_availability_zones.available.names[1]
+  availability_zone       = "${var.aws_region}${var.availability_zone_suffixes[1]}"
   map_public_ip_on_launch = false
 
   tags = {
@@ -57,7 +53,7 @@ resource "aws_subnet" "public_b" {
 resource "aws_subnet" "private_a" {
   vpc_id                  = aws_vpc.this.id
   cidr_block              = "10.20.11.0/24"
-  availability_zone       = data.aws_availability_zones.available.names[0]
+  availability_zone       = "${var.aws_region}${var.availability_zone_suffixes[0]}"
   map_public_ip_on_launch = false
 
   tags = {
@@ -71,7 +67,7 @@ resource "aws_subnet" "private_a" {
 resource "aws_subnet" "private_b" {
   vpc_id                  = aws_vpc.this.id
   cidr_block              = "10.20.12.0/24"
-  availability_zone       = data.aws_availability_zones.available.names[1]
+  availability_zone       = "${var.aws_region}${var.availability_zone_suffixes[1]}"
   map_public_ip_on_launch = false
 
   tags = {
@@ -162,6 +158,14 @@ resource "aws_route_table" "private_a" {
     nat_gateway_id = aws_nat_gateway.a.id
   }
 
+  dynamic "route" {
+    for_each = var.foundation_db[*]
+    content {
+      cidr_block                = route.value.vpc_cidr
+      vpc_peering_connection_id = aws_vpc_peering_connection.foundation[0].id
+    }
+  }
+
   tags = {
     Name = "${local.name_prefix}-private-a-rt"
   }
@@ -173,6 +177,14 @@ resource "aws_route_table" "private_b" {
   route {
     cidr_block     = "0.0.0.0/0"
     nat_gateway_id = aws_nat_gateway.b.id
+  }
+
+  dynamic "route" {
+    for_each = var.foundation_db[*]
+    content {
+      cidr_block                = route.value.vpc_cidr
+      vpc_peering_connection_id = aws_vpc_peering_connection.foundation[0].id
+    }
   }
 
   tags = {

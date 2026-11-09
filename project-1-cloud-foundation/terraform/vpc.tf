@@ -2,13 +2,10 @@
 #  VPC & Networking for RSVP Cloud Platform
 ##############################################
 
-data "aws_availability_zones" "available" {
-  state = "available"
-}
 
 locals {
-  az1         = data.aws_availability_zones.available.names[0]
-  az2         = data.aws_availability_zones.available.names[1]
+  az1         = "${var.aws_region}${var.availability_zone_suffixes[0]}"
+  az2         = "${var.aws_region}${var.availability_zone_suffixes[1]}"
   name_prefix = "${var.project_name}-${var.environment}"
 }
 

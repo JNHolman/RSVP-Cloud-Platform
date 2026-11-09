@@ -242,3 +242,25 @@ variable "alarm_rds_free_storage_bytes" {
   type        = number
   default     = 5368709120
 }
+
+variable "ai_reserved_concurrency" {
+  description = "Use -1 for the shared concurrency pool in quota-limited development accounts."
+  type        = number
+  default     = 2
+  validation {
+    condition     = var.ai_reserved_concurrency == -1 || (var.ai_reserved_concurrency >= 1 && floor(var.ai_reserved_concurrency) == var.ai_reserved_concurrency)
+    error_message = "Choose -1 or a positive whole number."
+  }
+}
+
+variable "availability_zone_suffixes" {
+  description = "Ordered standard AZ suffixes for the two subnet pairs. Existing environments must retain their deployed order."
+  type        = tuple([string, string])
+  default     = ["a", "b"]
+  nullable    = false
+
+  validation {
+    condition     = length(distinct(var.availability_zone_suffixes)) == 2 && alltrue([for suffix in var.availability_zone_suffixes : can(regex("^[a-z]$", suffix))])
+    error_message = "Choose two distinct single-letter Availability Zone suffixes."
+  }
+}

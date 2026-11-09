@@ -101,3 +101,15 @@ variable "log_retention_days" {
     error_message = "log_retention_days must be a CloudWatch Logs supported retention value."
   }
 }
+
+variable "availability_zone_suffixes" {
+  description = "Ordered standard AZ suffixes for the two subnet pairs. Existing environments must retain their deployed order."
+  type        = tuple([string, string])
+  default     = ["a", "b"]
+  nullable    = false
+
+  validation {
+    condition     = length(distinct(var.availability_zone_suffixes)) == 2 && alltrue([for suffix in var.availability_zone_suffixes : can(regex("^[a-z]$", suffix))])
+    error_message = "Choose two distinct single-letter Availability Zone suffixes."
+  }
+}
