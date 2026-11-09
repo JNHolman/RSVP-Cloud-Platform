@@ -18,16 +18,6 @@ My network engineering background shaped the exercises. I wanted to trace a fail
 
 Foundation establishes the network, recovery and monitoring boundaries. Delivery carries those requirements into the container release process. Governance models how an organization could enforce them across accounts. The integrated dev exercise served the same Flask application from private EC2 and ECS. Both HTTPS paths read the same operator-inserted row from private RDS using IAM authentication and verified TLS.
 
-```mermaid
-flowchart LR
-  A["Foundation: HTTPS edge → private EC2"] -->|modernize delivery| B["Delivery: OIDC → ECR → private ECS"]
-  A --> C["Encrypted RDS snapshots and recovery"]
-  A --> D["CloudWatch alarms and advisory AI"]
-  B --> E["Version check and ECS rollback"]
-  B -. enterprise design .-> F["Governance: identity, SCPs, security findings and FinOps"]
-```
-
-
 ## What I verified
 
 - **Project 1:** Two private application targets across two Availability Zones, HTTPS, WAF blocking, monitoring, and an encrypted RDS snapshot restore. **Measured restore: 10m 02s.**
@@ -50,6 +40,6 @@ The GitHub release workflow also detected a deliberately wrong serving version a
 
 ## Documentation
 
-[Operations, validation, costs, and cleanup](shared/OPERATIONS.md)
+[State ownership, recovery dependencies and retained costs](shared/OPERATIONS.md)
 
 **Josh Holman** — Network / Cloud Infrastructure Engineer

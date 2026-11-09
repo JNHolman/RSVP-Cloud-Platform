@@ -1,65 +1,20 @@
 # Project 2 — ECS & CI/CD
 
-A release is identified by its Git revision from build through recovery. A deployment must pass an HTTPS version check before the workflow reports success.
+A healthy container can still serve the wrong software. I used two independent checks in the dev release. ECS monitored task health. GitHub Actions checked the version that clients actually received over HTTPS.
 
-```mermaid
-flowchart TB
-  dispatch["Approved environment dispatch"] --> ci["GitHub Actions · application tests"]
-  ci --> build["Build or resolve immutable SHA image · Trivy scan"]
-  oidc["GitHub OIDC → environment-scoped AWS role"] --> release
-  build --> ecr[("Amazon ECR · immutable image")]
-  ecr --> release["Register revision from Terraform task baseline"]
-  release --> svc["ECS service · private Fargate tasks in two AZs"]
-  edge["HTTPS ALB + AWS WAF"] --> svc
-  svc -->|VPC peering · TLS · IAM reader| rds[("Foundation RDS")]
-  svc -->|Unhealthy tasks| circuit["ECS deployment circuit breaker"]
-  svc -->|Service stable| smoke{"HTTPS health, environment and SHA match?"}
-  smoke -->|Yes| done["Verify active task definition"]
-  smoke -->|No| rollback["Workflow restores previous task definition"]
-  rollback --> recovered["Verify prior revision and serving version"]
-  classDef control fill:#e9f5ef,stroke:#35815a,color:#133d28
-  classDef data fill:#eaf3fb,stroke:#376b98,color:#102c42
-  class ci,build,release,circuit,smoke,rollback,recovered,done control
-  class ecr,rds data
-```
-
-**Recovery benchmarks:** ECS recovered an unhealthy revision in **13m 47s**. In the separate version-mismatch exercise, the GitHub workflow verified the previous release in **3m 23s** from smoke-check failure. [Native rollback timeline](evidence/2026-11-08.md) · [Workflow run](https://github.com/JNHolman/RSVP-Cloud-Platform/actions/runs/42535446228)
+The release used GitHub OIDC for temporary AWS credentials. The build published an immutable Git-SHA image to ECR, with Trivy and ECR scan results available for review. Two private Fargate tasks in separate Availability Zones ran the recorded image digest. The application read the same three rows as the EC2 service through VPC peering, using an IAM database token and verified TLS. [Build run](https://github.com/JNHolman/RSVP-Cloud-Platform/actions/runs/42534475017) · [Successful release](https://github.com/JNHolman/RSVP-Cloud-Platform/actions/runs/42535097319) · [Task digests and database readback](evidence/live-release-recovery.json) · [Serving application](evidence/live-rds-reader.png)
 
 ## Live integrated release on November 8
 
-The dev workflow released Git revision `43ef326` to private Fargate tasks. The service read marker 2 from the foundation's RDS instance over VPC peering. Its HTTPS response matched the EC2 endpoint. [Live ECS page](evidence/live-rds-reader.png) · [Runtime observations](evidence/live-release-recovery.json) · [Successful deployment](https://github.com/JNHolman/RSVP-Cloud-Platform/actions/runs/42535097319)
+| GitHub Actions step | Recorded result | Why it matters |
+|---|---|---|
+| Smoke test · 23:34:10 UTC | “Unexpected release health, version or environment” | The candidate answered health requests but served the deliberately incorrect version. |
+| Roll back failed deployment · 23:37:34 UTC | “Previous release verified after rollback” | The workflow restored revision 6 and verified the prior serving version, `43ef326`, in **3m 23s**. |
 
-A separate dev-only workflow run deliberately served a mismatched version. The smoke check detected it at 23:34:10 UTC and the workflow verified the previous serving revision at 23:37:34 UTC, approximately 3m 23s later. The workflow ended with a failure status as designed. [Controlled rollback workflow](https://github.com/JNHolman/RSVP-Cloud-Platform/actions/runs/42535446228)
+The failed status on [the workflow run](https://github.com/JNHolman/RSVP-Cloud-Platform/actions/runs/42535446228) records the rejected candidate. In a separate exercise an unhealthy revision failed inside ECS itself. Its deployment circuit breaker recovered the previous release in **13m 47s**. [Circuit-breaker timeline and security scan findings](evidence/2026-11-08.md)
 
-During the [bounded load exercise](evidence/live-scaling.json), 1,625 requests drove the service from two running tasks to three with a temporary 10% CPU target. Observation ended before scale-in was confirmed.
+![ECS desired and running task counts sampled during the exercise](evidence/scale-out.svg)
 
-![Private Fargate application reading the shared foundation database](evidence/live-rds-reader.png)
+The test used a temporary 10% CPU target. Desired capacity rose first, then a third task reached running state. Observation ended before scale-in was confirmed. [Timestamped task counts](evidence/live-scaling.json)
 
-[Earlier WAF, image scan and circuit-breaker observations](evidence/2026-11-08.md)
-
-## Read the foundation database
-
-The integrated dev release serves the same Flask source as EC2. Supply the foundation's `foundation_db` output to the ECS runtime as an input of the same name. It contains the RDS hostname, database resource ID and private network identifiers. Generate it from the verified dev backend after the foundation is available. Pass only this named output, keeping raw state and local Terraform values out of Git.
-
-ECS owns the peering connection, return routes, database-reader policy and security-group rules it adds. The foundation retains ownership of RDS, its security group and private route tables. Use non-overlapping VPCs in the same account and region. Remove the ECS runtime and its connection before retiring the foundation.
-
-From a private operator session, initialize the configured database with the application's `demo.sql`, create `rsvp_reader` with the RDS IAM authentication plugin, require TLS, and grant SELECT only on `demo_reservations`. For live evidence, insert a second, uniquely named exercise record through the operator session. Capture that exact record via both HTTPS endpoints, with the running ECS revision and corresponding database query. The image's independent SQLite fixture cannot supply that record.
-
-## Operations
-
-Before using the production OIDC role, configure **GitHub Environment protection rules for `prod`**: **restrict deployment branches/tags** to approved release sources and require reviewer approval where supported. Environment protection is part of the **production authorization boundary**, because AWS trust scopes the OIDC subject to the repository and environment.
-
-
-**Locations:** `project-2-ecs-cicd/bootstrap-delivery/` and `project-2-ecs-cicd/terraform/`
-
-1. **Bootstrap delivery.** Use the bootstrap Terraform root in the intended AWS account. It manages the ECR repositories, the GitHub OIDC provider and environment-specific deployment roles. Confirm the account does not already have an independently owned OIDC provider before making changes.
-2. **Configure GitHub.** Set `AWS_DEPLOY_ROLE_ARN` in the matching GitHub Environment. Also set `AWS_REGION` and `PROJECT_NAME` if not using the defaults (`us-east-1`, `rsvp-project2`). For stage/prod, restrict approved branches/tags and require approval where supported.
-3. **Build the first image.** Run **ECS Project 2 - Bootstrap First Image** for the target environment. Copy the exact immutable Git-SHA image URI into the local runtime `terraform.tfvars` as `container_image`. Do not use `:latest`.
-4. **Deploy the runtime.** Initialize `project-2-ecs-cicd/terraform/` with its matching dev backend, review its plan, and apply only after approval.
-5. **Finish GitHub configuration.** Set `SERVICE_URL` to the service's verified HTTPS URL. Run **ECS Project 2 - Controlled Deploy**, then confirm that `/health` returns the expected release and environment.
-
-**What to verify:** Two healthy private tasks in separate AZs, HTTPS, WAF, logs, the ECR image digest and GitHub's deployment result. The ECS circuit-breaker rollback and GitHub workflow rollback are separate behaviors. Verify each through its own controlled failure path. Use bounded load for autoscaling and record both scale-out and scale-in events.
-
-**Task-definition ownership:** Terraform registers the infrastructure and security baseline, tagged `ConfigurationSource=TerraformBaseline`. The ECS service intentionally ignores `task_definition` drift so a later Terraform apply cannot roll back a GitHub-deployed application release. Therefore, after any Terraform change that modifies the ECS task definition, run **Controlled Deploy** before treating that configuration change as active. The workflow clones the latest Terraform baseline, replaces only the release image/version, and promotes that revision to the service.
-
-[Platform overview](../README.md) · [Shared state, DNS, costs and teardown](../shared/OPERATIONS.md)
+**Task-definition ownership.** Terraform tagged the infrastructure baseline `ConfigurationSource=TerraformBaseline`. The release workflow cloned it and selected the image. That separation explains why, after any Terraform change that modifies the ECS task definition, operators run **Controlled Deploy** to promote the updated baseline. GitHub Environment protection rules for `prod` restrict deployment branches/tags and form part of the production authorization boundary. The exercises used dev.
