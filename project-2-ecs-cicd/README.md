@@ -31,11 +31,11 @@ A moving image tag makes it difficult to establish exactly what was deployed. Th
 
 GitHub Actions uses an environment-bound OIDC identity to assume a scoped AWS role instead of storing long-lived deployment keys. That AWS trust policy is **not a substitute** for branch/tag restrictions or reviewer approvals in GitHub Environments. [OIDC role and registry bootstrap](bootstrap-delivery/main.tf)
 
-### Deployment ownership must not fight Terraform
+### Task-definition ownership: Terraform versus GitHub Actions
 
 Terraform owns the ECS infrastructure baseline; GitHub Actions promotes application task revisions. Otherwise, a later Terraform apply could unintentionally move the service backward or override a workflow release.
 
-The workflow clones the baseline task definition, changes the image and deploys a new revision. After a Terraform change to the baseline, a controlled deployment is needed to promote that revision deliberately. [ECS configuration](terraform/ecs.tf) · [Service configuration](terraform/ecs_service.tf)
+The workflow selects the task definition tagged `ConfigurationSource=TerraformBaseline`, clones it, changes the image and deploys a new revision. After any Terraform change that modifies the ECS task definition, operators run **Controlled Deploy** to promote the updated baseline deliberately. [ECS configuration](terraform/ecs.tf) · [Service configuration](terraform/ecs_service.tf)
 
 ### A successful release must be able to read data
 
@@ -75,7 +75,7 @@ The original Bookworm-based image had **nine HIGH** findings in ECR. Rebuilding 
 
 The live AWS rollback verified **serving version and health**; the later database-aware candidate and rollback checks have **simulated test coverage only** because the ECS/RDS lab was retired. Scale-in was not confirmed. The development exercises did not validate a protected production deployment.
 
-At inspection on November 9, 2026, the repository's GitHub `prod` Environment returned `deployment_branch_policy: null` and `protection_rules: []`. Its environment-level branch/tag restrictions and reviewer gate were therefore absent; the AWS role's OIDC trust restriction alone did not supply those controls. [Environment settings response](https://api.github.com/repos/JNHolman/RSVP-Cloud-Platform/environments/prod)
+GitHub Environment protection rules for `prod` must be configured to restrict deployment branches/tags and require any intended reviewer approvals; they belong in the production authorization boundary alongside OIDC trust. At inspection on November 9, 2026, the repository's GitHub `prod` Environment returned `deployment_branch_policy: null` and `protection_rules: []`. Its environment-level branch/tag restrictions and reviewer gate were therefore absent; the AWS role's OIDC trust restriction alone did not supply those controls. [Environment settings response](https://api.github.com/repos/JNHolman/RSVP-Cloud-Platform/environments/prod)
 
 The live runtime has been shut down to avoid continuing infrastructure charges. This repository retains the workflow, Terraform, tests and evidence—not a continuously running demo.
 
