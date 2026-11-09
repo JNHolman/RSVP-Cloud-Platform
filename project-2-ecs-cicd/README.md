@@ -11,7 +11,21 @@ I moved the foundation application onto managed containers so a release could be
 | Smoke test · 23:34:10 UTC | “Unexpected release health, version or environment” | The candidate answered health requests but served the deliberately incorrect version. |
 | Roll back failed deployment · 23:37:34 UTC | “Previous release verified after rollback” | The workflow restored revision 6 and verified the prior serving version, `43ef326`, in **3m 23s**. |
 
-The failed status on [the workflow run](https://github.com/JNHolman/RSVP-Cloud-Platform/actions/runs/42535446228) records the rejected candidate. In a separate exercise an unhealthy revision failed inside ECS itself. Its deployment circuit breaker recovered the previous release in **13m 47s**. [Circuit-breaker timeline and security scan findings](evidence/2026-11-08.md)
+### Two ways to reject a release
+
+```mermaid
+flowchart TD
+  build["GitHub Actions tests application and scans image"] --> deploy["Deploy immutable image to private ECS tasks"]
+  deploy --> stable{"Can ECS stabilize the tasks?"}
+  stable -->|No| ecs["ECS circuit breaker recovers last healthy deployment"]
+  stable -->|Yes| probe{"Does HTTPS serve the expected version?"}
+  probe -->|No| restore["Workflow restores and verifies previous revision"]
+  probe -->|Yes| active["Confirm active task definition"]
+```
+
+The failed status on the [version-mismatch run](https://github.com/JNHolman/RSVP-Cloud-Platform/actions/runs/42535446228) records the rejected candidate. The public endpoint answered, so task health alone would have accepted it. In the separate **13m 47s** circuit-breaker drill, ECS itself detected the unhealthy revision. The clocks start at different failure signals. [Circuit-breaker timeline](evidence/2026-11-08.md)
+
+### Capacity under load
 
 ![ECS desired and running task counts sampled during the exercise](evidence/scale-out.svg)
 

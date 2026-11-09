@@ -32,14 +32,28 @@ On the first rollout, Gunicorn failed before startup because systemd could not o
 
 ### AI incident analysis
 
-An operator set the CloudWatch alarm `rsvp-pf1-dev-target-5xx-high` to **ALARM**. EventBridge picked up the state change and invoked the investigation Lambda. The handler limits the log window, redacts messages before sending them to the model, and checks the returned analysis. If collection or analysis is incomplete, the report can carry the collection error or a fallback assessment. That lets the operator see the limits of the investigation.
+I set the development load balancer’s 5xx alarm (`rsvp-pf1-dev-target-5xx-high`) to **ALARM** to exercise the handoff an on-call engineer would receive. The metric alarm supplied the signal. Its state, reason and timestamp gave the investigator a place to start looking in the application logs.
 
-| Step | What happened in AWS |
-|---|---|
-| Trigger | EventBridge routed the alarm change to the incident Lambda. |
-| Investigation | Lambda collected **77 log entries**. OpenAI returned an advisory analysis. |
-| Report | The pipeline saved the report in KMS-encrypted S3 storage and recorded the incident in DynamoDB. |
-| Notification | SNS delivered the notification to an encrypted SQS test subscriber. Human email delivery remains unverified. |
+```mermaid
+sequenceDiagram
+    participant E as EventBridge
+    participant L as Investigation Lambda
+    participant C as CloudWatch Logs
+    participant M as OpenAI
+    participant R as S3 and DynamoDB
+    participant N as SNS subscriber
+    E->>L: CloudWatch alarm changed state
+    L->>C: Read five minutes ending at the event time
+    C-->>L: 77 log entries collected
+    L->>M: Alarm context and redacted log sample
+    M-->>L: Findings, recommendations and confidence
+    L->>R: Store validated report and index
+    L->>N: Publish report reference
+```
+
+The Python handler caps each investigation at 120 entries and truncates each message before redaction. It checks the model’s output fields and confidence value. If log collection fails, the record carries the collection error. If analysis times out or the response fails validation, the handler produces a low-confidence fallback with the captured alarm context. An operator can see when the evidence is incomplete.
+
+In this run the response passed validation. The report was saved in KMS-encrypted S3 storage and indexed in DynamoDB. SNS delivered its reference to an encrypted SQS test subscriber. Human email delivery was outside the exercise.
 
 #### From the saved AI report
 
@@ -67,11 +81,12 @@ The operator had set the alarm to exercise the notification path. The earlier 50
 
 ## Recovery evidence
 
-The tests answer different recovery questions. Restoring a snapshot checks that a backup can become a readable database. Point-in-time recovery tests whether I can get back to a chosen moment. Multi-AZ failover tests how the existing database responds when its primary changes.
-
-AWS Backup completed a separate restore in 16m 48s. A later private TLS read confirmed the expected row. RDS also reported a Multi-AZ failover start and completion 19.85 seconds apart.
-
-The point-in-time recovery readback records a TLS query against the private, encrypted restored database. The expected rehearsal row was readable 13m 50s after the restore request.
+| Recovery mechanism | Evidence and timing |
+|---|---|
+| Encrypted snapshot | Queried a known row in the restored database after **10m 02s**. |
+| Point-in-time recovery | A private TLS read returned the rehearsal marker after **13m 50s**. The row added after the chosen checkpoint was absent. |
+| AWS Backup | The restore job completed in **16m 48s**. A later TLS query independently verified the row. |
+| Multi-AZ failover | RDS reported **19.85s** between failover start and completion. This measures the database operation; client recovery has a separate timeline. |
 
 [Earlier networking, WAF and recovery exercise](evidence/2026-11-08.md)
 

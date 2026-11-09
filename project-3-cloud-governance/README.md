@@ -14,14 +14,24 @@ Terraform and offline tests cover this six-account design. For the live exercise
 
 ## Live AWS exercise
 
-A labeled critical sample arrived on a private EventBridge bus. Lambda submitted its finding metadata for analysis and applied the severity rule before writing the investigation record.
+A labeled critical sample arrived on a private EventBridge bus. It contained no affected resource or originating product. That gave the model good reason to question the evidence. The alert still carried a critical severity label.
 
-| Recorded decision | Evidence from the investigation |
-|---|---|
-| Model recommendation · **P3** | The model recognized a rehearsal. It asked the operator to confirm the exercise origin and check for an affected resource before attributing business impact. |
-| Stored priority · **P1** | The critical severity floor overrode P3. DynamoDB recorded the investigation, and SNS delivered the notification to an encrypted SQS subscriber. |
+```mermaid
+flowchart TD
+  input["Sample finding · CRITICAL"] --> analyst["Lambda redacts finding metadata for AI analysis"]
+  analyst --> model["Model proposes P3 · probable rehearsal"]
+  input --> floor["Configured critical severity floor · P1"]
+  model --> apply["Compare proposed priority with severity floor"]
+  floor --> apply
+  apply --> record["DynamoDB records proposed P3 and enforced P1"]
+  record --> alert["SNS notification received by encrypted SQS subscriber"]
+```
 
-The model’s reasoning made sense for a rehearsal. In a real investigation, the same conclusion might be based on incomplete context. Retaining the proposed P3 alongside the enforced P1 lets a reviewer see exactly where judgment and policy diverged. The encrypted queue receipt confirmed the alert made it past the decision code to a subscriber.
+The model recommended checking the exercise origin and identifying the resource before attributing business impact. Its report said:
+
+> No confirmed business impact can be determined from the supplied evidence.
+
+The handler raised P3 to P1 and kept the original recommendation. An investigator can see why the model was cautious and why the alert was sent anyway. If analysis fails, the handler derives a fallback priority from the finding’s severity. The recorded AWS exercise took the model-success path. [Decision logic](security-admin/ai_incident_analyzer.py)
 
 IAM Access Analyzer returned **zero findings** for both Terraform-generated default SCP documents. Member-account enforcement remains unverified. The cost-analysis code reads billing data to explain changes in spend. In this shared account, Cost Explorer returned zero active cost-allocation tags. Charging unrelated Society usage to the lab would misstate its cost, so I skipped the portfolio-only report. [Cost analysis implementation](finops-ai/cost_analyzer.py)
 
