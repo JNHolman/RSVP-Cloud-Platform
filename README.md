@@ -1,75 +1,75 @@
 # RSVP Cloud Platform
 
-**I built an AWS environment that investigates service failures, rejects bad releases and preserves the evidence behind a security alert.** I used the same read-only reservation service to test how much of that work could be automated and where an engineer still had to make the decision.
+[![CI](https://github.com/JNHolman/RSVP-Cloud-Platform/actions/workflows/ci.yml/badge.svg)](https://github.com/JNHolman/RSVP-Cloud-Platform/actions/workflows/ci.yml)
 
-![Reconstruction of three AWS exercises: 77 logs analyzed, rollback verified in 3m 23s, and a critical sample raised from the model’s P3 to the enforced P1.](shared/platform-exercises.gif)
+An Application Load Balancer can report healthy targets while an application serves the wrong release. A database restore can finish without proving that the expected records survived. An AI assessment can sound convincing without enough evidence to establish a cause.
 
-*25-second reconstruction from recorded exercises.* [Investigation and original report](project-1-cloud-foundation/README.md#ai-incident-analysis) · [Rollback timeline](project-2-ecs-cicd/README.md#live-integrated-release-on-november-8) · [Security decision and receipt](project-3-cloud-governance/README.md#live-aws-exercise)
+**RSVP Cloud Platform tests those gaps instead of treating green infrastructure status as proof that a service works.** I originally built the AWS hosting environment for [RSVP Society](https://github.com/JNHolman/rsvp-society), a private-event platform with bursts of invitation, RSVP, and check-in traffic. Keeping servers and a highly available database running between events added unnecessary overhead, so the live business moved toward event-driven services.
 
-When RSVP Society sends a wave of invitations, guests reply, change plans and bring friends. Between events there may be very little work for the application to do. My first AWS design kept application servers and a highly available database running throughout those quiet periods. For the business, it made more sense to pay for work as requests arrived. I moved the production application toward event-driven services. [RSVP Society and its event operations](https://github.com/JNHolman/rsvp-society)
+I kept a separate, read-only reservation lab with no production guest data. Cloud Foundation tested investigation and database recovery. ECS & CI/CD tested release identity and rollback. Cloud Governance examined independent security authority and audit custody. The first two projects were exercised in AWS; the six-account governance architecture was validated offline, with one AI severity guardrail tested in a single AWS account. The active lab infrastructure has since been retired.
 
-I kept the original design to answer a question from my work in network operations: when a request fails, can I follow it from the public entry point to the database and prove when service recovers?
+## Recorded exercise evidence
 
-I used Terraform to build private AWS networks around two ways to serve the same application: EC2 virtual machines and ECS Fargate containers reading from an RDS database. GitHub Actions automated the build, security scan, deployment and recovery of container releases. When a CloudWatch alarm changed state, a Python function in Lambda collected evidence for an AI-assisted investigation. The governance design separates who can deploy a workload from who can administer security policy. In the live security exercise, an explicit priority rule controlled the alert after AI triage.
+![Reconstruction of incident investigation, release rollback, and security-priority enforcement from saved evidence.](shared/platform-exercises.gif)
 
-## How the lab fits together
+*This 25-second animation reconstructs three exercises from saved records; it is not footage of a running service.* [Incident record](project-1-cloud-foundation/evidence/live-incident.json) · [Rollback record](project-2-ecs-cicd/evidence/live-release-recovery.json) · [Priority decision](project-3-cloud-governance/evidence/aws-incident-exercise.json)
 
-```mermaid
-flowchart TB
-  subgraph foundation["Foundation VPC"]
-    vm["Private EC2 servers"] -->|MySQL over TLS| db[("Private RDS database")]
-  end
-  subgraph delivery["Delivery VPC"]
-    tasks["Private ECS tasks"]
-  end
-  tasks -->|VPC peering · IAM database reader| db
-  metric["CloudWatch metric alarm"] -->|State change| events["EventBridge"]
-  events --> analyst["Investigation Lambda"]
-  vm -. Application logs .-> logs["CloudWatch Logs"]
-  analyst -->|Read event-time log window| logs
-  analyst -->|Redacted evidence| ai["AI analysis"]
-  ai -->|Response| analyst
-  analyst -->|Validate and store report| report[("S3 report · DynamoDB index")]
-  analyst -->|Publish stored report reference| sns["SNS topic"]
-  sns -->|Verified delivery| queue["Encrypted SQS test subscriber"]
-  report -. Advisory input .-> operator["Operator authority · closure and remediation"]
-  sec["Separate governance exercise · sample event"] --> triage["Security Lambda"]
-```
+## What the results mean
 
-The notification exercise verified the queue receipt. Human email delivery was untested.
+| Operational question | Observed result | Why it matters |
+| --- | --- | --- |
+| Can an alarm become a usable investigation? | 77 log entries analyzed; report stored and delivered to a test queue | Gives an engineer evidence and suggested checks rather than an unexplained alert |
+| Can an apparently healthy bad release be stopped? | Previous revision verified after **3m 23s** | A running container alone does not establish release correctness |
+| Can the database be restored to the expected state? | Snapshot row verified in **10m 02s**; PITR marker read in **13m 50s** | Recovery requires a successful data read, not just an AWS job status |
+| Can AI be prevented from downgrading a critical finding? | Model P3 overridden by policy P1; both persisted | Policy remains authoritative while the model's reasoning stays visible |
 
-The database was the common test point. Both applications had to read the same reservation through their own network path and AWS role. The governance exercise used a separate event source so I could test security policy without changing production monitoring.
+These are **exercise measurements, not production SLOs**. Other recorded results include AWS Backup completion in **16m 48s** with later row verification, RDS Multi-AZ failover in **19.85s** (database operation only), and ECS scale-out from two to three running tasks under a 1,625-request test.
 
-## Verified in the AWS exercises
+## The engineering journey
 
-| What was measured | Recorded outcome |
-|---|---|
-| [Incident investigation](project-1-cloud-foundation/README.md#ai-incident-analysis) | **77 log entries** analyzed; report saved and notification received. |
-| [Version verification and rollback](project-2-ecs-cicd/README.md#live-integrated-release-on-november-8) | **3m 23s** from rejection to verification of the previous release. |
-| [ECS circuit breaker](project-2-ecs-cicd/evidence/2026-11-08.md) | **13m 47s** to recover a separate unhealthy deployment. |
-| [Encrypted snapshot recovery](project-1-cloud-foundation/README.md#recovery-evidence) | **10m 02s** to a verified database row. |
-| [Service scale-out](project-2-ecs-cicd/README.md#capacity-under-load) | **2 to 3 running tasks** under load. Scale-in remains unverified. |
-| [Security investigation](project-3-cloud-governance/README.md#live-aws-exercise) | Model proposed **P3**; policy enforced **P1**. Both were recorded. |
+### [1. Cloud Foundation — investigate and recover](project-1-cloud-foundation/README.md)
 
-The later database-aware release checks used simulated workflow responses. The enterprise governance design has offline policy tests; cross-account enforcement remains unverified.
+A failed health check identifies a symptom, not its cause. I put the application behind WAF and an HTTPS load balancer, kept EC2 and MySQL private, and built an alarm-driven Lambda investigation that stores bounded, redacted log evidence separately from the model's assessment. I then tested encrypted snapshot, point-in-time, and AWS Backup recovery against known database records.
 
-## Engineering Decisions and Trade-offs
+**The distinction:** an alarm is not a diagnosis, and a completed restore is not proof of recovered data. [Incident evidence](project-1-cloud-foundation/README.md#ai-incident-analysis) · [Recovery results](project-1-cloud-foundation/README.md#recovery-evidence)
 
-**Production isolation.** The lab shared an AWS account with Society. Dedicated resource names, Terraform state keys and a delegated DNS zone under `cloud.rsvpsociety.com` bounded the exercise. Reviewed plans excluded Society’s database, IAM identities and production DNS. An older development resource with unclear ownership was left alone.
+### [2. ECS & CI/CD — reject a bad release](project-2-ecs-cicd/README.md)
 
-**Release ownership.** Foundation owned the database and private network. Delivery owned the peering connection, return routes and reader permissions. Separate state let me retire the consumer first. Terraform managed the infrastructure baseline, while GitHub Actions promoted application revisions. In the governance design, AWS Config aggregation covers accounts only where Config recording is enabled.
+The same reservation service moved into a second private VPC on ECS Fargate, still reading the Foundation database. GitHub Actions used OIDC and immutable ECR images to deploy it. ECS protected against tasks that would not stabilize; a separate HTTPS check rejected a healthy deployment serving the wrong revision.
+
+**The distinction:** task health and release correctness are different signals. Both failure paths were exercised separately in AWS. [Release evidence](project-2-ecs-cicd/README.md#live-integrated-release-on-november-8)
+
+### [3. Cloud Governance — separate security authority](project-3-cloud-governance/README.md)
+
+Application operators should not also control the policies that constrain them or the audit records used to investigate them. I designed a six-account AWS Organizations hierarchy with separate security, log archive, shared services, and workload responsibilities. The organization remains **offline-tested, not deployed**. In a separate single-account AWS exercise, deterministic code prevented AI from downgrading a labeled critical finding.
+
+**The distinction:** a model may advise, but policy decides; a design isn't presented as a deployed control. [Security evidence](project-3-cloud-governance/README.md#live-aws-exercise)
+
+## Follow the architecture
+
+![Architecture of the EC2 and ECS service paths, their shared private RDS data, and the separately tested governance design.](shared/platform-architecture.svg)
+
+The two application paths were exercised in AWS. Foundation uses an ALB and private EC2; Delivery uses private ECS tasks in a second VPC. Peering and scoped database access let both paths read the **same three test records** from private RDS. That shared readback was important: a green load balancer or container status was not enough to prove the application could reach its data.
+
+The governance organization in Project 3 is a **separate, offline-validated design**, not a set of six accounts deployed around the first two projects.
+
+## Engineering trade-offs
+
+**Prove the behavior a client depends on.** Target health and successful AWS jobs are useful signals, but I verified the served HTTPS version and database rows separately. Those checks caught problems infrastructure status alone could miss.
+
+**Keep AI advisory and its inputs bounded.** The incident investigator limits and redacts logs, validates model output, and records a fallback when analysis fails. The security investigator retains the model's recommendation but enforces a code-defined severity floor. Neither system can remediate infrastructure.
+
+**Avoid creating risk for the live business.** The lab uses separate resources and Terraform state from RSVP Society. Its runtime has been retired to avoid unnecessary ongoing charges. I retained recorded evidence rather than presenting an inactive demo URL as live.
+
+For deeper decisions, implementation, and boundaries, read the projects in order: [Foundation](project-1-cloud-foundation/README.md) → [ECS & CI/CD](project-2-ecs-cicd/README.md) → [Governance](project-3-cloud-governance/README.md). The repository also includes [CI](.github/workflows/ci.yml) and the [infrastructure security review](shared/checkov-review.md).
 
 <details>
-<summary>Retired resources, continuing costs and security findings</summary>
+<summary>Validation boundaries, teardown, and retained resources</summary>
 
-**Recovery and cost.** Terraform retired 80 foundation resources, 60 ECS runtime resources and two temporary delivery resources. Release task definitions 6 and 7 remained registered after service retirement. The final RDS snapshot was available and encrypted. RDS recovery points inherit the database encryption key. Project 1 recovery KMS keys have intentional Terraform destruction guards, so I do not expect an unrestricted `terraform destroy` to remove them alongside the runtime.
+Project 1's alarm was **operator-set** to test automatic investigation; it was not a naturally triggered 5xx threshold event. Human email receipt was not tested. The later database-aware Project 2 release checks passed tests with **simulated workflow responses** after the ECS/RDS runtime was retired; they were not rerun live. Project 3's six-account organization, cross-account security controls, and dashboard were not deployed. AWS Config aggregation would only cover member accounts **where Config recording is enabled**.
 
-The encrypted snapshots, completed AWS Backup recovery point, log buckets and incident index were retained. Keys and storage can continue to incur charges. No cost-allocation tags were active during the exercise, so the portfolio’s share of the bill could not be established.
+Reviewed teardown plans excluded RSVP Society production databases, DNS, and IAM. Terraform removed 80 Foundation, 60 ECS, and two temporary delivery resources. Two ECS task definitions remained registered. Encrypted snapshots, a completed AWS Backup recovery point, incident records, and protected keys were retained. **Project 1 recovery KMS keys have intentional Terraform destruction guards**; I **do not expect an unrestricted `terraform destroy`** to remove them. **RDS recovery points inherit the database encryption key.** Retained snapshots, recovery points, and keys may continue to cost money. Without active cost-allocation tags, I did not claim a standalone lab bill.
 
-The infrastructure scan is advisory. The review covers IAM scope, reachability, encryption and monitoring across the three layers. [Disposition of the 42 Checkov findings](shared/checkov-review.md)
+Checkov reports advisory findings; a green CI result is not proof of zero infrastructure risk. See the [disposition of 42 original findings](shared/checkov-review.md).
 
 </details>
-
-For RSVP Society, the useful decision was knowing when the business could dispense with always-on servers. For the enterprise platform, the useful test was what an operator could establish during a failure. A release was back in service when the expected version answered over HTTPS. A backup was usable when a restored database returned the expected row. An AI investigation earned its place by giving the engineer a specific next check and enough evidence to judge the answer.
-
-**Josh Holman** — Network / Cloud Infrastructure Engineer
