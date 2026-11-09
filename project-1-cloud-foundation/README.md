@@ -57,6 +57,31 @@ In this run the response passed validation. The report was saved in KMS-encrypte
 
 #### From the saved AI report
 
+The logs showed three failed health checks, then successful responses by 23:19:59 UTC. The model identified a refused connection between Apache and its local backend as the likely explanation for the 503s. The sample did not establish why the backend was unavailable.
+
+Its closing check went beyond the load balancer:
+
+> Verify current /health, /api/reservations, and target group status remain healthy before closing the incident.
+
+That gave the operator three things to confirm: the process was answering, a database-backed request worked, and the load balancer still considered the target healthy.
+
+The operator had set the alarm to exercise the notification path. The earlier 503s were real observations within the collected window. Restarting the service, changing configuration and closing the incident remained operator decisions.
+
+## Recovery evidence
+
+| Recovery mechanism | Evidence and timing |
+|---|---|
+| Encrypted snapshot | Queried a known row in the restored database after **10m 02s**. |
+| Point-in-time recovery | A private TLS read returned the rehearsal marker after **13m 50s**. The row added after the chosen checkpoint was absent. |
+| AWS Backup | The restore job completed in **16m 48s**. A later TLS query independently verified the row. |
+| Multi-AZ failover | RDS reported **19.85s** between failover start and completion. This measures the database operation; client recovery has a separate timeline. |
+
+[Earlier networking, WAF and recovery exercise](evidence/2026-11-08.md)
+
+The alarm handler bounds and redacts its log sample before requesting analysis. The Terraform configuration defines the access path and database recovery settings. [Investigation handler](terraform/ai_log_summarizer.py) · [Network boundaries](terraform/vpc.tf) · [Database configuration](terraform/rds.tf)
+
+<details><summary>Original report excerpts, verification digest and technical evidence</summary>
+
 At 23:24:01 UTC on November 8 the analyst recorded the following excerpts from the 77-entry investigation. All six excerpts below were checked against the original report in encrypted S3 storage. The repository contains the excerpts and execution record. An authorized reader with the full report can verify its SHA-256 digest: `53a5efd6d23b93dc24a7db25169caeaeee13ddf34e2dd8b924af2da3b8bfd69f`.
 
 **Observed in the logs** (report field `evidence_used`):
@@ -76,23 +101,6 @@ At 23:24:01 UTC on November 8 the analyst recorded the following excerpts from t
 > Confirm in CloudWatch alarm history whether the ALARM transition was operator-set rather than metric-driven.
 >
 > Verify current /health, /api/reservations, and target group status remain healthy before closing the incident.
-
-The operator had set the alarm to exercise the notification path. The earlier 503s were real observations within the collected window. Restarting the service, changing configuration and closing the incident remained operator decisions.
-
-## Recovery evidence
-
-| Recovery mechanism | Evidence and timing |
-|---|---|
-| Encrypted snapshot | Queried a known row in the restored database after **10m 02s**. |
-| Point-in-time recovery | A private TLS read returned the rehearsal marker after **13m 50s**. The row added after the chosen checkpoint was absent. |
-| AWS Backup | The restore job completed in **16m 48s**. A later TLS query independently verified the row. |
-| Multi-AZ failover | RDS reported **19.85s** between failover start and completion. This measures the database operation; client recovery has a separate timeline. |
-
-[Earlier networking, WAF and recovery exercise](evidence/2026-11-08.md)
-
-The alarm handler bounds and redacts its log sample before requesting analysis. The Terraform configuration defines the access path and database recovery settings. [Investigation handler](terraform/ai_log_summarizer.py) · [Network boundaries](terraform/vpc.tf) · [Database configuration](terraform/rds.tf)
-
-<details><summary>Technical evidence records</summary>
 
 [Incident delivery](evidence/live-incident.json) · [Recovery observations](evidence/live-recovery.json) · [Point-in-time readback](evidence/live-pitr.json)
 
