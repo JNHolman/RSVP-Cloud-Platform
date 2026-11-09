@@ -30,9 +30,13 @@ flowchart TB
   analyst -->|Redacted evidence| ai["AI analysis"]
   ai -->|Response| analyst
   analyst -->|Validate and store report| report[("S3 report · DynamoDB index")]
-  analyst -->|Publish stored report reference via SNS| operator["Operator reviews and decides on remediation"]
+  analyst -->|Publish stored report reference| sns["SNS topic"]
+  sns -->|Verified delivery| queue["Encrypted SQS test subscriber"]
+  report -. Advisory input .-> operator["Operator authority · closure and remediation"]
   sec["Separate governance exercise · sample event"] --> triage["Security Lambda"]
 ```
+
+The notification exercise verified the queue receipt. Human email delivery was untested.
 
 The database was the common test point. Both applications had to read the same reservation through their own network path and AWS role. The governance exercise used a separate event source so I could test security policy without changing production monitoring.
 
