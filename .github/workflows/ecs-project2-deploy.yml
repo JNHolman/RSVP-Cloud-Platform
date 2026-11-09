@@ -206,6 +206,7 @@ jobs:
           aws ecs wait services-stable --cluster "$ECS_CLUSTER" --services "$ECS_SERVICE"
 
       - name: Smoke test
+        shell: bash
         id: smoke
         if: steps.deploy.outcome == 'success'
         continue-on-error: true
@@ -220,6 +221,8 @@ jobs:
           esac
           curl --proto '=https' --tlsv1.2 --fail --silent --show-error --retry 5 --retry-delay 5 "$SERVICE_URL/health" |
             python "$GITHUB_WORKSPACE/project-2-ecs-cicd/verify-release-health.py" "${GITHUB_SHA::7}" "$EXPECTED_ENV"
+          curl --proto '=https' --tlsv1.2 --fail --silent --show-error --max-time 10 --retry 3 "${SERVICE_URL%/}/api/reservations" |
+            python "$GITHUB_WORKSPACE/project-2-ecs-cicd/verify-reservations.py"
 
           ACTIVE=$(aws ecs describe-services \
             --cluster "$ECS_CLUSTER" \
@@ -230,6 +233,7 @@ jobs:
           echo "Deployment verified: $ACTIVE"
 
       - name: Roll back failed deployment
+        shell: bash
         if: steps.deploy.outcome == 'failure' || steps.smoke.outcome == 'failure'
         env:
           SERVICE_URL: ${{ vars.SERVICE_URL }}
@@ -245,5 +249,7 @@ jobs:
           test "$active" = "$PREVIOUS_TASK_DEF"
           curl --proto '=https' --fail --silent --show-error --max-time 10 --retry 3 "$SERVICE_URL/health" |
             python "$GITHUB_WORKSPACE/project-2-ecs-cicd/verify-release-health.py" "$PREVIOUS_VERSION" "$EXPECTED_ENV"
+          curl --proto '=https' --tlsv1.2 --fail --silent --show-error --max-time 10 --retry 3 "${SERVICE_URL%/}/api/reservations" |
+            python "$GITHUB_WORKSPACE/project-2-ecs-cicd/verify-reservations.py"
           echo "Previous release verified after rollback"
           exit 1

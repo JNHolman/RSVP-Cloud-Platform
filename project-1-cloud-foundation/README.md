@@ -22,7 +22,7 @@ flowchart TB
 
 ## Live integration on November 8
 
-The shared Flask application read an operator-inserted marker from private MySQL through the EC2 role and a TLS-verified IAM connection. Both HTTPS endpoints later returned the same three records. The EC2 screenshot captures the first two, before the recovery checkpoint marker was added. [Live foundation page](evidence/live-rds-reader.png) · [ECS read-back](../project-2-ecs-cicd/evidence/live-release-recovery.json)
+The shared Flask application read an operator-inserted marker from private MySQL through the EC2 role and a TLS-verified IAM connection. Both HTTPS endpoints later returned the same three records. The EC2 screenshot captures the first two, before the recovery checkpoint marker was added. [Live foundation page](evidence/live-rds-reader.png)
 
 On the first rollout, Gunicorn failed before startup because systemd could not open its stderr file. Correcting the log path restored the service. The real load-balancer metrics capture the target-health transitions.
 
@@ -38,8 +38,6 @@ An operator set the CloudWatch alarm `rsvp-pf1-dev-target-5xx-high` to **ALARM**
 | Investigation | Lambda collected **77 log entries**. OpenAI returned an advisory analysis. |
 | Report | The pipeline saved the report in KMS-encrypted S3 storage and recorded the incident in DynamoDB. |
 | Notification | SNS delivered the notification to an encrypted SQS test subscriber. Human email delivery remains unverified. |
-
-[Supporting incident record](evidence/live-incident.json)
 
 #### From the saved AI report
 
@@ -57,8 +55,16 @@ Two checks from the generated report:
 
 ## Recovery evidence
 
-AWS Backup completed a separate restore in 16m 48s. A later private TLS read confirmed the expected row. RDS also reported a Multi-AZ failover start and completion 19.85 seconds apart. [AWS recovery evidence](evidence/live-recovery.json)
+AWS Backup completed a separate restore in 16m 48s. A later private TLS read confirmed the expected row. RDS also reported a Multi-AZ failover start and completion 19.85 seconds apart.
 
-The [point-in-time recovery readback](evidence/live-pitr.json) records a TLS query against the private, encrypted restored database. The expected rehearsal row was readable 13m 50s after the restore request.
+The point-in-time recovery readback records a TLS query against the private, encrypted restored database. The expected rehearsal row was readable 13m 50s after the restore request.
 
 [Earlier networking, WAF and recovery exercise](evidence/2026-11-08.md)
+
+The alarm handler bounds and redacts its log sample before requesting analysis. The Terraform configuration defines the access path and database recovery settings. [Investigation handler](terraform/ai_log_summarizer.py) · [Network boundaries](terraform/vpc.tf) · [Database configuration](terraform/rds.tf)
+
+<details><summary>Technical evidence records</summary>
+
+[Incident delivery](evidence/live-incident.json) · [Recovery observations](evidence/live-recovery.json) · [Point-in-time readback](evidence/live-pitr.json)
+
+</details>

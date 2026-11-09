@@ -23,17 +23,18 @@ def test_smoke_verifies_serving_revision(tmp_path, version, environment, accepte
     assert (result.returncode == 0) == accepted, result.stderr
 
 
-@pytest.mark.parametrize("active,version,verified", [
-    ("previous", "1234567", True),
-    ("candidate", "1234567", False),
-    ("previous", "7654321", False),
+@pytest.mark.parametrize("active,version,rows,verified", [
+    ("previous", "1234567", True, True),
+    ("candidate", "1234567", True, False),
+    ("previous", "7654321", True, False),
+    ("previous", "1234567", False, False),
 ])
-def test_rollback_verifies_previous_release(tmp_path, active, version, verified):
+def test_rollback_verifies_previous_release(tmp_path, active, version, rows, verified):
     workflow = Path(__file__).resolve().parents[2] / ".github/workflows/ecs-project2-deploy.yml"
     program = dedent(workflow.read_text().split("- name: Roll back failed deployment")[1].split("run: |", 1)[1])
     shims = {
         "aws": 'case "$2" in update-service) echo "$*" > calls ;; wait) echo "$*" >> calls ;; describe-services) echo "$ACTIVE" ;; *) exit 2 ;; esac',
-        "curl": 'echo "$HEALTH"',
+        "curl": 'case "$*" in */api/reservations) echo "$ROWS" ;; *) echo "$HEALTH" ;; esac',
     }
     for name, body in shims.items():
         binary = tmp_path / name
@@ -44,9 +45,36 @@ def test_rollback_verifies_previous_release(tmp_path, active, version, verified)
                             "GITHUB_WORKSPACE": str(workflow.parents[2]), "ACTIVE": active, "PREVIOUS_TASK_DEF": "previous", "ECS_CLUSTER": "dev",
                             "ECS_SERVICE": "demo", "EXPECTED_ENV": "dev", "PREVIOUS_VERSION": "1234567",
                             "SERVICE_URL": "https://example.invalid",
+                            "ROWS": json.dumps({"reservations": [{"id": 1, "event": "Portfolio rehearsal"}] if rows else []}),
                             "HEALTH": json.dumps({"status": "ok", "env": "dev", "version": version})})
     assert result.returncode != 0
     assert ("Previous release verified" in result.stdout) == verified
     calls = (tmp_path / "calls").read_text()
     assert "--task-definition previous" in calls
     assert "wait services-stable" in calls
+
+@pytest.mark.parametrize("reply,accepted", [
+    ('{"reservations":[{"id":1,"event":"Portfolio rehearsal"}]}', True),
+    ('{"reservations":[{"id":1,"event":"Wrong database"}]}', False),
+    ('{"reservations":[]}', False),
+    ('{"error":"reservations unavailable"}', False),
+    ('upstream unavailable', False),
+])
+def test_candidate_smoke_checks_reservations(tmp_path, reply, accepted):
+    workflow = Path(__file__).resolve().parents[2] / ".github/workflows/ecs-project2-deploy.yml"
+    smoke = workflow.read_text().split("- name: Smoke test")[1].split("- name: Roll back")[0]
+    program = dedent(smoke.split("run: |", 1)[1])
+    for name, body in {
+        "aws": "echo candidate",
+        "curl": 'case "$*" in */api/reservations) echo "$ROWS" ;; *) echo "$HEALTH" ;; esac',
+    }.items():
+        binary = tmp_path / name
+        binary.write_text("#!/bin/sh\n" + body + "\n")
+        binary.chmod(0o755)
+    env = dict(os.environ, PATH=str(tmp_path) + ":" + os.environ["PATH"],
+               GITHUB_WORKSPACE=str(workflow.parents[2]), GITHUB_SHA="1234567",
+               EXPECTED_ENV="dev", TASK_DEF_ARN="candidate", SERVICE_URL="https://example.invalid",
+               HEALTH=json.dumps({"status": "ok", "version": "1234567", "env": "dev"}), ROWS=reply)
+    result = subprocess.run(["bash", "-eo", "pipefail", "-c", program], env=env, capture_output=True)
+    assert (result.returncode == 0) == accepted
+    assert "steps.smoke.outcome == 'failure'" in workflow.read_text()
