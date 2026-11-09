@@ -41,14 +41,19 @@ sequenceDiagram
     participant C as CloudWatch Logs
     participant M as OpenAI
     participant R as S3 and DynamoDB
-    participant N as SNS subscriber
+    participant N as Encrypted SQS subscriber
     E->>L: CloudWatch alarm changed state
     L->>C: Read five minutes ending at the event time
     C-->>L: 77 log entries collected
     L->>M: Alarm context and redacted log sample
     M-->>L: Findings, recommendations and confidence
-    L->>R: Store validated report and index
-    L->>N: Publish report reference
+    alt Valid response · observed run
+        L->>R: Store validated analysis and index the report
+    else Analysis fails · fallback behavior
+        L->>R: Store alarm evidence and low-confidence assessment
+    end
+    L->>N: SNS delivers report reference
+    Note over N: Operator reviews evidence and decides on remediation
 ```
 
 The Python handler caps each investigation at 120 entries and truncates each message before redaction. It checks the model’s output fields and confidence value. If log collection fails, the record carries the collection error. If analysis times out or the response fails validation, the handler produces a low-confidence fallback with the captured alarm context. An operator can see when the evidence is incomplete.

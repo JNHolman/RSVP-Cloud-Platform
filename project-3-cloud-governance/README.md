@@ -16,16 +16,14 @@ Terraform and offline tests cover this six-account design. For the live exercise
 
 A labeled critical sample arrived on a private EventBridge bus. It contained no affected resource or originating product. That gave the model good reason to question the evidence. The alert still carried a critical severity label.
 
-```mermaid
-flowchart TD
-  input["Sample finding · CRITICAL"] --> analyst["Lambda redacts finding metadata for AI analysis"]
-  analyst --> model["Model proposes P3 · probable rehearsal"]
-  input --> floor["Configured critical severity floor · P1"]
-  model --> apply["Compare proposed priority with severity floor"]
-  floor --> apply
-  apply --> record["DynamoDB records proposed P3 and enforced P1"]
-  record --> alert["SNS notification received by encrypted SQS subscriber"]
-```
+| Live decision record | Recorded result |
+|---|---|
+| **Input** | EventBridge delivered a sample labeled **CRITICAL**. The resource and originating product were unspecified. |
+| **AI assessment** | **P3** · The model recognized a likely rehearsal and asked for evidence of impact. |
+| **Policy decision** | **P1** · The critical severity floor overrode the proposed priority. |
+| **Audit and delivery** | DynamoDB preserved both priorities. SNS delivered the notification to the encrypted SQS subscriber. |
+
+[Inspect the recorded model assessment, severity rule and receipt ID](evidence/aws-incident-exercise.json)
 
 The model recommended checking the exercise origin and identifying the resource before attributing business impact. Its report said:
 

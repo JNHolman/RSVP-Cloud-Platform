@@ -8,20 +8,19 @@ I kept the original design to answer a question from my work in network operatio
 
 I used Terraform to build private AWS networks around two ways to serve the same application: EC2 virtual machines and ECS Fargate containers reading from an RDS database. GitHub Actions automated the build, security scan, deployment and recovery of container releases. When a CloudWatch alarm changed state, a Python function in Lambda collected evidence for an AI-assisted investigation. The governance design separates who can deploy a workload from who can administer security policy. In the live security exercise, an explicit priority rule controlled the alert after AI triage.
 
-## One application, two ways to serve it
+## From a failed request to an operating decision
 
 ```mermaid
 flowchart TB
-  user["Client · HTTPS"] --> f["Foundation load balancer"]
-  user --> d["Delivery load balancer"]
-  subgraph foundation["Foundation network"]
-    f --> vm["Private application servers"]
-    vm --> db[("Reservation database")]
+  subgraph runtime["One application · two private networks"]
+    vm["Foundation · EC2 servers"] -->|Read| db[("Private RDS database")]
+    tasks["Delivery · ECS containers"] -->|Read over peering| db
   end
-  subgraph delivery["Delivery network"]
-    d --> tasks["Private container tasks"]
-  end
-  tasks -->|Private peering · authenticated database reads| db
+  vm -. Alarm and logs .-> investigate["Investigate · 77 log entries informed an advisory report"]
+  tasks -. Serving version .-> recover["Recover · wrong release rolled back in 3m 23s"]
+  sample["Governance · separate single-account exercise"] -->|Labeled critical finding| decide["Escalate · policy enforced P1 despite the model’s P3"]
+  classDef outcome fill:#e7f4ee,color:#173a2b,stroke:#47785c
+  class investigate,recover,decide outcome
 ```
 
 Both paths could return the same reservation. That gave me a concrete way to test a network route, a software release and a restored database: could the application still read the expected data? The governance layer extends that work to the people and policies responsible for investigating problems. Its live exercise tested who gets the final say when an AI recommendation conflicts with security policy.

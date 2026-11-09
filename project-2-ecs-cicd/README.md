@@ -6,6 +6,10 @@ I moved the foundation application onto managed containers so a release could be
 
 ## Live integrated release on November 8
 
+**Live AWS results.** GitHub Actions detected a healthy endpoint serving the wrong version and verified rollback in **3m 23s**. In a separate exercise, ECS recovered an unhealthy deployment in **13m 47s**. The EC2 and ECS applications also returned the same three rows from private RDS.
+
+**Simulated workflow tests.** The database-aware checks were added after those exercises. Tests cover accepting or rejecting a candidate and verifying the restored revision against its expected database. The AWS runtime had already been retired.
+
 | GitHub Actions step | Recorded result | Why it matters |
 |---|---|---|
 | Smoke test · 23:34:10 UTC | “Unexpected release health, version or environment” | The candidate answered health requests but served the deliberately incorrect version. |
@@ -17,10 +21,12 @@ I moved the foundation application onto managed containers so a release could be
 flowchart TD
   build["GitHub Actions tests application and scans image"] --> deploy["Deploy immutable image to private ECS tasks"]
   deploy --> stable{"Can ECS stabilize the tasks?"}
-  stable -->|No| ecs["ECS circuit breaker recovers last healthy deployment"]
+  stable -->|No| ecs["Unhealthy tasks · ECS circuit breaker<br/>13m 47s to recover"]
   stable -->|Yes| probe{"Does HTTPS serve the expected version?"}
-  probe -->|No| restore["Workflow restores and verifies previous revision"]
+  probe -->|No| restore["Healthy tasks, wrong version · GitHub rollback<br/>3m 23s to verify previous release"]
   probe -->|Yes| active["Confirm active task definition"]
+  classDef recovery fill:#e7f4ee,color:#173a2b,stroke:#47785c
+  class ecs,restore recovery
 ```
 
 The failed status on the [version-mismatch run](https://github.com/JNHolman/RSVP-Cloud-Platform/actions/runs/42535446228) records the rejected candidate. The public endpoint answered, so task health alone would have accepted it. In the separate **13m 47s** circuit-breaker drill, ECS itself detected the unhealthy revision. The clocks start at different failure signals. [Circuit-breaker timeline](evidence/2026-11-08.md)
@@ -31,7 +37,7 @@ The failed status on the [version-mismatch run](https://github.com/JNHolman/RSVP
 
 I sent 1,625 requests with a temporary 10% CPU target. The chart distinguishes the scheduler asking for more capacity from another task actually running. Desired capacity rose first, then a third task reached running state. Observation ended before scale-in was confirmed.
 
-**Task-definition ownership.** Terraform tagged the infrastructure baseline `ConfigurationSource=TerraformBaseline`. The release workflow cloned it and selected the image. That separation explains why, after any Terraform change that modifies the ECS task definition, operators run **Controlled Deploy** to promote the updated baseline. GitHub Environment protection rules for `prod` restrict deployment branches/tags and form part of the production authorization boundary. The exercises used dev.
+**Task-definition ownership.** Terraform tagged the infrastructure baseline `ConfigurationSource=TerraformBaseline`. The release workflow cloned it and selected the image. That separation explains why, after any Terraform change that modifies the ECS task definition, operators run **Controlled Deploy** to promote the updated baseline. The exercises used dev. The AWS deployment role’s OIDC trust checks the repository and environment identity. GitHub Environment protection rules for `prod` must be configured separately to restrict deployment branches/tags. On November 9, 2026, the repository environment API returned `deployment_branch_policy: null` and `protection_rules: []`. The production authorization boundary therefore had no environment-level branch/tag restriction or reviewer gate at inspection. [Role trust policy](bootstrap-delivery/main.tf) · [Environment API](https://api.github.com/repos/JNHolman/RSVP-Cloud-Platform/environments/prod)
 
 
 ## Crossing the network boundary
