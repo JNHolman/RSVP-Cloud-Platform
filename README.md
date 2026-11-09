@@ -2,6 +2,10 @@
 
 **I built an AWS environment that investigates service failures, rejects bad releases and preserves the evidence behind a security alert.** I used the same read-only reservation service to test how much of that work could be automated and where an engineer still had to make the decision.
 
+![Reconstruction of three AWS exercises: 77 logs analyzed, rollback verified in 3m 23s, and a critical sample raised from the model’s P3 to the enforced P1.](shared/platform-exercises.gif)
+
+*22.5-second reconstruction from recorded exercises.* [Investigation and original report](project-1-cloud-foundation/README.md#ai-incident-analysis) · [Rollback timeline](project-2-ecs-cicd/README.md#live-integrated-release-on-november-8) · [Security decision and receipt](project-3-cloud-governance/README.md#live-aws-exercise)
+
 When RSVP Society sends a wave of invitations, guests reply, change plans and bring friends. Between events there may be very little work for the application to do. My first AWS design kept application servers and a highly available database running throughout those quiet periods. For the business, it made more sense to pay for work as requests arrived. I moved the production application toward event-driven services. [RSVP Society and its event operations](https://github.com/JNHolman/rsvp-society)
 
 I kept the original design to answer a question from my work in network operations: when a request fails, can I follow it from the public entry point to the database and prove when service recovers?
@@ -30,10 +34,10 @@ Both paths could return the same reservation. That gave me a concrete way to tes
 | Operator’s question | What the automation did | What I verified |
 |---|---|---|
 | [Why did the service return errors?](project-1-cloud-foundation/README.md#ai-incident-analysis) | A controlled alarm triggered a Python investigation of 77 application log entries. | Logs showed 503s followed by successful health checks. The model identified refused backend connections as the likely explanation for the earlier errors. A subscriber received the report reference. |
-| [Is the right release serving customers?](project-2-ecs-cicd/README.md#live-integrated-release-on-november-8) | GitHub Actions checked the version returned over HTTPS, rejected a healthy but incorrect revision, and restored its predecessor. | The previous release was verified in **3m 23s**. In a separate unhealthy-task drill, ECS recovered in **13m 47s**. |
+| [Is the right release serving customers?](project-2-ecs-cicd/README.md#live-integrated-release-on-november-8) | GitHub Actions checked the version returned over HTTPS, rejected a healthy but incorrect revision, and restored its predecessor. | The previous release was verified in **3m 23s**. In a separate unhealthy-task drill, ECS recovered in [**13m 47s**](project-2-ecs-cicd/evidence/2026-11-08.md). |
 | [Who sets the priority of a critical finding?](project-3-cloud-governance/README.md#live-aws-exercise) | A labeled sample triggered AI triage. The model proposed P3; the handler enforced the critical severity floor of P1. | Both decisions were preserved and the alert reached an encrypted subscriber. AWS also validated the service control policy documents. Policy logic has offline coverage. Cross-account enforcement remains unverified. |
 
-Recovery required a different test. I restored an encrypted database snapshot and queried a known reservation. The row was readable in **10m 02s**. During a separate load exercise the container service grew from two running tasks to three. The project pages include the [database timelines](project-1-cloud-foundation/README.md#recovery-evidence) and [recorded task counts](project-2-ecs-cicd/README.md#capacity-under-load).
+Recovery required a different test. I restored an encrypted database snapshot and queried a known reservation. The row was readable in **10m 02s**. During a separate load exercise the container service grew from **two running tasks to three**. The project pages include the [database timelines](project-1-cloud-foundation/README.md#recovery-evidence) and [recorded task counts](project-2-ecs-cicd/README.md#capacity-under-load).
 
 ## Engineering Decisions and Trade-offs
 
