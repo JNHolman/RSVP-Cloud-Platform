@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="680" height="1060" viewBox="0 0 680 1060" role="img" aria-labelledby="title desc">
+<title id="title">Cloud Foundation request, evidence, and recovery paths</title>
+<desc id="desc">Public HTTPS through AWS WAF and an application load balancer reaches private EC2 and private RDS. A metric alarm changes state, EventBridge invokes Lambda, Lambda reads CloudWatch Logs and asks AI for an assessment, then records and notifies. Database recovery uses snapshots, point-in-time recovery, AWS Backup, or Multi-AZ failover.</desc>
+<rect width="680" height="1060" rx="18" fill="#f7f8f6"/>
+<rect x="0" y="0" width="680" height="12" fill="#165d58"/>
+<g font-family="Arial,Helvetica,sans-serif" fill="#192e35">
+<text x="35" y="65" font-size="32" font-weight="700">Cloud Foundation</text>
+<text x="35" y="100" font-size="21" fill="#50666c">Private application, observable failures</text>
+<text x="35" y="148" font-size="18" font-weight="700" fill="#165d58" letter-spacing="1">APPLICATION REQUEST PATH</text>
+<rect x="35" y="167" width="610" height="96" rx="14" fill="#ffffff" stroke="#aec7c2" stroke-width="2"/>
+<rect x="35" y="167" width="9" height="96" rx="4" fill="#165d58"/>
+<text x="60" y="204" font-size="25" font-weight="700">Public entry</text>
+<text x="60" y="240" font-size="21">HTTPS · AWS WAF · Application Load Balancer</text>
+<path d="M340 263 v28 m-9 -10 l9 10 9 -10" fill="none" stroke="#165d58" stroke-width="3"/>
+<rect x="35" y="297" width="610" height="96" rx="14" fill="#ffffff" stroke="#aec7c2" stroke-width="2"/>
+<rect x="35" y="297" width="9" height="96" rx="4" fill="#165d58"/>
+<text x="60" y="334" font-size="25" font-weight="700">Private application</text>
+<text x="60" y="370" font-size="21">EC2 Auto Scaling · two Availability Zones</text>
+<path d="M340 393 v28 m-9 -10 l9 10 9 -10" fill="none" stroke="#165d58" stroke-width="3"/>
+<rect x="35" y="427" width="610" height="96" rx="14" fill="#ffffff" stroke="#aec7c2" stroke-width="2"/>
+<rect x="35" y="427" width="9" height="96" rx="4" fill="#165d58"/>
+<text x="60" y="464" font-size="25" font-weight="700">Private database</text>
+<text x="60" y="500" font-size="21">Multi-AZ RDS · IAM authentication · TLS</text>
+<text x="35" y="572" font-size="18" font-weight="700" fill="#165d58" letter-spacing="1">SEPARATE INCIDENT INVESTIGATION PATH</text>
+<rect x="35" y="591" width="610" height="88" rx="14" fill="#e1f1ec" stroke="#9ec9bb" stroke-width="2"/>
+<text x="60" y="628" font-size="24" font-weight="700">1 · Metric alarm changes state</text>
+<text x="60" y="659" font-size="20">EventBridge invokes investigation Lambda</text>
+<path d="M340 679 v26 m-9 -10 l9 10 9 -10" fill="none" stroke="#165d58" stroke-width="3"/>
+<rect x="35" y="711" width="610" height="88" rx="14" fill="#e1f1ec" stroke="#9ec9bb" stroke-width="2"/>
+<text x="60" y="748" font-size="24" font-weight="700">2 · Lambda gathers evidence</text>
+<text x="60" y="779" font-size="20">Bounded CloudWatch logs → redacted AI review</text>
+<path d="M340 799 v26 m-9 -10 l9 10 9 -10" fill="none" stroke="#165d58" stroke-width="3"/>
+<rect x="35" y="831" width="610" height="88" rx="14" fill="#e1f1ec" stroke="#9ec9bb" stroke-width="2"/>
+<text x="60" y="868" font-size="24" font-weight="700">3 · Preserve and notify</text>
+<text x="60" y="899" font-size="20">S3 + DynamoDB · SNS → encrypted test SQS</text>
+<rect x="35" y="954" width="610" height="75" rx="14" fill="#253f4b"/>
+<text x="56" y="982" font-size="20" font-weight="700" fill="#ffffff">DATABASE RECOVERY OPTIONS</text>
+<text x="56" y="1010" font-size="19" fill="#f1f5f2">Snapshot · PITR · AWS Backup · Multi-AZ</text>
+</g></svg>
