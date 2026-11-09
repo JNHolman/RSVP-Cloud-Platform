@@ -37,6 +37,7 @@ resource "aws_route" "foundation_return" {
 }
 
 resource "aws_vpc_security_group_egress_rule" "ecs_to_database" {
+  description                  = "Allow private tasks to query the foundation database over MySQL"
   count                        = var.foundation_db == null ? 0 : 1
   security_group_id            = aws_security_group.ecs_service.id
   referenced_security_group_id = var.foundation_db.security_group_id
@@ -47,6 +48,7 @@ resource "aws_vpc_security_group_egress_rule" "ecs_to_database" {
 }
 
 resource "aws_vpc_security_group_ingress_rule" "database_from_ecs" {
+  description                  = "Accept MySQL connections from the peered ECS service group"
   count                        = var.foundation_db == null ? 0 : 1
   security_group_id            = var.foundation_db.security_group_id
   referenced_security_group_id = aws_security_group.ecs_service.id

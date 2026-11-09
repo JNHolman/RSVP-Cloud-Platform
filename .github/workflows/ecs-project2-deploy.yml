@@ -30,6 +30,7 @@ jobs:
       AWS_REGION: ${{ vars.AWS_REGION }}
       PROJECT_NAME: ${{ vars.PROJECT_NAME }}
       CONTAINER_NAME: app
+      RDS_SMOKE_EVENT: ${{ vars.RDS_SMOKE_EVENT }}
     steps:
       - name: Resolve deployment configuration
         env:
@@ -121,9 +122,12 @@ jobs:
             --query 'services[0].taskDefinition' \
             --output text)
           test -n "$PREVIOUS_TASK_DEF" && test "$PREVIOUS_TASK_DEF" != None
-          PREVIOUS_VERSION=$(aws ecs describe-task-definition --task-definition "$PREVIOUS_TASK_DEF" \
-            --query 'taskDefinition.containerDefinitions' --output json | jq -er --arg name "$CONTAINER_NAME" \
-            '.[] | select(.name == $name) | .environment[] | select(.name == "APP_VERSION") | .value')
+          aws ecs describe-task-definition --task-definition "$PREVIOUS_TASK_DEF" \
+            --query 'taskDefinition.containerDefinitions' --output json > previous-containers.json
+          PREVIOUS_VERSION=$(jq -er --arg name "$CONTAINER_NAME" \
+            '.[] | select(.name == $name) | .environment[] | select(.name == "APP_VERSION") | .value' previous-containers.json)
+          previous_mode=$(jq -er --arg name "$CONTAINER_NAME" '.[] | select(.name == $name) | ([.environment[]? | select(.name == "DB_MODE") | .value][0] // "fixture")' previous-containers.json)
+          echo "PREVIOUS_DB_MODE=$previous_mode" >> "$GITHUB_ENV"
           echo "PREVIOUS_VERSION=$PREVIOUS_VERSION" >> "$GITHUB_ENV"
           echo "PREVIOUS_TASK_DEF=$PREVIOUS_TASK_DEF" >> "$GITHUB_ENV"
 
@@ -187,6 +191,12 @@ jobs:
               .deregisteredAt
             )' task-definition.json > new-task-definition.json
 
+          candidate_mode=$(jq -er --arg name "$CONTAINER_NAME" '.containerDefinitions[] | select(.name == $name) | ([.environment[]? | select(.name == "DB_MODE") | .value][0] // "fixture")' new-task-definition.json)
+          echo "CANDIDATE_DB_MODE=$candidate_mode" >> "$GITHUB_ENV"
+          if [[ "$candidate_mode" == rds || "$PREVIOUS_DB_MODE" == rds ]]; then
+            test -n "$RDS_SMOKE_EVENT" && test "$RDS_SMOKE_EVENT" != "Portfolio rehearsal" || { echo "Set an RDS-only smoke event before deployment" >&2; exit 1; }
+          fi
+
       - name: Register task definition
         run: |
           TASK_DEF_ARN=$(aws ecs register-task-definition \
@@ -222,7 +232,7 @@ jobs:
           curl --proto '=https' --tlsv1.2 --fail --silent --show-error --retry 5 --retry-delay 5 "$SERVICE_URL/health" |
             python "$GITHUB_WORKSPACE/project-2-ecs-cicd/verify-release-health.py" "${GITHUB_SHA::7}" "$EXPECTED_ENV"
           curl --proto '=https' --tlsv1.2 --fail --silent --show-error --max-time 10 --retry 3 "${SERVICE_URL%/}/api/reservations" |
-            python "$GITHUB_WORKSPACE/project-2-ecs-cicd/verify-reservations.py"
+            python "$GITHUB_WORKSPACE/project-2-ecs-cicd/verify-reservations.py" "$CANDIDATE_DB_MODE"
 
           ACTIVE=$(aws ecs describe-services \
             --cluster "$ECS_CLUSTER" \
@@ -250,6 +260,6 @@ jobs:
           curl --proto '=https' --fail --silent --show-error --max-time 10 --retry 3 "$SERVICE_URL/health" |
             python "$GITHUB_WORKSPACE/project-2-ecs-cicd/verify-release-health.py" "$PREVIOUS_VERSION" "$EXPECTED_ENV"
           curl --proto '=https' --tlsv1.2 --fail --silent --show-error --max-time 10 --retry 3 "${SERVICE_URL%/}/api/reservations" |
-            python "$GITHUB_WORKSPACE/project-2-ecs-cicd/verify-reservations.py"
+            python "$GITHUB_WORKSPACE/project-2-ecs-cicd/verify-reservations.py" "$PREVIOUS_DB_MODE"
           echo "Previous release verified after rollback"
           exit 1

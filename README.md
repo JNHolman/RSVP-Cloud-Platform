@@ -22,4 +22,6 @@ My network engineering background shaped how I tested it. I started with the pat
 
 The encrypted snapshots, completed AWS Backup recovery point, log buckets and incident index were retained. Keys and storage can continue to incur charges. No cost-allocation tags were active during the exercise, so the portfolio’s share of the bill could not be established.
 
+The infrastructure scan is advisory. The review covers IAM scope, reachability, encryption and monitoring across the three layers. [Disposition of the 42 Checkov findings](shared/checkov-review.md)
+
 **Josh Holman** — Network / Cloud Infrastructure Engineer
