@@ -35,7 +35,7 @@ GitHub Actions uses an environment-bound OIDC identity to assume a scoped AWS ro
 
 Terraform owns the ECS infrastructure baseline; GitHub Actions promotes application task revisions. Otherwise, a later Terraform apply could unintentionally move the service backward or override a workflow release.
 
-The workflow selects the task definition tagged `ConfigurationSource=TerraformBaseline`, clones it, changes the image and deploys a new revision. After any Terraform change that modifies the ECS task definition, operators run **Controlled Deploy** to promote the updated baseline deliberately. [ECS configuration](terraform/ecs.tf) · [Service configuration](terraform/ecs_service.tf)
+The workflow selects the task definition tagged `ConfigurationSource=TerraformBaseline`, clones it, changes the image and deploys a new revision. Operators run **Controlled Deploy** after any Terraform change that modifies the ECS task definition, promoting the updated baseline deliberately. [ECS configuration](terraform/ecs.tf) · [Service configuration](terraform/ecs_service.tf)
 
 ### A successful release must be able to read data
 
