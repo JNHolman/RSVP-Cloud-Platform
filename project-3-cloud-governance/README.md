@@ -10,6 +10,14 @@ AWS Organizations
 
 Terraform models SCPs, Identity Center, CloudTrail, security aggregation, dashboards, and cost analysis. Offline tests validate configuration contracts and handler behavior. **Live OU enforcement, cross-account integration, and identity flows remain unverified.**
 
+## Live AWS exercise
+
+A private EventBridge bus delivered a labeled sample critical finding to the governance Lambda. The model recognized the rehearsal and proposed **P3**. The handler enforced the configured critical severity floor of **P1**, stored the report in DynamoDB, and published a notification through SNS. An encrypted SQS subscriber received it. The sample exercised the downstream pipeline. Live Security Hub detection and cross-account aggregation remain unverified.
+
+IAM Access Analyzer returned **zero findings** for both Terraform-generated default SCP documents. Member-account enforcement remains unverified. Cost Explorer returned zero active cost-allocation tags, so the portfolio-only FinOps report was skipped.
+
+[Incident and delivery record](evidence/aws-incident-exercise.json) · [Policy validation results](evidence/aws-policy-validation.json)
+
 ## Evidence checklist
 
 The [hosted CI screenshot](evidence/offline-ci.png) shows the completed Terraform policy tests. The six-account control plane has no live AWS evidence. Inspect the [policy tests](modules/scp-policies/tests/guardrails.tftest.hcl) and [governance tests](tests/).
@@ -17,7 +25,7 @@ The [hosted CI screenshot](evidence/offline-ci.png) shows the completed Terrafor
 | Area | Evidence available | Evidence still needed |
 |---|---|---|
 | Organization and identity | Offline Terraform tests exercise generated SCP denies and admin exceptions. Python tests inspect trust and security configuration | OU enforcement, role assumption and Identity Center assignment in member accounts |
-| Security and monitoring | Local handler tests exercise finding analysis, bounded inputs, fallback and dashboard reads | Cross-account finding ingestion, central audit delivery and incident notification |
+| Security and monitoring | Local handler tests exercise finding analysis, bounded inputs, fallback and dashboard reads | Cross-account finding ingestion, central audit delivery |
 | Cost management | Local tests cover Cost Explorer input and deterministic fallback | Attributed live costs and operator review of generated recommendations |
 
 ## Operations
@@ -30,18 +38,6 @@ python -m pytest -q project-3-cloud-governance/tests shared/tests
 ```
 
 These tests prove policy generation and local application logic. They do not prove that AWS enforced the policies across accounts.
-
-### Proposed single-account AWS exercise
-
-Use one short-lived portfolio deployment in us-east-1 with its own state, roles and resource names. Approval is pending. The account also hosts RSVP Society, so every write must target a portfolio resource.
-
-| Exercise | Evidence to capture |
-|---|---|
-| Submit the Terraform-generated SCP documents to IAM Access Analyzer | AWS validation findings for each document. Effective OU enforcement still requires a member account. |
-| Replay a labeled sample finding through a private EventBridge bus into the existing incident handler | Correlated event, Lambda analysis or fallback, stored report and notification receipt. Record the sample origin separately from real AWS delivery. |
-| Invoke the existing FinOps handler with a portfolio cost-allocation tag filter | Sanitized report with the billing period and observed attribution. The current handler queries the whole account, so add and test the filter before invocation. Skip the query if the tag is unavailable. |
-
-Budget a two-hour exercise with at most 20 Lambda invocations, ten Cost Explorer API pages and two bounded model calls. Allow $5 for AWS and $1 for the model, including teardown headroom. These are planning allowances. Remove triggers first, then retire the temporary runtime and check for retained logs and storage. OU attachments, Identity Center assignments, organization trails and delegated security administration remain enterprise architecture with offline coverage.
 
 ### If deploying Project 3 in a real organization
 

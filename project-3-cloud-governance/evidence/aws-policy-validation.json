@@ -1,0 +1,8 @@
+{
+  "deny_leave_org": {
+    "findings": []
+  },
+  "protect_security_controls": {
+    "findings": []
+  }
+}

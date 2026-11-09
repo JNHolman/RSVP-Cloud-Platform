@@ -1,0 +1,39 @@
+{
+  "input": "Labeled sample finding",
+  "event_id": "b10fc7cb-f90c-46fc-8beb-5e2a4b108f12",
+  "analysis_status": "ai_generated",
+  "priority": "P1",
+  "observed_at": "2026-11-09T04:45:40.915673+00:00",
+  "notification_received": true,
+  "analysis": {
+    "summary": "Security Hub finding labeled CRITICAL, but the provided evidence indicates this is a portfolio/sample exercise affecting a rehearsal workload. No product, resource, region, finding type, workflow state, or record state details were supplied.",
+    "triage_priority": "P1",
+    "likely_cause": "Exercise or rehearsal input rather than a confirmed production security event. The finding appears intentionally labeled for advisory triage, with insufficient operational evidence to identify a real threat or misconfiguration.",
+    "business_impact": "No confirmed business impact can be determined from the supplied evidence. If this were a real critical finding, impact would depend on the affected resource and environment, but no actionable asset or telemetry details were provided.",
+    "recommended_checks": [
+      "Confirm whether this finding is part of a planned exercise or sample dataset.",
+      "Verify whether the referenced rehearsal workload maps to any real cloud account, environment, or business service.",
+      "Check whether additional Security Hub fields are available, including ProductName, Types, Resources, Region, Workflow, RecordState, and Compliance details.",
+      "Validate whether any corresponding real findings exist for production or internet-facing resources.",
+      "If the finding is confirmed to be real, collect the originating security product details and affected resource identifiers for proper severity validation."
+    ],
+    "evidence_used": [
+      "Finding reference: e7e4a967c7213e1a",
+      "Title: Portfolio sample: critical finding on rehearsal workload",
+      "Description: Labeled exercise input for advisory triage.",
+      "Severity label: CRITICAL",
+      "Product: null",
+      "Types: empty array",
+      "Workflow: empty object",
+      "Record state: null",
+      "Resource type: null",
+      "Resource reference: empty string",
+      "Region: null"
+    ],
+    "confidence": "medium",
+    "model_triage_priority": "P3",
+    "priority_guardrail": "security_hub_severity_floor"
+  },
+  "active_cost_allocation_tags": 0,
+  "notification_message_id": "ea2a6302-b418-5812-ba88-0069e62d5667"
+}

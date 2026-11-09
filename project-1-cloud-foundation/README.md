@@ -33,9 +33,22 @@ flowchart TB
 
 The shared Flask application read an operator-inserted marker from private MySQL through the EC2 role and a TLS-verified IAM connection. Both HTTPS endpoints later returned the same three records. The EC2 screenshot captures the first two, before the recovery checkpoint marker was added. [Live foundation page](evidence/live-rds-reader.png) · [ECS read-back](../project-2-ecs-cicd/evidence/live-release-recovery.json)
 
-On the first rollout, Gunicorn failed before startup because systemd could not open its stderr file. Correcting the log path restored the service. The real load-balancer metrics capture the target-health transitions. [CloudWatch target health](evidence/live-target-health.png)
+On the first rollout, Gunicorn failed before startup because systemd could not open its stderr file. Correcting the log path restored the service. The real load-balancer metrics capture the target-health transitions.
 
-A controlled CloudWatch alarm state change reached EventBridge and Lambda. The handler analyzed 77 log entries with the model, persisted an encrypted report and linked DynamoDB item, and published a notification received by an encrypted SQS test subscriber. Human email delivery was outside this exercise. [Incident evidence](evidence/live-incident.json)
+![CloudWatch load balancer target health during the EC2 rollout](evidence/live-target-health.png)
+
+### AI incident analysis
+
+An operator set the development load balancer’s 5xx alarm to **ALARM**. From there the investigation ran automatically.
+
+| Step | What happened in AWS |
+|---|---|
+| Trigger | EventBridge routed the alarm change to the incident Lambda. |
+| Investigation | Lambda collected **77 log entries**. The model produced an advisory analysis. |
+| Report | The pipeline saved the report in KMS-encrypted S3 storage and recorded the incident in DynamoDB. |
+| Notification | SNS delivered the notification to an encrypted SQS test subscriber. Human email delivery remains unverified. |
+
+[Supporting incident record](evidence/live-incident.json)
 
 ## Original exercise checklist
 
