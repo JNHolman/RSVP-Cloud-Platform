@@ -4,7 +4,7 @@
 
 ![Reconstruction of three AWS exercises: 77 logs analyzed, rollback verified in 3m 23s, and a critical sample raised from the model’s P3 to the enforced P1.](shared/platform-exercises.gif)
 
-*24-second reconstruction from recorded exercises.* [Investigation and original report](project-1-cloud-foundation/README.md#ai-incident-analysis) · [Rollback timeline](project-2-ecs-cicd/README.md#live-integrated-release-on-november-8) · [Security decision and receipt](project-3-cloud-governance/README.md#live-aws-exercise)
+*25-second reconstruction from recorded exercises.* [Investigation and original report](project-1-cloud-foundation/README.md#ai-incident-analysis) · [Rollback timeline](project-2-ecs-cicd/README.md#live-integrated-release-on-november-8) · [Security decision and receipt](project-3-cloud-governance/README.md#live-aws-exercise)
 
 When RSVP Society sends a wave of invitations, guests reply, change plans and bring friends. Between events there may be very little work for the application to do. My first AWS design kept application servers and a highly available database running throughout those quiet periods. For the business, it made more sense to pay for work as requests arrived. I moved the production application toward event-driven services. [RSVP Society and its event operations](https://github.com/JNHolman/rsvp-society)
 
@@ -23,8 +23,14 @@ flowchart TB
     tasks["Private ECS tasks"]
   end
   tasks -->|VPC peering · IAM database reader| db
-  vm -. Application logs .-> logs["CloudWatch"]
-  logs -. Alarm event via EventBridge .-> analyst["Incident Lambda"]
+  metric["CloudWatch metric alarm"] -->|State change| events["EventBridge"]
+  events --> analyst["Investigation Lambda"]
+  vm -. Application logs .-> logs["CloudWatch Logs"]
+  analyst -->|Read event-time log window| logs
+  analyst -->|Redacted evidence| ai["AI analysis"]
+  ai -->|Response| analyst
+  analyst -->|Validate and store report| report[("S3 report · DynamoDB index")]
+  analyst -->|Publish stored report reference via SNS| operator["Operator reviews and decides on remediation"]
   sec["Separate governance exercise · sample event"] --> triage["Security Lambda"]
 ```
 
