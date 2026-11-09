@@ -1,6 +1,8 @@
 # Project 1 — Cloud Foundation
 
-An HTTPS request crosses a protected public edge to a private application tier. When a health alarm changes state, the platform gathers evidence and sends an advisory report to the operator.
+A guest sees a failed page. From the network side, that could mean a blocked path, an unhealthy server or an application that accepted the connection and then failed. I wanted a public service with a small exposed surface and enough evidence to tell those cases apart.
+
+Only the load balancer accepts public web traffic. A web application firewall filters requests there, and the load balancer checks private EC2 servers in two Availability Zones. The application uses its AWS role to authenticate to MySQL over an encrypted connection. That keeps the database off the public network while giving the application the limited access it needs.
 
 ```mermaid
 flowchart TB
@@ -30,7 +32,7 @@ On the first rollout, Gunicorn failed before startup because systemd could not o
 
 ### AI incident analysis
 
-An operator set the CloudWatch alarm `rsvp-pf1-dev-target-5xx-high` to **ALARM**. From there the investigation ran automatically.
+An operator set the CloudWatch alarm `rsvp-pf1-dev-target-5xx-high` to **ALARM**. EventBridge picked up the state change and invoked the investigation Lambda. The handler limits the log window, redacts messages before sending them to the model, and checks the returned analysis. If collection or analysis is incomplete, the report can carry the collection error or a fallback assessment. That lets the operator see the limits of the investigation.
 
 | Step | What happened in AWS |
 |---|---|
@@ -64,6 +66,8 @@ At 23:24:01 UTC on November 8 the analyst recorded the following excerpts from t
 The operator had set the alarm to exercise the notification path. The earlier 503s were real observations within the collected window. Restarting the service, changing configuration and closing the incident remained operator decisions.
 
 ## Recovery evidence
+
+The tests answer different recovery questions. Restoring a snapshot checks that a backup can become a readable database. Point-in-time recovery tests whether I can get back to a chosen moment. Multi-AZ failover tests how the existing database responds when its primary changes.
 
 AWS Backup completed a separate restore in 16m 48s. A later private TLS read confirmed the expected row. RDS also reported a Multi-AZ failover start and completion 19.85 seconds apart.
 

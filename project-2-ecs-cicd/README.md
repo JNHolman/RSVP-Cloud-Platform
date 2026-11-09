@@ -2,7 +2,7 @@
 
 A healthy container can still serve the wrong software. I used two independent checks in the dev release. ECS monitored task health. GitHub Actions checked the version that clients actually received over HTTPS.
 
-The release used GitHub OIDC for temporary AWS credentials. The build published an immutable Git-SHA image to ECR, with Trivy and ECR scan results available for review. Two private Fargate tasks in separate Availability Zones ran the recorded image digest. The application read the same three rows as the EC2 service through VPC peering, using an IAM database token and verified TLS. [Build run](https://github.com/JNHolman/RSVP-Cloud-Platform/actions/runs/42534475017) · [Successful release](https://github.com/JNHolman/RSVP-Cloud-Platform/actions/runs/42535097319) · [Serving application](evidence/live-rds-reader.png)
+I moved the foundation application onto managed containers so a release could be identified, repeated and reversed. GitHub Actions exchanged its workflow identity (OIDC) for temporary AWS credentials. The build tagged the container image with its Git revision in the ECR registry. Immutable tags kept a later build from silently taking the same name. I could compare the digest in the registry with the image running on both private Fargate tasks, and inspect the Trivy and ECR scan results for that build. [Build run](https://github.com/JNHolman/RSVP-Cloud-Platform/actions/runs/42534475017) · [Successful release](https://github.com/JNHolman/RSVP-Cloud-Platform/actions/runs/42535097319) · [Serving application](evidence/live-rds-reader.png)
 
 ## Live integrated release on November 8
 
@@ -15,10 +15,14 @@ The failed status on [the workflow run](https://github.com/JNHolman/RSVP-Cloud-P
 
 ![ECS desired and running task counts sampled during the exercise](evidence/scale-out.svg)
 
-The test used a temporary 10% CPU target. Desired capacity rose first, then a third task reached running state. Observation ended before scale-in was confirmed.
+I sent 1,625 requests with a temporary 10% CPU target. The chart distinguishes the scheduler asking for more capacity from another task actually running. Desired capacity rose first, then a third task reached running state. Observation ended before scale-in was confirmed.
 
 **Task-definition ownership.** Terraform tagged the infrastructure baseline `ConfigurationSource=TerraformBaseline`. The release workflow cloned it and selected the image. That separation explains why, after any Terraform change that modifies the ECS task definition, operators run **Controlled Deploy** to promote the updated baseline. GitHub Environment protection rules for `prod` restrict deployment branches/tags and form part of the production authorization boundary. The exercises used dev.
 
+
+## Crossing the network boundary
+
+The container release had its own private network. Giving the database a public endpoint would have bypassed the boundary I wanted to exercise. Instead, I connected the two networks through VPC peering with a return route, limited MySQL access to the task security group, and scoped its role to the database reader. Network reachability and permission to read a row were separate checks.
 
 | Private database path | Observed result |
 |---|---|
