@@ -70,6 +70,17 @@ Each project README links to its Terraform, Python, workflows and captured evide
 
 Some boundaries matter: the newer database-aware rollback tests used simulated responses after the ECS/RDS lab was retired; governance policy logic and the six-account architecture were tested offline rather than enforced across live member accounts. The live notification exercises verified **SQS receipt**, not human email delivery. Project 2 also documents that the `prod` GitHub Environment lacked branch/tag restrictions and reviewer rules when inspected. The detailed results and limits are beside the relevant code in the project pages.
 
+AWS Config aggregation has data only **where Config recording is enabled** in the member accounts.
+
+<details>
+<summary>Retained recovery assets and Terraform cleanup safeguards</summary>
+
+RDS recovery points inherit the database encryption key. The retained snapshots and recovery points still depend on their associated keys, so key lifecycle and deletion require deliberate review.
+
+Project 1 recovery KMS keys have intentional Terraform destruction guards. I do not expect an unrestricted `terraform destroy` to remove protected recovery assets along with the disposable runtime.
+
 Retained snapshots, encryption keys and evidence storage may still incur costs; no reliable portfolio-only billing total was available. The retired runtime was not restarted for documentation.
+
+</details>
 
 **What this portfolio demonstrates:** I can design private application paths, automate evidence collection and release recovery, distinguish an observed result from an inference, and put explicit controls around both infrastructure changes and AI decisions.
