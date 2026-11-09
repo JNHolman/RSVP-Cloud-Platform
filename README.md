@@ -4,7 +4,7 @@
 
 ![Reconstruction of three AWS exercises: 77 logs analyzed, rollback verified in 3m 23s, and a critical sample raised from the model’s P3 to the enforced P1.](shared/platform-exercises.gif)
 
-*22.5-second reconstruction from recorded exercises.* [Investigation and original report](project-1-cloud-foundation/README.md#ai-incident-analysis) · [Rollback timeline](project-2-ecs-cicd/README.md#live-integrated-release-on-november-8) · [Security decision and receipt](project-3-cloud-governance/README.md#live-aws-exercise)
+*24-second reconstruction from recorded exercises.* [Investigation and original report](project-1-cloud-foundation/README.md#ai-incident-analysis) · [Rollback timeline](project-2-ecs-cicd/README.md#live-integrated-release-on-november-8) · [Security decision and receipt](project-3-cloud-governance/README.md#live-aws-exercise)
 
 When RSVP Society sends a wave of invitations, guests reply, change plans and bring friends. Between events there may be very little work for the application to do. My first AWS design kept application servers and a highly available database running throughout those quiet periods. For the business, it made more sense to pay for work as requests arrived. I moved the production application toward event-driven services. [RSVP Society and its event operations](https://github.com/JNHolman/rsvp-society)
 
@@ -12,32 +12,36 @@ I kept the original design to answer a question from my work in network operatio
 
 I used Terraform to build private AWS networks around two ways to serve the same application: EC2 virtual machines and ECS Fargate containers reading from an RDS database. GitHub Actions automated the build, security scan, deployment and recovery of container releases. When a CloudWatch alarm changed state, a Python function in Lambda collected evidence for an AI-assisted investigation. The governance design separates who can deploy a workload from who can administer security policy. In the live security exercise, an explicit priority rule controlled the alert after AI triage.
 
-## From a failed request to an operating decision
+## How the lab fits together
 
 ```mermaid
 flowchart TB
-  subgraph runtime["One application · two private networks"]
-    vm["Foundation · EC2 servers"] -->|Read| db[("Private RDS database")]
-    tasks["Delivery · ECS containers"] -->|Read over peering| db
+  subgraph foundation["Foundation VPC"]
+    vm["Private EC2 servers"] -->|MySQL over TLS| db[("Private RDS database")]
   end
-  vm -. Alarm and logs .-> investigate["Investigate · 77 log entries informed an advisory report"]
-  tasks -. Serving version .-> recover["Recover · wrong release rolled back in 3m 23s"]
-  sample["Governance · separate single-account exercise"] -->|Labeled critical finding| decide["Escalate · policy enforced P1 despite the model’s P3"]
-  classDef outcome fill:#e7f4ee,color:#173a2b,stroke:#47785c
-  class investigate,recover,decide outcome
+  subgraph delivery["Delivery VPC"]
+    tasks["Private ECS tasks"]
+  end
+  tasks -->|VPC peering · IAM database reader| db
+  vm -. Application logs .-> logs["CloudWatch"]
+  logs -. Alarm event via EventBridge .-> analyst["Incident Lambda"]
+  sec["Separate governance exercise · sample event"] --> triage["Security Lambda"]
 ```
 
-Both paths could return the same reservation. That gave me a concrete way to test a network route, a software release and a restored database: could the application still read the expected data? The governance layer extends that work to the people and policies responsible for investigating problems. Its live exercise tested who gets the final say when an AI recommendation conflicts with security policy.
+The database was the common test point. Both applications had to read the same reservation through their own network path and AWS role. The governance exercise used a separate event source so I could test security policy without changing production monitoring.
 
-## What happened when I exercised the controls
+## Verified in the AWS exercises
 
-| Operator’s question | What the automation did | What I verified |
-|---|---|---|
-| [Why did the service return errors?](project-1-cloud-foundation/README.md#ai-incident-analysis) | A controlled alarm triggered a Python investigation of 77 application log entries. | Logs showed 503s followed by successful health checks. The model identified refused backend connections as the likely explanation for the earlier errors. A subscriber received the report reference. |
-| [Is the right release serving customers?](project-2-ecs-cicd/README.md#live-integrated-release-on-november-8) | GitHub Actions checked the version returned over HTTPS, rejected a healthy but incorrect revision, and restored its predecessor. | The previous release was verified in **3m 23s**. In a separate unhealthy-task drill, ECS recovered in [**13m 47s**](project-2-ecs-cicd/evidence/2026-11-08.md). |
-| [Who sets the priority of a critical finding?](project-3-cloud-governance/README.md#live-aws-exercise) | A labeled sample triggered AI triage. The model proposed P3; the handler enforced the critical severity floor of P1. | Both decisions were preserved and the alert reached an encrypted subscriber. AWS also validated the service control policy documents. Policy logic has offline coverage. Cross-account enforcement remains unverified. |
+| What was measured | Recorded outcome |
+|---|---|
+| [Incident investigation](project-1-cloud-foundation/README.md#ai-incident-analysis) | **77 log entries** analyzed; report saved and notification received. |
+| [Version verification and rollback](project-2-ecs-cicd/README.md#live-integrated-release-on-november-8) | **3m 23s** from rejection to verification of the previous release. |
+| [ECS circuit breaker](project-2-ecs-cicd/evidence/2026-11-08.md) | **13m 47s** to recover a separate unhealthy deployment. |
+| [Encrypted snapshot recovery](project-1-cloud-foundation/README.md#recovery-evidence) | **10m 02s** to a verified database row. |
+| [Service scale-out](project-2-ecs-cicd/README.md#capacity-under-load) | **2 to 3 running tasks** under load. Scale-in remains unverified. |
+| [Security investigation](project-3-cloud-governance/README.md#live-aws-exercise) | Model proposed **P3**; policy enforced **P1**. Both were recorded. |
 
-Recovery required a different test. I restored an encrypted database snapshot and queried a known reservation. The row was readable in **10m 02s**. During a separate load exercise the container service grew from **two running tasks to three**. The project pages include the [database timelines](project-1-cloud-foundation/README.md#recovery-evidence) and [recorded task counts](project-2-ecs-cicd/README.md#capacity-under-load).
+The later database-aware release checks used simulated workflow responses. The enterprise governance design has offline policy tests; cross-account enforcement remains unverified.
 
 ## Engineering Decisions and Trade-offs
 
