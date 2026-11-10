@@ -1,112 +1,146 @@
 # Project 1 — Cloud Foundation
 
-A guest sees a failed page. From the network side, that could mean a blocked path, an unhealthy server or an application that accepted the connection and then failed. I wanted a public service with a small exposed surface and enough evidence to tell those cases apart.
+When I moved RSVP Society to a lighter serverless design, I kept the original three-tier AWS architecture as a place to learn. Cloud Foundation is the starting point for the rest of the platform: an HTTPS entry point, private application servers and a private database, built with Terraform.
 
-Only the load balancer accepts public web traffic. A web application firewall filters requests there, and the load balancer checks private EC2 servers in two Availability Zones. The application uses its AWS role to authenticate to MySQL over an encrypted connection. That keeps the database off the public network while giving the application the limited access it needs.
+What I wanted to understand was what happens beyond the point where an application loads successfully. From network engineering, I know a working route doesn't always mean the service behind it works. I followed requests through the application and database, collected logs around a failure, and restored data to check whether the backups were actually useful.
 
-```mermaid
+Those exercises gave me a working application path and a database I could reuse in [Project 2](../project-2-ecs-cicd/README.md), instead of building an unrelated demo for every technology I wanted to test.
+
+[Back to the platform story](../README.md) · [The container release built on this foundation](../project-2-ecs-cicd/README.md)
+
+## Following a request through AWS
+
+~~~mermaid
 flowchart TB
-  client["Browser"] -->|HTTPS| edge["Application Load Balancer · ACM + AWS WAF"]
-  subgraph vpc["Foundation VPC · us-east-1"]
-    edge --> asg["Private EC2 Auto Scaling group · two Availability Zones"]
-    asg -->|IAM reader · MySQL over TLS| db[("Encrypted Multi-AZ RDS")]
-  end
-  db --> backup["Native snapshots · PITR · AWS Backup"]
-  asg -->|Application logs| logs["CloudWatch Logs"]
-  edge -->|Target health and 5xx metrics| alarm["CloudWatch alarms"]
-  classDef data fill:#eaf3fb,stroke:#376b98,color:#102c42
-  classDef ops fill:#e9f5ef,stroke:#35815a,color:#133d28
-  class db,backup data
-  class alarm,logs ops
-```
+    guest["Guest's browser"] -->|"HTTPS"| alb["Public load balancer · TLS + AWS WAF"]
+    subgraph vpc["Foundation VPC"]
+      alb --> web["Private EC2 application · two Availability Zones"]
+      web -->|"Scoped IAM database reader + MySQL over TLS"| rds[("Private encrypted Multi-AZ RDS")]
+    end
+    web --> logs["CloudWatch application logs"]
+    alb --> alarms["Health checks + CloudWatch alarms"]
+    alarms --> analysis["EventBridge → investigation Lambda"]
+    logs --> analysis
+    analysis -->|"Bounded, redacted context"| ai["AI assessment"]
+    analysis --> records["Encrypted S3 report + DynamoDB index"]
+    records --> notify["SNS → encrypted SQS test subscriber"]
+    rds --> recovery["Snapshots · point-in-time recovery · AWS Backup"]
+~~~
 
-**Recovery benchmark:** the historical encrypted snapshot restore recovered a known database row in **10m 02s**. [Timestamped recovery timeline](evidence/2026-11-08.md#recovery-timeline)
+The load balancer is the public front door. AWS WAF filters suspicious web requests there. Private EC2 servers run the application in two Availability Zones, so it isn't tied to a single data-center location. The RDS database has no public endpoint. The servers use their assigned AWS identity to authenticate and make an encrypted MySQL connection. Their network rules allow only the traffic needed along that path.
+
+Terraform defines the network, security rules, monitoring and recovery settings. I then checked the running environment from the public HTTPS endpoint through to a real reservation record in the private database. That gave me more useful evidence than a successful Terraform apply.
+
+### What I verified at the network edge
+
+The development exercise provided a useful set of checks beyond “the page loads.” The load balancer was protected by an issued ACM certificate and served HTTPS. Its two healthy private EC2 targets were in separate Availability Zones, without public instance addresses. A harmless test request containing an XSS pattern received an HTTP 403 from the associated WAF, and VPC Flow Logs plus application logs were available for troubleshooting.
+
+Those checks matter for different reasons. The certificate proves the public endpoint is configured for TLS; the private targets show where application traffic terminates; the WAF response shows the specific test request was blocked. None of those alone proves that a reservation query works. That's why I followed the request all the way to private MySQL.
+
+[First deployment observations](evidence/2026-11-08.md) · [Network design](terraform/vpc.tf) · [Web ingress and health checks](terraform/alb.tf) · [WAF rules](terraform/waf.tf)
 
 ## Live integration on November 8
 
-The shared Flask application read an operator-inserted marker from private MySQL through the EC2 role and a TLS-verified IAM connection. Both HTTPS endpoints later returned the same three records. The EC2 screenshot captures the first two, before the recovery checkpoint marker was added. [Live foundation page](evidence/live-rds-reader.png)
+I deployed the Flask reservation service against private RDS, inserted test records and read them back through the EC2 application. Later, the ECS version of the same service accessed that database from a separate VPC. Both HTTPS endpoints returned the same three records. That established two distinct network and identity paths to the same data—not two unrelated applications that happened to return “healthy.”
 
-On the first rollout, Gunicorn failed before startup because systemd could not open its stderr file. Correcting the log path restored the service. The real load-balancer metrics capture the target-health transitions.
+The first EC2 rollout failed before the application started: Gunicorn couldn't open the stderr path configured in systemd. I corrected the logging path and repeated the rollout. The load balancer's health metrics captured the transition from unhealthy to healthy targets.
 
-![CloudWatch load balancer target health during the EC2 rollout](evidence/live-target-health.png)
+![Recorded load balancer target health during the EC2 rollout](evidence/live-target-health.png)
+
+[Read the live reservation response](evidence/live-rds-reader.png) · [Integration and recovery evidence](evidence/live-recovery.json) · [Earlier HTTPS, WAF and network observations](evidence/2026-11-08.md)
 
 ### AI incident analysis
 
-I set the development load balancer’s 5xx alarm (`rsvp-pf1-dev-target-5xx-high`) to **ALARM** to exercise the handoff an on-call engineer would receive. The metric alarm supplied the signal. Its state, reason and timestamp gave the investigator a place to start looking in the application logs.
+An alarm is a starting point, not a diagnosis. I built a Python Lambda handler that takes CloudWatch alarm context, gathers a small window of application logs around the event and asks an AI model to help interpret the evidence.
 
-```mermaid
+For the live exercise, I **manually put the development load balancer's 5xx alarm into ALARM state** to test the notification and investigation path. The handler gathered **77 log entries**. The alarm transition was deliberate; the 503 errors found in the log window were real observations from the earlier application rollout.
+
+The logs showed three failed health checks and then healthy responses by 23:19:59 UTC. The model pointed to Apache being unable to connect to its local application backend as the likely cause of the 503s. That was consistent with the evidence, but the sample did **not** prove why the backend had been unavailable. The actual startup failure had been traced separately to Gunicorn's systemd logging path. I kept the model's narrower conclusion rather than present its suggestion as a verified root cause.
+
+The useful part of the report was the next check: confirm that the application answers, a reservation can still be read from the database and the load balancer considers its servers healthy. Those are three different signals. A web process answering does not by itself prove that the full service works.
+
+~~~mermaid
 sequenceDiagram
-    participant E as EventBridge
+    participant A as Alarm / EventBridge
     participant L as Investigation Lambda
     participant C as CloudWatch Logs
-    participant M as OpenAI
-    participant R as S3 and DynamoDB
-    participant N as Encrypted SQS subscriber
-    E->>L: CloudWatch alarm changed state
-    L->>C: Read five minutes ending at the event time
-    C-->>L: 77 log entries collected
-    L->>M: Alarm context and redacted log sample
-    M-->>L: Findings, recommendations and confidence
-    alt Valid response · observed run
-        L->>R: Store validated analysis and index the report
-    else Analysis fails · fallback behavior
-        L->>R: Store alarm evidence and low-confidence assessment
-    end
-    L->>N: SNS delivers report reference
-    Note over N: Operator reviews evidence and decides on remediation
-```
+    participant M as AI model
+    participant S as Encrypted S3 + DynamoDB
+    participant Q as SNS / encrypted SQS
+    A->>L: Alarm state, reason and event time
+    L->>C: Read the event-time log window
+    C-->>L: 77 entries in recorded exercise
+    L->>M: Redacted context and bounded sample
+    M-->>L: Likely explanation and next checks
+    L->>L: Validate response or use fallback
+    L->>S: Save report and index
+    L->>Q: Send stored report reference
+~~~
 
-The Python handler caps each investigation at 120 entries and truncates each message before redaction. It checks the model’s output fields and confidence value. If log collection fails, the record carries the collection error. If analysis times out or the response fails validation, the handler produces a low-confidence fallback with the captured alarm context. An operator can see when the evidence is incomplete.
+I put limits around this process because an AI explanation is only as useful as the evidence supporting it. The handler caps a sample at 120 entries, truncates messages and redacts sensitive values before external analysis. It validates the expected output fields and confidence. If log collection fails, the report says so. If the model fails or returns an invalid answer, a low-confidence fallback preserves the alarm details instead of presenting an invented diagnosis.
 
-In this run the response passed validation. The report was saved in KMS-encrypted S3 storage and indexed in DynamoDB. SNS delivered its reference to an encrypted SQS test subscriber. Human email delivery was outside the exercise.
+In the recorded exercise the model response passed validation, the report was stored in KMS-encrypted S3 and indexed in DynamoDB, and SNS delivered its reference to an encrypted SQS subscriber. Sending the **report reference** rather than an entire incident payload keeps the notification small and leaves a durable record to review. **Human email delivery was not tested.** The engineer still owns the investigation, configuration change and incident closure.
 
-#### From the saved AI report
-
-The logs showed three failed health checks, then successful responses by 23:19:59 UTC. The model identified a refused connection between Apache and its local backend as the likely explanation for the 503s. The sample did not establish why the backend was unavailable.
-
-Its closing check went beyond the load balancer:
-
-> Verify current /health, /api/reservations, and target group status remain healthy before closing the incident.
-
-That gave the operator three things to confirm: the process was answering, a database-backed request worked, and the load balancer still considered the target healthy.
-
-The operator had set the alarm to exercise the notification path. The earlier 503s were real observations within the collected window. Restarting the service, changing configuration and closing the incident remained operator decisions.
+[Saved incident and delivery record](evidence/live-incident.json) · [Investigation handler](terraform/ai_log_summarizer.py)
 
 ## Recovery evidence
 
-| Recovery mechanism | Evidence and timing |
-|---|---|
-| Encrypted snapshot | Queried a known row in the restored database after **10m 02s**. |
-| Point-in-time recovery | A private TLS read returned the rehearsal marker after **13m 50s**. The row added after the chosen checkpoint was absent. |
-| AWS Backup | The restore job completed in **16m 48s**. A later TLS query independently verified the row. |
-| Multi-AZ failover | RDS reported **19.85s** between failover start and completion. This measures the database operation; client recovery has a separate timeline. |
+Backups have little value if no one checks what's inside them. I tested several recovery paths and measured what each one actually proved.
 
-[Earlier networking, WAF and recovery exercise](evidence/2026-11-08.md)
+| Exercise | Observed result | What the result does—and doesn't—prove |
+|---|---|---|
+| **Encrypted RDS snapshot** | **10m 02s** from restore request to successful query | A restored private database returned the known row; it does not include application cutover |
+| **Point-in-time recovery** | **13m 50s** to a TLS-verified read | The row before the selected checkpoint was present; the later row was absent |
+| **AWS Backup restore** | Restore job completed in **16m 48s** | A later private database query verified usable data independently of job completion |
+| **Multi-AZ failover** | RDS reported **19.85s** between operation start and completion | Measures the database operation, not complete end-user recovery |
 
-The alarm handler bounds and redacts its log sample before requesting analysis. The Terraform configuration defines the access path and database recovery settings. [Investigation handler](terraform/ai_log_summarizer.py) · [Network boundaries](terraform/vpc.tf) · [Database configuration](terraform/rds.tf)
+[Recorded recovery observations](evidence/live-recovery.json) · [Point-in-time recovery evidence](evidence/live-pitr.json) · [Earlier snapshot restore timeline](evidence/2026-11-08.md#recovery-timeline)
 
-<details><summary>Original report excerpts, verification digest and technical evidence</summary>
+The distinction matters. An AWS status of “available” is useful, but for a reservation application I want to know whether the expected data can be read. The point-in-time test also checked that a row written **after** the selected recovery point was absent. That is evidence that the restore selected the intended moment, rather than merely returning some data.
 
-At 23:24:01 UTC on November 8 the analyst recorded the following excerpts from the 77-entry investigation. All six excerpts below were checked against the original report in encrypted S3 storage. The repository contains the excerpts and execution record. An authorized reader with the full report can verify its SHA-256 digest: `53a5efd6d23b93dc24a7db25169caeaeee13ddf34e2dd8b924af2da3b8bfd69f`.
+These are measured steps in controlled exercises, not promises of an application-level recovery time. Restoring an RDS instance still leaves DNS, application reconnection, cutover and client verification to consider in a full service recovery.
 
-**Observed in the logs** (report field `evidence_used`):
+## Engineering decisions and trade-offs
+
+Some of the reliability choices make this lab more expensive than the simplest three-tier setup. That was intentional: I wanted to test what redundant infrastructure buys me, and where it still doesn't guarantee recovery.
+
+| Choice | Why I made it | What I had to accept |
+|---|---|---|
+| **Public load balancer, private application and RDS** | Guests need access to a website, not direct access to its servers or database | More routes and security rules to maintain; private egress and redundancy cost money |
+| **Two Availability Zones and Multi-AZ RDS** | An individual instance or zone should not be the whole service's single point of failure | Database and network redundancy increase running cost; client recovery still needs testing |
+| **NAT Gateway per Availability Zone** | Private outbound traffic in one zone doesn't depend on a gateway in the other zone | More baseline cost than one shared NAT Gateway |
+| **Role-based database authentication over TLS** | A working route and a valid database permission are separate requirements | The task or instance role, database user and certificate verification must all be correct |
+| **Evidence captured around alarm time** | The useful logs may be several minutes before anyone starts investigating | Event-time windows and collection limits can miss evidence; the report must say what was and wasn't available |
+| **Bounded, advisory AI** | Summaries can speed up the first pass without turning uncertainty into an automatic change | An engineer still checks the process, API, database and load balancer before remediation or closure |
+| **Restore and query real data** | A completed AWS job is weaker evidence than a successful application-relevant read | A timed database restore does not measure complete customer-facing recovery |
+
+### Protecting a real business while testing failures
+
+The lab shared an AWS account with RSVP Society, so isolation wasn't optional. I used dedicated development resource names, separate Terraform state keys and a delegated DNS area under `cloud.rsvpsociety.com`. I reviewed change plans against Society's production database, IAM identities and DNS. An older development resource whose ownership wasn't clear was left alone rather than deleted to make the inventory look clean.
+
+After the exercises, I retired the temporary compute and database runtime while preserving selected encrypted snapshots, logs and the incident index. The KMS keys needed for retained recovery assets have Terraform destruction guards. That is deliberate: a snapshot that survives teardown but loses its decryption key isn't a useful backup.
+
+The trade-off is ongoing custody and expense. Retained keys, snapshots and logs may still incur charges. A read-only inventory or an empty running-instance list alone isn't a full cost report.
+
+### What this led to
+
+By the end of these exercises I had a working private application path, a recorded incident investigation and data I could read from restored databases. I used the same application in [Project 2 — ECS & CI/CD](../project-2-ecs-cicd/README.md), where I concentrated on the release process rather than rebuilding the foundation.
+
+<details>
+<summary>Original incident-report excerpts and verification</summary>
+
+The encrypted S3 report for the November 8 investigation contained 77 entries. The report's recorded SHA-256 digest is:
+
+`53a5efd6d23b93dc24a7db25169caeaeee13ddf34e2dd8b924af2da3b8bfd69f`
+
+Two observations from its evidence field:
 
 > At 23:18:59, /health returned 503 to ELB-HealthChecker/2.0.
->
+
 > Additional /health 503 responses occurred at 23:19:29 and 23:19:32.
 
-**Model assessment** (from `summary` and `likely_root_cause`):
+The model reported that health checks recovered and recommended confirming the application, database-backed endpoint and target-group health before closure. It did not establish the underlying reason the local backend stopped answering.
 
-> Health checks recovered to HTTP 200 by 23:19:59 and remained healthy through the end of the supplied logs, including after later Gunicorn/Apache startup messages.
->
-> Separately, the observed earlier 503s were likely caused by Apache proxy failures to connect to the local backend service on 127.0.0.1:8080, consistent with the backend not listening or restarting at that time. The supplied evidence does not prove why the backend was unavailable.
-
-**Recommended checks** (from `recommended_checks`):
-
-> Confirm in CloudWatch alarm history whether the ALARM transition was operator-set rather than metric-driven.
->
-> Verify current /health, /api/reservations, and target group status remain healthy before closing the incident.
-
-[Incident delivery](evidence/live-incident.json) · [Recovery observations](evidence/live-recovery.json) · [Point-in-time readback](evidence/live-pitr.json)
+[Incident receipt](evidence/live-incident.json) · [Alarm and integration implementation](terraform/ai-logs.tf) · [Private network](terraform/vpc.tf) · [RDS configuration](terraform/rds.tf)
 
 </details>
