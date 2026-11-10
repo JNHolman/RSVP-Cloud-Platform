@@ -103,11 +103,18 @@ def test_dashboard_cors_origin_is_a_single_explicit_https_origin():
     assert 'wildcards, paths, or multiple origins' in variables
 
 
-def test_cleanup_docs_do_not_claim_protected_recovery_keys_are_disposable():
-    readme = Path("README.md").read_text(encoding="utf-8")
-    assert "Project 1 recovery KMS keys have intentional Terraform destruction guards" in readme
-    assert "do not expect an unrestricted `terraform destroy`" in readme.lower()
-    assert "snapshots" in readme.lower() and "recovery points" in readme.lower()
+def test_recovery_keys_remain_protected_after_lab_teardown():
+    readme = Path("project-1-cloud-foundation/README.md").read_text(encoding="utf-8")
+    rds = Path("project-1-cloud-foundation/terraform/rds.tf").read_text(encoding="utf-8")
+    key = rds.split('resource "aws_kms_key" "rds" {', 1)[1].split(
+        'resource "aws_kms_alias" "rds" {', 1
+    )[0]
+
+    assert "prevent_destroy = true" in key
+    assert "kms_key_id            = aws_kms_key.rds.arn" in rds
+    assert "Terraform destruction guards" in readme
+    assert "retained recovery assets" in readme
+    assert "snapshots" in readme
 
 
 def test_workload_stack_has_no_unused_placeholder_app_log_group():
@@ -117,18 +124,23 @@ def test_workload_stack_has_no_unused_placeholder_app_log_group():
     assert "/workload/app" not in terraform
 
 
-def test_project3_runbook_requires_state_kms_backend_placeholder_replacement():
-    runbook = Path("project-3-cloud-governance/README.md").read_text(encoding="utf-8")
-    project3 = runbook
-    assert "REPLACE_WITH_TERRAFORM_STATE_KMS_KEY_ARN" in project3
-    assert "state-bootstrap outputs" in project3
+def test_project3_backend_examples_require_account_local_kms_configuration():
+    root = Path("project-3-cloud-governance")
+    examples = sorted(root.glob("*/backend.hcl.example"))
+
+    assert len(examples) == 7
+    for example in examples:
+        content = example.read_text(encoding="utf-8")
+        assert "REPLACE_WITH_ACCOUNT_LOCAL_TERRAFORM_STATE_BUCKET" in content, example
+        assert "REPLACE_WITH_TERRAFORM_STATE_KMS_KEY_ARN" in content, example
 
 
-def test_prod_oidc_runbook_requires_github_environment_protection():
-    runbook = Path("project-2-ecs-cicd/README.md").read_text(encoding="utf-8")
-    assert "GitHub Environment protection rules for `prod`" in runbook
-    assert "restrict deployment branches/tags" in runbook
-    assert "production authorization boundary" in runbook
+def test_prod_deployment_documents_missing_github_environment_protections():
+    readme = Path("project-2-ecs-cicd/README.md").read_text(encoding="utf-8")
+
+    assert "GitHub `prod` environment had **no branch/tag restrictions or reviewer protection rules**" in readme
+    assert "production approvals enforced" in readme
+    assert "OIDC trust policy" in readme
 
 
 def test_project3_project_name_inputs_are_bounded_for_generated_aws_names():

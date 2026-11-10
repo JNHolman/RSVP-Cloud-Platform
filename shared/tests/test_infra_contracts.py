@@ -31,10 +31,10 @@ def test_github_oidc_and_deploy_rollback_contract():
 def test_organization_existing_accounts_are_reference_only():
     variables = read("project-3-cloud-governance/organization/variables.tf")
     prerequisites = read("project-3-cloud-governance/organization/prerequisites.tf")
-    deployment = read("project-3-cloud-governance/README.md")
 
     assert "does not move existing accounts between OUs" in variables
-    assert "does not move those accounts" in deployment
+    assert "does not adopt or move those accounts into Terraform-managed OUs" in variables
+    assert 'default     = false' in variables
     assert 'resource "terraform_data" "delegated_admin_prerequisites"' in prerequisites
 
 
@@ -186,10 +186,10 @@ def test_cloud_platform_state_names_are_isolated_from_rsvp_society():
         assert 'dynamodb_table = "rsvp-terraform-locks"' not in content, path
 
 
-def test_runbook_requires_existing_account_ou_placement_verification():
-    runbook = read("project-3-cloud-governance/README.md")
-    assert "does not move those accounts" in runbook
-    assert "An account outside the target OU will not inherit that OU's SCPs." in runbook
+def test_project3_documents_ou_placement_requirement():
+    readme = read("project-3-cloud-governance/README.md")
+    assert "A policy only protects accounts placed in the right organizational unit." in readme
+    assert "Existing accounts need deliberate placement" in readme
 
 
 def test_lambda_customer_kms_keys_allow_lambda_package_decryption():
@@ -244,12 +244,11 @@ def test_stacksets_delegated_admin_requires_cloudformation_trusted_access_opt_in
     org = (ROOT / "project-3-cloud-governance/organization/organization.tf").read_text()
     delegated = (ROOT / "project-3-cloud-governance/organization/delegated-admin.tf").read_text()
     variables = (ROOT / "project-3-cloud-governance/organization/variables.tf").read_text()
-    readme = read("project-3-cloud-governance/README.md")
 
     assert 'variable "stacksets_trusted_access_activated"' in variables
     assert 'var.stacksets_trusted_access_activated ? ["stacksets.cloudformation.amazonaws.com"] : []' in org
     assert 'var.configure_delegated_admins && var.stacksets_trusted_access_activated' in delegated
-    assert "ActivateOrganizationsAccess" in readme
+    assert "ActivateOrganizationsAccess" in variables
 
 
 def test_project2_deploy_inherits_latest_terraform_task_definition_baseline():
@@ -266,8 +265,8 @@ def test_project2_deploy_inherits_latest_terraform_task_definition_baseline():
 
 
 def test_config_aggregator_does_not_overclaim_member_recording():
-    main_readme = (ROOT / "README.md").read_text()
-    assert "where Config recording is enabled" in main_readme
+    readme = read("project-3-cloud-governance/README.md")
+    assert "AWS Config can only collect security configuration data from accounts that have recording enabled." in readme
 
 
 def test_provider_constraints_are_minor_series_bounded():
@@ -419,9 +418,13 @@ def test_workflow_python_tooling_is_version_pinned_and_does_not_upgrade_pip():
     assert "ruff==0.16.10" in ci
 
 
-def test_readme_describes_rds_backup_encryption_accurately():
-    readme = (ROOT / "README.md").read_text()
-    assert "RDS recovery points inherit the database encryption key" in readme
+def test_rds_recovery_keys_and_backup_encryption_are_preserved():
+    readme = read("project-1-cloud-foundation/README.md")
+    rds = read("project-1-cloud-foundation/terraform/rds.tf")
+
+    assert "storage_encrypted     = true" in rds
+    assert "kms_key_id            = aws_kms_key.rds.arn" in rds
+    assert "snapshot that survives teardown but loses its decryption key" in readme
 
 
 def test_runtime_services_wait_for_required_iam_permissions():
@@ -458,12 +461,16 @@ def test_runtime_services_wait_for_required_iam_permissions():
         assert token in security
 
 
-def test_predeploy_runbook_explains_ecs_task_definition_ownership_handoff():
-    runbook = read("project-2-ecs-cicd/README.md")
-    assert "Task-definition ownership" in runbook
-    assert "ConfigurationSource=TerraformBaseline" in runbook
-    assert "after any Terraform change that modifies the ECS task definition" in runbook
-    assert "run **Controlled Deploy**" in runbook
+def test_ecs_task_definition_ownership_handoff_is_explicit():
+    readme = read("project-2-ecs-cicd/README.md")
+    service = read("project-2-ecs-cicd/terraform/ecs_service.tf")
+    workflow = read(".github/workflows/ecs-project2-deploy.yml")
+
+    assert "Terraform owns the infrastructure baseline" in readme
+    assert "GitHub Actions owns **which application revision is released**" in readme
+    assert "the controlled release has to promote it intentionally" in readme
+    assert "ignore_changes = [" in service and "task_definition," in service
+    assert "Capture current task definition for rollback" in workflow
 
 
 def test_checkov_alb_exceptions_are_scoped_to_real_aws_or_environment_constraints():
