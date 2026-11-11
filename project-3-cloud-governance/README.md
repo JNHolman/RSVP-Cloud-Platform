@@ -74,13 +74,15 @@ The model wasn't irrational. There genuinely wasn't enough detail to prove what 
 
 The handler preserved the model's cautious explanation, including the fact that no business impact had been confirmed. It also preserved *why* policy overrode the recommendation. An engineer reviewing the alert can see both decisions rather than being presented with one unexplained number.
 
-If AI analysis fails or returns an invalid answer, the handler uses the finding's original severity to set priority. The **live AWS exercise tested the successful model-response path**; separate tests cover that fallback.
+If AI analysis fails or returns an invalid answer, the handler uses the finding's original severity to set priority. The first exercise tested the successful model-response path.
 
 The current handler sends hashed finding and resource references, selected classification fields and severity to the model. Titles, descriptions and arbitrary resource names stay out of the request. Both incident handlers use their existing DynamoDB tables to checkpoint completed investigations. Replays reuse that result, while a change such as a severity increase triggers a new assessment. If SNS accepts a notification but its acknowledgement is lost, a retry can send it again. A failure before the analysis checkpoint can repeat a model call. These retry cases were exercised offline.
 
 In the current implementation, the model explains triage priority from limited metadata. Confirming a cause requires the original finding. Each high-priority notification carries a DynamoDB table and key. An authorized operator can use GetItem there to retrieve the Security Hub finding ID, product ARN and Region. This source record is excluded from the dashboard index and model request.
 
-Closure and suppression update the incident without calling the model or paging. Reopening permits a fresh assessment. The handler expects one finding per imported event and uses the envelope time if the finding timestamp is malformed. Repeated fallback (two occurrences in a 15-minute period) raises a CloudWatch alarm. Configure the security alert topic to receive its notification. These changes were tested offline. The analyzer’s KMS decrypt permission is scoped to DynamoDB and the incident table. Effective access still needs verification during an authorized AWS exercise.
+On November 10 (Eastern time), I invoked the merged Lambda directly with a labeled sample finding. Its scoped role wrote to the KMS-encrypted table. Both the first alert and the reopened alert reached encrypted SQS, and both pointers retrieved the sample’s source identifiers. Replay preserved the original analysis timestamp. Closure and suppression were recorded, with no additional notification observed during the 15-second check.
+
+Two deliberate fallback invocations then triggered the CloudWatch alarm. The subscriber received its ALARM notification about one minute after the second fallback. This exercise began at Lambda. Native Security Hub detection and EventBridge routing from Security Hub remain unverified. [Finding lifecycle and alarm receipt](evidence/live-finding-lifecycle.json)
 
 [Security decision logic](security-admin/ai_incident_analyzer.py) · [Operational event handler configuration](security-admin/ai-operations.tf)
 
@@ -90,7 +92,7 @@ The evidence separates the **live security-triage exercise** from the **offline 
 
 | Area | Validation boundary |
 |---|---|
-| **Live in AWS** | Private event delivery, AI assessment, P1 policy floor, stored decisions and encrypted test-subscriber receipt |
+| **Live in AWS** | Private event delivery, AI assessment, P1 policy floor, stored decisions and encrypted test-subscriber receipt. A separate direct invocation verified source lookup, finding lifecycle and fallback alarm delivery |
 | **Offline Terraform/policy checks** | Six-account structure, guardrail policy behavior and code-level boundaries |
 | **AWS policy inspection** | IAM Access Analyzer returned **zero findings** for two generated default SCP documents; this does not prove member-account enforcement |
 | **Designed but not validated across accounts** | Delegated security administration, organization-wide trails, account-level SCP enforcement and live cross-account dashboard reads |

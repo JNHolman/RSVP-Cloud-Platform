@@ -81,7 +81,7 @@ The AI work here isn't just asking a model a question. It's making the evidence 
 
 For incident analysis, a Python function gathers CloudWatch logs near an alarm, limits the sample to **120 entries**, derives HTTP status counts and connection-refusal counts, and sends those signals with the alarm category and collection status to the model. It validates the returned fields and confidence before storing the assessment. If collection or model analysis fails, the report keeps the known alarm evidence and marks the uncertainty instead of inventing a diagnosis. An engineer still determines the cause and owns any fix. [Incident handler](project-1-cloud-foundation/terraform/ai_log_summarizer.py)
 
-For security triage, AI may suggest a priority, but a fixed severity rule takes precedence. The live sample produced a **P3 recommendation and P1 enforced decision**; both were recorded so an investigator could see why the model's suggestion was not followed. Separate tests cover fallback behavior if model analysis fails. [Decision logic](project-3-cloud-governance/security-admin/ai_incident_analyzer.py)
+For security triage, AI may suggest a priority, but a fixed severity rule takes precedence. The live sample produced a **P3 recommendation and P1 enforced decision**; both were recorded so an investigator could see why the model's suggestion was not followed. In a later AWS exercise, two controlled fallbacks triggered a CloudWatch alarm that reached the encrypted test subscriber. [Live alarm receipt](project-3-cloud-governance/evidence/live-finding-lifecycle.json). [Decision logic](project-3-cloud-governance/security-admin/ai_incident_analyzer.py)
 
 For delivery, automation checks the exact Git revision served by the HTTPS endpoint. It doesn't assume that a green container-health check proves the right software is deployed. Terraform manages the infrastructure baseline; GitHub Actions manages application releases. [Deployment workflow](.github/workflows/ecs-project2-deploy.yml)
 
@@ -110,7 +110,7 @@ The techniques are familiar from incident bridges: follow the traffic, separate 
 
 ### Cost is an engineering constraint, not an afterthought
 
-I shut down the higher-cost runtime after completing the exercises. I retained selected encrypted recovery assets and their KMS keys because a snapshot without its decryption key is not a usable backup. Keeping those keys, snapshots and logs may still carry costs and obligations even with no application servers running.
+I used timed recovery exercises to measure how quickly the service could recover. For encrypted database backups, retention also meant keeping the decryption key available through the restore and checking that the recovered data could be read.
 
 ## What this work proves—and what it doesn't
 

@@ -1,0 +1,85 @@
+{
+  "exercise": "rsvp-p3-check-039d0f4e34",
+  "region": "us-east-1",
+  "started": "2026-11-11T03:00:37.813097+00:00",
+  "input": "labeled synthetic Security Hub-shaped finding, synchronous Lambda invoke",
+  "source_files": {
+    "project-3-cloud-governance/security-admin/ai_incident_analyzer.py": "720e39f39bff9d8d787f1ba38df80c1eceddff018d334c6a3e6c7618f670b762",
+    "shared/incident-runtime/incident_replay.py": "6cee6daf35c3a39078e924d5a649c99006fa496ab0bc0a0b3b3580a1c5cea8aa"
+  },
+  "steps": [
+    {
+      "stage": "open",
+      "at": "2026-11-11T03:02:03.909656+00:00",
+      "request": "aaa9183e-cebc-45cf-bbc8-8e6a252c176f",
+      "status": "ai_generated",
+      "persisted_workflow": "NEW",
+      "analysis_timestamp": "2026-11-11T03:02:03.732344+00:00",
+      "sqs_sns_message_id": "8a01cbe1-4336-5cf3-be51-a88c9fdd99a6",
+      "source_lookup_verified": true,
+      "priority": "P1"
+    },
+    {
+      "stage": "replay",
+      "at": "2026-11-11T03:02:10.150149+00:00",
+      "request": "807c4ae4-e41f-4794-97ca-536a04af27e8",
+      "status": "ai_generated",
+      "persisted_workflow": "NEW",
+      "analysis_timestamp": "2026-11-11T03:02:03.732344+00:00"
+    },
+    {
+      "stage": "close",
+      "at": "2026-11-11T03:02:10.355928+00:00",
+      "request": "6c3db2c1-c751-47dc-9ca9-dd53dd512360",
+      "status": "RESOLVED",
+      "persisted_workflow": "RESOLVED",
+      "analysis_timestamp": "2026-11-11T03:02:10.359504+00:00"
+    },
+    {
+      "stage": "suppress",
+      "at": "2026-11-11T03:02:10.735175+00:00",
+      "request": "ebd66fb2-1315-4141-9641-8b309a2cf868",
+      "status": "SUPPRESSED",
+      "persisted_workflow": "SUPPRESSED",
+      "analysis_timestamp": "2026-11-11T03:02:10.627108+00:00"
+    },
+    {
+      "stage": "reopen",
+      "at": "2026-11-11T03:02:35.329810+00:00",
+      "request": "3400cffd-ebab-4dc8-aae9-70b6edcdadfb",
+      "status": "ai_generated",
+      "persisted_workflow": "NEW",
+      "analysis_timestamp": "2026-11-11T03:02:35.275794+00:00",
+      "sqs_sns_message_id": "55a92215-6245-56c5-837b-4178bf4eded8",
+      "source_lookup_verified": true,
+      "priority": "P1"
+    },
+    {
+      "stage": "controlled fallback 1",
+      "at": "2026-11-11T03:02:43.962799+00:00",
+      "request": "dc8bba13-1be4-4124-85f8-cf1a9233c337",
+      "status": "fallback",
+      "persisted_workflow": "NEW",
+      "analysis_timestamp": "2026-11-11T03:02:43.821255+00:00"
+    },
+    {
+      "stage": "controlled fallback 2",
+      "at": "2026-11-11T03:02:44.469692+00:00",
+      "request": "7f3f1c2d-1c81-4286-8791-106c864074e2",
+      "status": "fallback",
+      "persisted_workflow": "NEW",
+      "analysis_timestamp": "2026-11-11T03:02:44.390136+00:00"
+    }
+  ],
+  "table_encryption": "KMS",
+  "queue_encrypted": true,
+  "quiet_window_seconds": 15,
+  "alarm_receipt": {
+    "sns_message_id": "0a6bd254-9b8b-5e53-b6f5-b13946c49415",
+    "state": "ALARM",
+    "transition": "2026-11-11T03:03:43.789+0000",
+    "reason": "Threshold Crossed: 1 datapoint [2.0 (11/11/26 02:48:00)] was greater than or equal to the threshold (2.0)."
+  },
+  "outcome": "passed",
+  "finished": "2026-11-11T03:05:28.200694+00:00"
+}
