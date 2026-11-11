@@ -78,3 +78,18 @@ resource "aws_cloudwatch_metric_alarm" "investigation_degraded" {
   dimensions          = { FunctionName = aws_lambda_function.ai_incident.function_name }
   alarm_actions       = compact([var.security_alert_topic_arn])
 }
+
+resource "aws_cloudwatch_metric_alarm" "ai_incident_dlq_visible" {
+  alarm_name          = "${var.project_name}-ai-security-dlq-visible"
+  alarm_description   = "A failed security finding event is waiting in the dead-letter queue. Review and replay before its retention period expires."
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 1
+  metric_name         = "ApproximateNumberOfMessagesVisible"
+  namespace           = "AWS/SQS"
+  period              = 60
+  statistic           = "Maximum"
+  threshold           = 1
+  treat_missing_data  = "notBreaching"
+  dimensions          = { QueueName = aws_sqs_queue.ai_incident_dlq.name }
+  alarm_actions       = compact([var.security_alert_topic_arn])
+}
