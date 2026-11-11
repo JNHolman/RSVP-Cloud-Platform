@@ -172,3 +172,18 @@ def test_project1_failure_and_dlq_alarms_notify_without_waiting_for_two_events()
     assert 'alarm_actions       = [aws_sns_topic.alerts.arn]' in dlq
     assert 'dead_letter_config { target_arn = aws_sqs_queue.ai_analysis_dlq.arn }' in ai_logs
     assert 'dead_letter_config { arn = aws_sqs_queue.ai_analysis_dlq.arn }' in ai_logs
+
+def test_rds_ca_downloads_check_reviewed_bundle_digests():
+    ec2 = read("project-1-cloud-foundation/terraform/ec2.tf")
+    variables = read("project-1-cloud-foundation/terraform/variables.tf")
+    docker = read("project-2-ecs-cicd/app/Dockerfile")
+    ci = read(".github/workflows/ci.yml")
+
+    assert "b1711d12bae51838581281e23b6cb97b1074016873b4dafc80ed14002462dd77" in ec2
+    assert "sha256sum -c -" in ec2
+    assert 'condition     = length(local.rds_ca_expected_sha256) == 64' in ec2
+    assert 'variable "rds_ca_bundle_sha256"' in variables
+    assert "90a6f1a7978a1b1b096dca6c57511ca48d3b8cf052f8e704baf358f34ea2f21b" in docker
+    assert "sha256sum -c -" in docker
+    assert "b1711d12bae51838581281e23b6cb97b1074016873b4dafc80ed14002462dd77" in ci
+    assert "sha256sum -c -" in ci

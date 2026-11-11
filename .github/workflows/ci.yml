@@ -136,11 +136,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - name: Capture upstream RDS CA bundle digests for pinning
+      - name: Verify pinned regional RDS CA bundle
         run: |
-          curl --proto '=https' --tlsv1.2 -fsSL --retry 3 -o /tmp/rds-global-bundle.pem https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem
           curl --proto '=https' --tlsv1.2 -fsSL --retry 3 -o /tmp/rds-us-east-1-bundle.pem https://truststore.pki.rds.amazonaws.com/us-east-1/us-east-1-bundle.pem
-          sha256sum /tmp/rds-global-bundle.pem /tmp/rds-us-east-1-bundle.pem
+          echo 'b1711d12bae51838581281e23b6cb97b1074016873b4dafc80ed14002462dd77  /tmp/rds-us-east-1-bundle.pem' | sha256sum -c -
       - name: Build image
         working-directory: project-2-ecs-cicd/app
         run: docker build -t rsvp-project2:${GITHUB_SHA} .

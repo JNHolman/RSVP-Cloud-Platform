@@ -8,6 +8,18 @@ variable "aws_region" {
   default     = "us-east-1"
 }
 
+# Supply a reviewed regional bundle checksum outside us-east-1.
+variable "rds_ca_bundle_sha256" {
+  description = "SHA-256 for the regional RDS CA bundle when deploying outside us-east-1. Empty uses the pinned us-east-1 checksum for that region only."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = var.rds_ca_bundle_sha256 == "" || can(regex("^[0-9a-f]{64}$", var.rds_ca_bundle_sha256))
+    error_message = "rds_ca_bundle_sha256 must be empty or a lowercase 64-character SHA-256 digest."
+  }
+}
+
 variable "project_name" {
   description = "Name prefix for all RSVP resources. Limited so generated ALB names remain within AWS's 32-character limit in every supported environment."
   type        = string

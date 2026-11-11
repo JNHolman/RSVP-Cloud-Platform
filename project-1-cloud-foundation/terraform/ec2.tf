@@ -11,6 +11,9 @@ data "aws_ssm_parameter" "amazon_linux_2023_ami" {
 ##############################################
 
 locals {
+  # Checksum measured from AWS's HTTPS truststore on the 2026-11-11 CI runner.
+  rds_ca_expected_sha256 = var.aws_region == "us-east-1" ? "b1711d12bae51838581281e23b6cb97b1074016873b4dafc80ed14002462dd77" : var.rds_ca_bundle_sha256
+
   user_data = <<-EOF2
 #!/bin/bash
 set -eu -o pipefail
@@ -56,7 +59,8 @@ echo '${filebase64("${path.module}/../../project-2-ecs-cicd/app/app.py")}' | bas
 echo '${filebase64("${path.module}/../../project-2-ecs-cicd/app/requirements.txt")}' | base64 -d > /opt/rsvp/requirements.txt
 python3.12 -m venv /opt/rsvp/venv
 /opt/rsvp/venv/bin/pip install -r /opt/rsvp/requirements.txt
-curl -fsS --retry 3 https://truststore.pki.rds.amazonaws.com/${var.aws_region}/${var.aws_region}-bundle.pem -o /opt/rsvp/rds-ca.pem
+curl -fsS --proto '=https' --tlsv1.2 --retry 3 https://truststore.pki.rds.amazonaws.com/${var.aws_region}/${var.aws_region}-bundle.pem -o /opt/rsvp/rds-ca.pem
+echo '${local.rds_ca_expected_sha256}  /opt/rsvp/rds-ca.pem' | sha256sum -c -
 cat >/etc/systemd/system/rsvp.service <<'UNIT'
 [Unit]
 Description=RSVP application
@@ -133,6 +137,13 @@ resource "aws_launch_template" "app_lt" {
   }
 
   user_data = base64encode(local.user_data)
+
+  lifecycle {
+    precondition {
+      condition     = length(local.rds_ca_expected_sha256) == 64
+      error_message = "Set rds_ca_bundle_sha256 to a reviewed regional bundle checksum when aws_region is not us-east-1."
+    }
+  }
 
   tag_specifications {
     resource_type = "instance"
