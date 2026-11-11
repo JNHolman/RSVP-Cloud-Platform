@@ -110,7 +110,7 @@ The techniques are familiar from incident bridges: follow the traffic, separate 
 
 ### Cost is an engineering constraint, not an afterthought
 
-I shut down the higher-cost runtime after completing the exercises. I retained selected encrypted recovery assets and their KMS keys because a snapshot without its decryption key is not a usable backup. Keeping those keys, snapshots and logs may still carry costs and obligations even with no application servers running.
+I shut down the application runtime after the exercises and initially kept the encrypted recovery assets so the restores could be inspected. At final retirement on November 11, I removed the lab snapshots, retained automated backups, backup vault, registries, evidence buckets, and dedicated Terraform backend. I verified the original incident report against its published digest before removing its AWS copy. The lab keys entered their deletion windows, and the child DNS zone was removed after its parent delegation was withdrawn.
 
 ## What this work proves—and what it doesn't
 

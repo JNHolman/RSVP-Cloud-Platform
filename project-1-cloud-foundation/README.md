@@ -120,7 +120,7 @@ The lab shared an AWS account with RSVP Society, so isolation wasn't optional. I
 
 After the exercises, I retired the temporary compute and database runtime while preserving selected encrypted snapshots, logs and the incident index. The KMS keys needed for retained recovery assets have Terraform destruction guards. That is deliberate: a snapshot that survives teardown but loses its decryption key isn't a useful backup.
 
-The trade-off is ongoing custody and expense. Retained keys, snapshots and logs may still incur charges. A read-only inventory or an empty running-instance list alone isn't a full cost report.
+On November 11 I retired the remaining database recovery assets. AWS returned zero manual snapshots, retained automated backups and backup vaults in the lab region. The recovery timings above describe the completed exercise. The database copies used for it have been deleted.
 
 ### What this led to
 
