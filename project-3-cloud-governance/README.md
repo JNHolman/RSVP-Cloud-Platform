@@ -42,9 +42,9 @@ Separating accounts is only the start. Terraform state, encryption keys, deploym
 
 ### How the guardrails are meant to work
 
-One organization-wide policy prevents member accounts from leaving. Another protects central logging and security services in the production and nonproduction account groups. That second protection only applies to accounts placed in those groups. These service control policies **limit permissions; they don't grant them**. They also don't restrict the organization's management account.
+The design defines an organization-wide policy intended to prevent member accounts from leaving. Another protects central logging and security services in the production and nonproduction account groups. That second protection only applies to accounts placed in those groups. These service control policies **limit permissions; they don't grant them**. They also don't restrict the organization's management account.
 
-IAM Identity Center then provides role-based access for administrators, platform operators and read-only users. GuardDuty and Security Hub administration is delegated to the security account, while audit records are designed to flow to a separately controlled encrypted log archive. The point is that an application owner can repair a service without automatically becoming its own security auditor.
+IAM Identity Center then provides role-based access for administrators, platform operators and read-only users. The design delegates GuardDuty and Security Hub administration to the security account, while audit records are designed to flow to a separately controlled encrypted log archive. The point is that an application owner can repair a service without automatically becoming its own security auditor.
 
 Those controls depend on setup in the right order. Existing accounts need deliberate placement, Identity Center and delegated service access must be configured, and the correct accounts must own their Terraform state and encryption keys.
 
