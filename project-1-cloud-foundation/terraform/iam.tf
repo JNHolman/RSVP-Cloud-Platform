@@ -75,7 +75,7 @@ resource "aws_iam_policy" "ai_lambda_policy" {
         }
       },
       {
-        Sid      = "DynamoWriteMetadata", Effect = "Allow", Action = ["dynamodb:PutItem"],
+        Sid      = "DynamoWriteMetadata", Effect = "Allow", Action = ["dynamodb:PutItem", "dynamodb:UpdateItem"],
         Resource = aws_dynamodb_table.ai_log_summaries.arn
       },
       {

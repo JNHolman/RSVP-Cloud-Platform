@@ -37,7 +37,7 @@ jobs:
 
   terraform:
     name: Terraform quality gates
-    if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.run_terraform == true)
+    if: github.event_name == 'push' || github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.run_terraform == true)
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -93,11 +93,12 @@ jobs:
       - name: Install app and test tooling
         run: |
           pip install -r project-2-ecs-cicd/app/requirements.txt
-          pip install pytest==9.1.1 pip-audit==2.10.1 ruff==0.16.10
+          pip install pytest==9.1.1 "moto[dynamodb]==5.1.14" pip-audit==2.10.1 ruff==0.16.10
       - name: Ruff correctness checks
         run: >-
           ruff check --select E,F,I --ignore E501
           project-1-cloud-foundation/terraform/ai_log_summarizer.py
+          shared/incident-runtime
           project-2-ecs-cicd/app
           project-3-cloud-governance/security-admin/ai_incident_analyzer.py
           project-3-cloud-governance/finops-ai/cost_analyzer.py

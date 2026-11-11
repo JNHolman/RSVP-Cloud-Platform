@@ -6,6 +6,7 @@ import urllib.request
 from datetime import datetime, timezone
 
 import boto3
+from incident_replay import process
 
 TABLE = os.environ["INCIDENT_TABLE"]
 SECRET_ARN = os.environ["OPENAI_SECRET_ARN"]
@@ -64,25 +65,27 @@ def _stable_identifier(value):
 
 def _evidence(finding):
     resource = (finding.get("Resources") or [{}])[0]
-    # The model does not need globally unique AWS identifiers. Hash them before
-    # external processing so triage keeps correlation without disclosing raw
-    # finding/resource ARNs, account paths, or resource names.
-    evidence = {
+    def allowed(value, choices):
+        return value if value in choices else "unknown"
+
+    severity = finding.get("Severity") or {}
+    normalized = str(severity.get("Normalized", ""))
+    return {
         "finding_ref": _stable_identifier(finding.get("Id")),
-        "product": finding.get("ProductName"),
-        "title": finding.get("Title"),
-        "description": finding.get("Description"),
-        "severity": finding.get("Severity", {}),
-        "types": finding.get("Types", []),
-        "workflow": finding.get("Workflow", {}),
-        "record_state": finding.get("RecordState"),
+        "product": allowed(finding.get("ProductName"), ("GuardDuty", "Security Hub", "Inspector", "Macie", "Config")),
+        "severity": {
+            "Label": allowed(severity.get("Label"), ("INFORMATIONAL", "LOW", "MEDIUM", "HIGH", "CRITICAL")),
+            "Normalized": int(normalized) if normalized.isascii() and normalized.isdigit()
+                          and len(normalized) <= 3 and int(normalized) <= 100 else None,
+        },
+        "workflow": allowed((finding.get("Workflow") or {}).get("Status"), ("NEW", "NOTIFIED", "RESOLVED", "SUPPRESSED")),
+        "record_state": allowed(finding.get("RecordState"), ("ACTIVE", "ARCHIVED")),
         "resource": {
-            "type": resource.get("Type"),
+            "type": allowed(resource.get("Type"), ("AwsIamRole", "AwsIamUser", "AwsEc2Instance", "AwsS3Bucket",
+                                                   "AwsEc2SecurityGroup", "AwsLambdaFunction", "AwsRdsDbInstance")),
             "resource_ref": _stable_identifier(resource.get("Id")),
-            "region": resource.get("Region"),
         },
     }
-    return _redact(evidence)
 
 
 def _validate(output):
@@ -201,38 +204,12 @@ def handler(event, context):
         identity_source = raw_finding_id or json.dumps(finding, sort_keys=True, default=str)
         finding_id = hashlib.sha256(identity_source.encode("utf-8")).hexdigest()
 
-        try:
-            analysis = _enforce_severity_floor(_analyze(evidence), evidence)
-            status = "ai_generated"
-        except Exception as exc:
-            analysis = _fallback(evidence, exc)
-            status = "fallback"
-
-        now_dt = datetime.now(timezone.utc)
-        now = now_dt.isoformat()
-        expires_at = int(now_dt.timestamp()) + RETENTION_DAYS * 86400
-        ddb.put_item(
-            TableName=TABLE,
-            Item={
-                "finding_id": {"S": finding_id},
-                "record_type": {"S": "incident"},
-                "updated_at": {"S": now},
-                "analysis_status": {"S": status},
-                "priority": {"S": analysis["triage_priority"]},
-                "confidence": {"S": analysis["confidence"]},
-                "evidence": {"S": json.dumps(evidence, default=str)},
-                "analysis": {"S": json.dumps(analysis, default=str)},
-                "expires_at": {"N": str(expires_at)},
-            },
-        )
-        results.append({"finding_id": finding_id, "status": status, "priority": analysis["triage_priority"]})
-
-        if TOPIC and analysis["triage_priority"] in {"P1", "P2"}:
-            sns.publish(
-                TopicArn=TOPIC,
-                Subject=f"[RSVP Security] {analysis['triage_priority']} {evidence.get('title', 'Finding')}"[:100],
-                Message=json.dumps({"evidence": evidence, "analysis": analysis}, indent=2, default=str),
-            )
+        signature = hashlib.sha256(json.dumps(evidence, sort_keys=True).encode()).hexdigest()
+        timestamp = finding.get("UpdatedAt") or event.get("time")
+        observed = datetime.fromisoformat(timestamp.replace("Z", "+00:00")).timestamp() if timestamp else 0
+        receipt = {"finding_id": {"S": "replay#" + finding_id}}
+        results.append(process(ddb, TABLE, receipt, signature, observed, RETENTION_DAYS,
+                               lambda: _investigate(finding_id, evidence), sns.publish))
 
     try:
         cw.put_metric_data(
@@ -243,3 +220,40 @@ def handler(event, context):
         # Metrics are observability-only and must not turn a completed triage into a retry.
         pass
     return {"statusCode": 200, "body": json.dumps(results)}
+
+
+def _investigate(finding_id, evidence):
+    try:
+        analysis = _enforce_severity_floor(_analyze(evidence), evidence)
+        status = "ai_generated"
+    except Exception as exc:
+        analysis = _fallback(evidence, exc)
+        status = "fallback"
+
+    now_dt = datetime.now(timezone.utc)
+    now = now_dt.isoformat()
+    expires_at = int(now_dt.timestamp()) + RETENTION_DAYS * 86400
+    ddb.put_item(
+        TableName=TABLE,
+        Item={
+            "finding_id": {"S": finding_id},
+            "record_type": {"S": "incident"},
+            "updated_at": {"S": now},
+            "analysis_status": {"S": status},
+            "priority": {"S": analysis["triage_priority"]},
+            "confidence": {"S": analysis["confidence"]},
+            "evidence": {"S": json.dumps(evidence, default=str)},
+            "analysis": {"S": json.dumps(analysis, default=str)},
+            "expires_at": {"N": str(expires_at)},
+        },
+    )
+    result = {"finding_id": finding_id, "status": status, "priority": analysis["triage_priority"]}
+
+    notification = None
+    if TOPIC and analysis["triage_priority"] in {"P1", "P2"}:
+        notification = dict(
+            TopicArn=TOPIC,
+            Subject=f"[RSVP Security] {analysis['triage_priority']} {evidence['product']} finding"[:100],
+            Message=json.dumps({"evidence": evidence, "analysis": analysis}, indent=2, default=str),
+        )
+    return result, notification

@@ -7,6 +7,7 @@ import urllib.request
 from datetime import datetime, timezone
 
 import boto3
+from incident_replay import process
 
 LOG_GROUP_NAME = os.environ["LOG_GROUP_NAME"]
 OPENAI_SECRET_ARN = os.environ["OPENAI_SECRET_ARN"]
@@ -89,6 +90,28 @@ def _validated_analysis(value):
     return value
 
 
+def _model_context(evidence):
+    # Extract known operational signals. Request paths, headers, identifiers
+    # and arbitrary log messages stay in the encrypted AWS report.
+    logs = evidence["logs"]
+    statuses = {}
+    for line in logs:
+        match = re.search(r'" ([1-5][0-9]{2}) (?:[0-9]+|-)(?: |$)', line)
+        if match:
+            code = match.group(1)
+            statuses[code] = statuses.get(code, 0) + 1
+    alarm_types = ("alb-5xx-high", "target-5xx-high", "unhealthy-targets",
+                   "asg-cpu-high", "rds-cpu-high", "rds-free-storage-low")
+    return {
+        "alarm_type": next((kind for kind in alarm_types if evidence["alarm_name"].endswith(kind)), "other"),
+        "alarm_state": "ALARM",
+        "sample_size": len(logs),
+        "log_collection_failed": "log_collection_error" in evidence,
+        "http_status_counts": statuses,
+        "connection_refused_lines": sum("connection refused" in line.lower() for line in logs),
+    }
+
+
 def _call_openai(evidence):
     api_key = _get_api_key()
     instructions = (
@@ -100,7 +123,7 @@ def _call_openai(evidence):
     body = {
         "model": OPENAI_MODEL,
         "instructions": instructions,
-        "input": json.dumps(evidence, separators=(",", ":"), default=str),
+        "input": json.dumps(_model_context(evidence), separators=(",", ":"), default=str),
         "store": False,
     }
     request = urllib.request.Request(
@@ -170,6 +193,30 @@ def lambda_handler(event, context):
     state = (detail.get("state") or {}).get("value", "unknown")
     reason = _redact_text((detail.get("state") or {}).get("reason", ""))
 
+    if state != "ALARM":
+        return {"statusCode": 200, "body": json.dumps({"status": "ignored"})}
+
+    event_id = str(event.get("id", "")).strip()
+    fingerprint_source = (
+        {"event_id": event_id}
+        if event_id
+        else {
+            "alarm": alarm_name,
+            "state": state,
+            "reason": reason,
+            "event_time": str(event.get("time", "")),
+        }
+    )
+    event_fingerprint = hashlib.sha256(
+        json.dumps(fingerprint_source, sort_keys=True).encode("utf-8")
+    ).hexdigest()[:32]
+
+    key = {"id": {"S": "replay#" + event_fingerprint}}
+    return process(ddb, DDB_TABLE, key, event_fingerprint, 0, RETENTION_DAYS,
+                   lambda: _investigate(event, alarm_name, state, reason, event_fingerprint), sns.publish)
+
+
+def _investigate(event, alarm_name, state, reason, event_fingerprint):
     event_time_ms = _event_time_ms(event)
     log_collection_error = ""
     try:
@@ -196,21 +243,6 @@ def lambda_handler(event, context):
     }
     if log_collection_error:
         evidence["log_collection_error"] = log_collection_error
-
-    event_id = str(event.get("id", "")).strip()
-    fingerprint_source = (
-        {"event_id": event_id}
-        if event_id
-        else {
-            "alarm": alarm_name,
-            "state": state,
-            "reason": reason,
-            "event_time": str(event.get("time", "")),
-        }
-    )
-    event_fingerprint = hashlib.sha256(
-        json.dumps(fingerprint_source, sort_keys=True).encode("utf-8")
-    ).hexdigest()[:32]
 
     try:
         analysis = _call_openai(evidence)
@@ -258,6 +290,7 @@ def lambda_handler(event, context):
         },
     )
 
+    notification = None
     if SNS_TOPIC_ARN and state == "ALARM":
         message = {
             "alarm": alarm_name,
@@ -268,10 +301,10 @@ def lambda_handler(event, context):
             "recommended_checks": analysis.get("recommended_checks", [])[:5],
             "evidence_record": f"s3://{S3_BUCKET}/{key}",
         }
-        sns.publish(
+        notification = dict(
             TopicArn=SNS_TOPIC_ARN,
             Subject=f"[RSVP Ops] {alarm_name} -> {state}"[:100],
             Message=json.dumps(message, indent=2),
         )
 
-    return {"statusCode": 200, "body": json.dumps({"id": event_fingerprint, "status": analysis_status})}
+    return {"statusCode": 200, "body": json.dumps({"id": event_fingerprint, "status": analysis_status})}, notification

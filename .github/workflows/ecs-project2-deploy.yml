@@ -17,6 +17,7 @@ on:
 permissions:
   id-token: write
   contents: read
+  actions: read
 
 concurrency:
   group: ecs-project2-${{ inputs.environment }}
@@ -32,6 +33,17 @@ jobs:
       CONTAINER_NAME: app
       RDS_SMOKE_EVENT: ${{ vars.RDS_SMOKE_EVENT }}
     steps:
+      - name: Require successful main CI for this production commit
+        if: inputs.environment == 'prod'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          test "$GITHUB_REF" = refs/heads/main
+          conclusion=$(gh api --method GET "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs" \
+            -f branch=main -f event=push -f head_sha="$GITHUB_SHA" -F per_page=1 \
+            --jq '.workflow_runs[0].conclusion')
+          test "$conclusion" = success
+
       - name: Resolve deployment configuration
         env:
           EXERCISE_ROLLBACK: ${{ inputs.exercise_rollback }}
