@@ -227,6 +227,7 @@ def test_security_ai_cannot_downgrade_security_hub_critical_severity():
     body = json.loads(result["body"])
     assert body[0]["priority"] == "P1"
     ddb_calls = [call for call in module.ddb.calls if call[0] == "put_item"]
+    ddb_calls = [call for call in ddb_calls if "record_type" in call[2]["Item"]]
     assert ddb_calls[0][2]["Item"]["priority"]["S"] == "P1"
     stored_analysis = json.loads(ddb_calls[0][2]["Item"]["analysis"]["S"])
     assert stored_analysis["model_triage_priority"] == "P4"
@@ -516,6 +517,8 @@ def test_security_finding_identity_does_not_collapse_after_account_redaction(mon
     module.handler(event("111111111111"), None)
     module.handler(event("222222222222"), None)
 
+    writes = [item for item in writes if "record_type" in item]
+    assert len(writes) == 2
     assert writes[0]["finding_id"]["S"] != writes[1]["finding_id"]["S"]
     assert "111111111111" not in writes[0]["finding_id"]["S"]
     assert "222222222222" not in writes[1]["finding_id"]["S"]
@@ -569,7 +572,7 @@ def test_ai_records_write_dynamodb_ttl(monkeypatch):
     security.sns = RecordingClient()
     security.cw = RecordingClient()
     security.handler({"detail": {"findings": [{"Id": "f-1", "Severity": {"Label": "LOW"}, "Resources": []}]}}, None)
-    sec_item = [c for c in security.ddb.calls if c[0] == "put_item"][0][2]["Item"]
+    sec_item = [c for c in security.ddb.calls if c[0] == "put_item" and "record_type" in c[2]["Item"]][0][2]["Item"]
     assert int(sec_item["expires_at"]["N"]) > 0
 
     finops = _finops_module()
@@ -731,3 +734,84 @@ def test_sns_acknowledgement_gap_reuses_analysis(monkeypatch):
         assert invoke() == invoke() == {"ok": True}
         assert len(analyses) == 1
         assert notifications == [{"Message": "same alert"}] * 2
+
+
+def test_security_finding_lifecycle_and_private_locator(monkeypatch):
+    import boto3
+    from moto import mock_aws
+
+    module = _security_module(topic="test-topic")
+    monkeypatch.setenv("AWS_LAMBDA_FUNCTION_NAME", "security-test")
+    calls = []
+    def fail(evidence):
+        calls.append(evidence)
+        raise RuntimeError("offline")
+    module._analyze = fail
+    finding = {"Id": "private-finding", "ProductArn": "private-product", "Region": "us-east-1",
+               "Severity": {"Label": "CRITICAL"}, "UpdatedAt": "bad timestamp"}
+    with mock_aws():
+        module.ddb = boto3.client("dynamodb", region_name="us-east-1")
+        module.ddb.create_table(TableName=module.TABLE, KeySchema=[{"AttributeName": "finding_id", "KeyType": "HASH"}],
+                                AttributeDefinitions=[{"AttributeName": "finding_id", "AttributeType": "S"}],
+                                BillingMode="PAY_PER_REQUEST")
+        for minute, status in enumerate(["NEW", "NOTIFIED", "RESOLVED", "SUPPRESSED", "NEW"]):
+            finding["Workflow"] = {"Status": status}
+            response = module.handler({"time": f"2026-11-11T00:0{minute}:00Z", "detail": {"findings": [finding]}}, None)
+            result = json.loads(response["body"])[0]
+            if status in ("RESOLVED", "SUPPRESSED"):
+                row = module.ddb.get_item(TableName=module.TABLE, Key={"finding_id": {"S": result["finding_id"]}})["Item"]
+                assert row["workflow_status"]["S"] == result["status"] == status
+                assert len(calls) == 1
+        # Workflow updates can share a provider UpdatedAt. Replay the same closure
+        # after reopening: its older envelope must not undo the new episode.
+        finding["UpdatedAt"] = "2026-11-11T00:04:00Z"
+        finding["Workflow"] = {"Status": "RESOLVED"}
+        stale = module.handler({"time": "2026-11-11T00:03:00Z", "detail": {"findings": [finding]}}, None)
+        assert json.loads(stale["body"])[0]["status"] == "fallback"
+        messages = [json.loads(args["Message"]) for name, _, args in module.sns.calls if name == "publish"]
+        assert len(messages) == len(calls) == 2
+        pointer = messages[0]["source_record"]
+        source = module.ddb.get_item(TableName=pointer["table"], Key={"finding_id": {"S": pointer["finding_id"]}})["Item"]
+        assert "record_type" not in source
+        assert [source[k]["S"] for k in ("source_id", "product_arn", "region")] == ["private-finding", "private-product", "us-east-1"]
+        for private in ("private-finding", "private-product"):
+            assert private not in json.dumps([messages, calls])
+        metrics = [args["MetricData"][0] for _, _, args in module.cw.calls]
+        assert len([m for m in metrics if m["MetricName"] == "AnalysisFallback"]) == 2
+
+
+def test_invalid_imports_fail_before_analysis():
+    import pytest
+    module = _security_module()
+    for payload in ([], [None], {}, [{"Id": str(i)} for i in range(11)], [{}],
+                    [{"Id": "one", "UpdatedAt": "broken"}]):
+        with pytest.raises(ValueError):
+            module.handler({"detail": {"findings": payload}}, None)
+    assert not module.ddb.calls
+    assert not module.sns.calls
+
+
+def test_current_closure_cancels_unacknowledged_alert(monkeypatch):
+    import boto3
+    import incident_replay
+    import pytest
+    from moto import mock_aws
+
+    with mock_aws():
+        client = boto3.client("dynamodb", region_name="us-east-1")
+        client.create_table(TableName="receipts", KeySchema=[{"AttributeName": "id", "KeyType": "HASH"}],
+                            AttributeDefinitions=[{"AttributeName": "id", "AttributeType": "S"}],
+                            BillingMode="PAY_PER_REQUEST")
+        clock = [100]
+        monkeypatch.setattr(incident_replay, "time", types.SimpleNamespace(time=lambda: clock[0]))
+        published = []
+        def lost_ack(**message):
+            published.append(message)
+            raise TimeoutError("lost acknowledgement")
+        args = (client, "receipts", {"id": {"S": "incident"}})
+        with pytest.raises(TimeoutError):
+            incident_replay.process(*args, "new", 1, 1, lambda: ("open", {"Message": "alert"}), lost_ack)
+        clock[0] += 60
+        assert incident_replay.process(*args, "resolved", 2, 1, lambda: ("closed", None),
+                                       lost_ack, cancel_pending=True) == "closed"
+        assert published == [{"Message": "alert"}]

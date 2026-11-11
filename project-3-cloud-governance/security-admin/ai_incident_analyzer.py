@@ -190,45 +190,85 @@ def _fallback(evidence, error):
 
 
 def handler(event, context):
-    findings = (event.get("detail") or {}).get("findings", [])
-    results = []
+    findings = (event.get("detail") or {}).get("findings")
+    if not isinstance(findings, list) or len(findings) != 1 or not isinstance(findings[0], dict):
+        raise ValueError("Expected one Security Hub finding per imported event")
+    finding = findings[0]
+    raw_id = finding.get("Id")
+    if not isinstance(raw_id, str) or not raw_id.strip():
+        raise ValueError("Security Hub finding requires an Id")
+    finding_id = hashlib.sha256(raw_id.encode()).hexdigest()
+    evidence = _evidence(finding)
+    closed = evidence["workflow"] in {"RESOLVED", "SUPPRESSED"}
+    # NEW and NOTIFIED are the same actionable episode.
+    material = dict(evidence, workflow=evidence["workflow"] if closed else "open")
+    signature = hashlib.sha256(json.dumps(material, sort_keys=True).encode()).hexdigest()
+    observed = _observed_time(finding.get("UpdatedAt"), event.get("time"))
+    envelope_order = _observed_time(event.get("time"), finding.get("UpdatedAt"))
+    receipt = {"finding_id": {"S": "replay#" + finding_id}}
 
-    for finding in findings[:10]:
-        evidence = _evidence(finding)
+    def handle_change():
+        now = datetime.now(timezone.utc)
+        expiry = {"N": str(int(now.timestamp()) + RETENTION_DAYS * 86400)}
+        # No record_type: the source locator is excluded from the dashboard index.
+        locator_key = "source#" + finding_id
+        ddb.put_item(TableName=TABLE, Item={
+            "finding_id": {"S": locator_key}, "source_id": {"S": raw_id},
+            "product_arn": {"S": finding.get("ProductArn") or ""},
+            "region": {"S": finding.get("Region") or event.get("region") or ""},
+            "expires_at": expiry,
+        })
+        if closed:
+            ddb.update_item(TableName=TABLE, Key={"finding_id": {"S": finding_id}},
+                            UpdateExpression="SET workflow_status = :status, updated_at = :now, "
+                                             "record_type = :kind, expires_at = :expiry",
+                            ExpressionAttributeValues={":status": {"S": evidence["workflow"]},
+                                                       ":now": {"S": now.isoformat()},
+                                                       ":kind": {"S": "incident"}, ":expiry": expiry})
+            return {"finding_id": finding_id, "status": evidence["workflow"]}, None
+        return _investigate(finding_id, evidence, locator_key)
 
-        # Keep the externally visible/stored evidence redacted, but derive the
-        # database identity from the original Security Hub finding ID. Hashing
-        # preserves uniqueness across organization accounts without persisting
-        # account IDs or raw finding ARNs as the partition key.
-        raw_finding_id = str(finding.get("Id") or "").strip()
-        identity_source = raw_finding_id or json.dumps(finding, sort_keys=True, default=str)
-        finding_id = hashlib.sha256(identity_source.encode("utf-8")).hexdigest()
+    result = process(ddb, TABLE, receipt, signature, observed, RETENTION_DAYS,
+                     handle_change, sns.publish, cancel_pending=closed, event_order=envelope_order)
+    return {"statusCode": 200, "body": json.dumps([result])}
 
-        signature = hashlib.sha256(json.dumps(evidence, sort_keys=True).encode()).hexdigest()
-        timestamp = finding.get("UpdatedAt") or event.get("time")
-        observed = datetime.fromisoformat(timestamp.replace("Z", "+00:00")).timestamp() if timestamp else 0
-        receipt = {"finding_id": {"S": "replay#" + finding_id}}
-        results.append(process(ddb, TABLE, receipt, signature, observed, RETENTION_DAYS,
-                               lambda: _investigate(finding_id, evidence), sns.publish))
 
+def _observed_time(updated, envelope):
+    for raw in (updated, envelope):
+        if isinstance(raw, str):
+            try:
+                value = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+                if value.tzinfo is not None:
+                    return value.timestamp()
+            except ValueError:
+                continue
+    if updated is not None or envelope is not None:
+        raise ValueError("No valid timezone-aware finding or event timestamp")
+    return 0  # Untimed local exercise inputs sort before dated updates.
+
+
+def _metric(name):
     try:
         cw.put_metric_data(
             Namespace="RSVP/AIOperations",
-            MetricData=[{"MetricName": "SecurityFindingsAnalyzed", "Value": len(results), "Unit": "Count"}],
+            MetricData=[{"MetricName": name, "Value": 1, "Dimensions": [{"Name": "FunctionName", "Value": os.environ["AWS_LAMBDA_FUNCTION_NAME"]}], "Unit": "Count"}],
         )
     except Exception:
         # Metrics are observability-only and must not turn a completed triage into a retry.
         pass
-    return {"statusCode": 200, "body": json.dumps(results)}
 
 
-def _investigate(finding_id, evidence):
+def _investigate(finding_id, evidence, locator_key):
     try:
         analysis = _enforce_severity_floor(_analyze(evidence), evidence)
         status = "ai_generated"
     except Exception as exc:
         analysis = _fallback(evidence, exc)
         status = "fallback"
+
+    _metric("SecurityFindingsAnalyzed")
+    if status == "fallback":
+        _metric("AnalysisFallback")
 
     now_dt = datetime.now(timezone.utc)
     now = now_dt.isoformat()
@@ -240,6 +280,7 @@ def _investigate(finding_id, evidence):
             "record_type": {"S": "incident"},
             "updated_at": {"S": now},
             "analysis_status": {"S": status},
+            "workflow_status": {"S": evidence["workflow"]},
             "priority": {"S": analysis["triage_priority"]},
             "confidence": {"S": analysis["confidence"]},
             "evidence": {"S": json.dumps(evidence, default=str)},
@@ -254,6 +295,7 @@ def _investigate(finding_id, evidence):
         notification = dict(
             TopicArn=TOPIC,
             Subject=f"[RSVP Security] {analysis['triage_priority']} {evidence['product']} finding"[:100],
-            Message=json.dumps({"evidence": evidence, "analysis": analysis}, indent=2, default=str),
+            Message=json.dumps({"source_record": {"table": TABLE, "finding_id": locator_key},
+                                "evidence": evidence, "analysis": analysis}, indent=2, default=str),
         )
     return result, notification

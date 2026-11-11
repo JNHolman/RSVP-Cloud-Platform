@@ -62,3 +62,19 @@ resource "aws_cloudwatch_log_group" "ai_incident" {
   retention_in_days = 90
   kms_key_id        = aws_kms_key.observability.arn
 }
+
+resource "aws_cloudwatch_metric_alarm" "investigation_degraded" {
+  for_each            = toset(["AnalysisFallback"])
+  alarm_name          = "${var.project_name}-${each.key}"
+  alarm_description   = "Two or more ${each.key} events in 15 minutes. Inspect recent investigation records and the function logs."
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 1
+  metric_name         = each.key
+  namespace           = "RSVP/AIOperations"
+  period              = 900
+  statistic           = "Sum"
+  threshold           = 2
+  treat_missing_data  = "notBreaching"
+  dimensions          = { FunctionName = aws_lambda_function.ai_incident.function_name }
+  alarm_actions       = compact([var.security_alert_topic_arn])
+}

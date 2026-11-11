@@ -113,6 +113,8 @@ That proves scale-out occurred during this exercise. Observation ended before a 
 
 **A passing scan doesn't mean there are no security findings.** ECR found nine HIGH vulnerabilities in the original Bookworm image. A rebuild on Trixie reduced that to two glibc findings, though I did not deploy the rebuilt image to the retired ECS environment. Trivy blocks releases for qualifying HIGH/CRITICAL vulnerabilities that have fixes. Checkov reports infrastructure findings without blocking the workflow. That means a green job can still require security review. [Image scan comparison](evidence/2026-11-08.md#post-demo-image-remediation) · [Infrastructure review](../shared/checkov-review.md)
 
+Before tearing down the delivery bootstrap in a shared account, verify which Terraform state owns the GitHub OIDC provider and which IAM roles trust it. Retain it while another deployment depends on it.
+
 **Scale-out proves capacity was added, not that scaling is perfect.** During the 1,625-request test, a third task became running. I did not observe a completed scale-in or enough sustained traffic to claim a production capacity benchmark. The ECS task range was configured for two to six tasks; I temporarily lowered the CPU target for the demonstration.
 
 **Retiring infrastructure was part of the design.** Private Fargate tasks, ALBs, NAT and logs create real charges even when nobody is using the demo. I shut down the expendable runtime after testing, while retaining selected registry images and evidence assets that could still incur small storage and key charges.

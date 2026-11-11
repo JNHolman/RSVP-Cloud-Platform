@@ -87,6 +87,17 @@ resource "aws_iam_role_policy" "ai_incident" {
     Version = "2012-10-17"
     Statement = concat([
       { Effect = "Allow", Action = ["dynamodb:PutItem", "dynamodb:UpdateItem"], Resource = aws_dynamodb_table.ai_incidents.arn },
+      {
+        Effect   = "Allow"
+        Action   = ["kms:Decrypt"]
+        Resource = aws_kms_key.observability.arn
+        Condition = {
+          StringEquals = {
+            "kms:ViaService"                               = "dynamodb.${var.aws_region}.amazonaws.com"
+            "kms:EncryptionContext:aws:dynamodb:tableName" = aws_dynamodb_table.ai_incidents.name
+          }
+        }
+      },
       { Effect = "Allow", Action = ["secretsmanager:GetSecretValue"], Resource = var.openai_secret_arn },
       { Effect = "Allow", Action = ["sqs:SendMessage"], Resource = aws_sqs_queue.ai_incident_dlq.arn },
       {

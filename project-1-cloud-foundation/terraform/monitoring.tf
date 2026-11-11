@@ -198,3 +198,19 @@ resource "aws_cloudwatch_dashboard" "operations" {
     ]
   })
 }
+
+resource "aws_cloudwatch_metric_alarm" "investigation_degraded" {
+  for_each            = toset(["AnalysisFallback", "LogCollectionFailure"])
+  alarm_name          = "${local.name_prefix}-${each.key}"
+  alarm_description   = "Two or more ${each.key} events in 15 minutes. Inspect recent investigation records and the function logs."
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 1
+  metric_name         = each.key
+  namespace           = "RSVP/AIOperations"
+  period              = 900
+  statistic           = "Sum"
+  threshold           = 2
+  treat_missing_data  = "notBreaching"
+  dimensions          = { FunctionName = aws_lambda_function.ai_log_summarizer.function_name }
+  alarm_actions       = [aws_sns_topic.alerts.arn]
+}
