@@ -65,3 +65,20 @@ def test_dashboard_get_requires_cognito_and_imported_findings_feed_triage():
     rule = resource("security-admin/ai-operations.tf", "aws_cloudwatch_event_rule", "securityhub_findings")
     assert 'source = ["aws.securityhub"]' in rule
     assert '"detail-type" = ["Security Hub Findings - Imported"]' in rule
+
+def test_security_investigation_dlq_notifies_on_first_visible_message():
+    queue = resource("security-admin/ai-operations.tf", "aws_sqs_queue", "ai_incident_dlq")
+    alarm = resource("security-admin/observability.tf", "aws_cloudwatch_metric_alarm", "ai_incident_dlq_visible")
+
+    assert "message_retention_seconds = 1209600" in queue
+    assert "sqs_managed_sse_enabled = true" in queue
+    assert 'metric_name = "ApproximateNumberOfMessagesVisible"' in alarm
+    assert 'namespace = "AWS/SQS"' in alarm
+    assert "dimensions = { QueueName = aws_sqs_queue.ai_incident_dlq.name }" in alarm
+    assert 'comparison_operator = "GreaterThanOrEqualToThreshold"' in alarm
+    assert "threshold = 1" in alarm
+    assert "evaluation_periods = 1" in alarm
+    assert "period = 60" in alarm
+    assert 'statistic = "Maximum"' in alarm
+    assert 'treat_missing_data = "notBreaching"' in alarm
+    assert "alarm_actions = compact([var.security_alert_topic_arn])" in alarm
