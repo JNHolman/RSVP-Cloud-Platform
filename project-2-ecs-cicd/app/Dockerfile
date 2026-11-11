@@ -12,7 +12,9 @@ RUN apt-get update \
     && addgroup --system app \
     && adduser --system --ingroup app app
 
-RUN python -c "from urllib.request import urlretrieve; urlretrieve('https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem', '/app/rds-ca.pem')"
+# Fail the build if AWS changes the reviewed trust bundle; update this pin deliberately.
+RUN python -c "from urllib.request import urlretrieve; urlretrieve('https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem', '/app/rds-ca.pem')" \
+    && echo "90a6f1a7978a1b1b096dca6c57511ca48d3b8cf052f8e704baf358f34ea2f21b  /app/rds-ca.pem" | sha256sum -c -
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt

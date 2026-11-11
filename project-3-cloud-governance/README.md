@@ -84,7 +84,7 @@ On November 10 (Eastern time), I invoked the merged Lambda directly with a label
 
 Two deliberate fallback invocations then triggered the CloudWatch alarm. The subscriber received its ALARM notification about one minute after the second fallback. This exercise began at Lambda. Native Security Hub detection and EventBridge routing from Security Hub remain unverified. [Finding lifecycle and alarm receipt](evidence/live-finding-lifecycle.json)
 
-Separately, Terraform defines a CloudWatch alarm for the first visible message in the security investigation dead-letter queue, which can notify the configured security SNS topic; this was validated in offline tests, not exercised in AWS.
+The current fallback alarm threshold is one failure within 15 minutes, changed from the two-failure setting used in the recorded exercise. Terraform also defines a first-message alarm for the investigation dead-letter queue. These updates were checked offline, not exercised in AWS. Security notifications require a configured SNS topic; the default is intentionally silent.
 
 [Security decision logic](security-admin/ai_incident_analyzer.py) · [Operational event handler configuration](security-admin/ai-operations.tf)
 

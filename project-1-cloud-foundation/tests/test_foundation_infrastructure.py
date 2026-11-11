@@ -155,3 +155,35 @@ def test_project1_first_boot_is_bounded_and_rds_teardown_semantics_are_environme
     assert 'formatdate("YYYYMMDDhhmmss", timestamp())' in rds
     assert "ignore_changes = [final_snapshot_identifier]" in rds
     assert "CKV_AWS_293" not in global_cfg
+
+def test_project1_failure_and_dlq_alarms_notify_without_waiting_for_two_events():
+    monitoring = read("project-1-cloud-foundation/terraform/monitoring.tf")
+    ai_logs = read("project-1-cloud-foundation/terraform/ai-logs.tf")
+    fallback = monitoring.split('resource "aws_cloudwatch_metric_alarm" "investigation_degraded" {', 1)[1].split("\n}", 1)[0]
+    dlq = monitoring.split('resource "aws_cloudwatch_metric_alarm" "ai_analysis_dlq_visible" {', 1)[1].split("\n}", 1)[0]
+
+    assert "threshold           = 1" in fallback
+    assert 'metric_name         = "ApproximateNumberOfMessagesVisible"' in dlq
+    assert 'namespace           = "AWS/SQS"' in dlq
+    assert 'statistic           = "Maximum"' in dlq
+    assert 'period              = 60' in dlq
+    assert 'threshold           = 1' in dlq
+    assert 'dimensions          = { QueueName = aws_sqs_queue.ai_analysis_dlq.name }' in dlq
+    assert 'alarm_actions       = [aws_sns_topic.alerts.arn]' in dlq
+    assert 'dead_letter_config { target_arn = aws_sqs_queue.ai_analysis_dlq.arn }' in ai_logs
+    assert 'dead_letter_config { arn = aws_sqs_queue.ai_analysis_dlq.arn }' in ai_logs
+
+def test_rds_ca_downloads_check_reviewed_bundle_digests():
+    ec2 = read("project-1-cloud-foundation/terraform/ec2.tf")
+    variables = read("project-1-cloud-foundation/terraform/variables.tf")
+    docker = read("project-2-ecs-cicd/app/Dockerfile")
+    ci = read(".github/workflows/ci.yml")
+
+    assert "b1711d12bae51838581281e23b6cb97b1074016873b4dafc80ed14002462dd77" in ec2
+    assert "sha256sum -c -" in ec2
+    assert 'condition     = length(local.rds_ca_expected_sha256) == 64' in ec2
+    assert 'variable "rds_ca_bundle_sha256"' in variables
+    assert "90a6f1a7978a1b1b096dca6c57511ca48d3b8cf052f8e704baf358f34ea2f21b" in docker
+    assert "sha256sum -c -" in docker
+    assert "b1711d12bae51838581281e23b6cb97b1074016873b4dafc80ed14002462dd77" in ci
+    assert "sha256sum -c -" in ci
