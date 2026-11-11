@@ -219,12 +219,18 @@ def handler(event, context):
             "expires_at": expiry,
         })
         if closed:
-            ddb.update_item(TableName=TABLE, Key={"finding_id": {"S": finding_id}},
-                            UpdateExpression="SET workflow_status = :status, updated_at = :now, "
-                                             "record_type = :kind, expires_at = :expiry",
-                            ExpressionAttributeValues={":status": {"S": evidence["workflow"]},
-                                                       ":now": {"S": now.isoformat()},
-                                                       ":kind": {"S": "incident"}, ":expiry": expiry})
+            # A closure may precede the first investigation. Keep the replay
+            # checkpoint, but do not invent a dashboard incident without analysis.
+            try:
+                ddb.update_item(TableName=TABLE, Key={"finding_id": {"S": finding_id}},
+                                ConditionExpression="attribute_exists(finding_id)",
+                                UpdateExpression="SET workflow_status = :status, updated_at = :now, "
+                                                 "record_type = :kind, expires_at = :expiry",
+                                ExpressionAttributeValues={":status": {"S": evidence["workflow"]},
+                                                           ":now": {"S": now.isoformat()},
+                                                           ":kind": {"S": "incident"}, ":expiry": expiry})
+            except ddb.exceptions.ConditionalCheckFailedException:
+                pass
             return {"finding_id": finding_id, "status": evidence["workflow"]}, None
         return _investigate(finding_id, evidence, locator_key)
 

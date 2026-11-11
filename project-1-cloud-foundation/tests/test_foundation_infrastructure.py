@@ -155,3 +155,20 @@ def test_project1_first_boot_is_bounded_and_rds_teardown_semantics_are_environme
     assert 'formatdate("YYYYMMDDhhmmss", timestamp())' in rds
     assert "ignore_changes = [final_snapshot_identifier]" in rds
     assert "CKV_AWS_293" not in global_cfg
+
+def test_project1_failure_and_dlq_alarms_notify_without_waiting_for_two_events():
+    monitoring = read("project-1-cloud-foundation/terraform/monitoring.tf")
+    ai_logs = read("project-1-cloud-foundation/terraform/ai-logs.tf")
+    fallback = monitoring.split('resource "aws_cloudwatch_metric_alarm" "investigation_degraded" {', 1)[1].split("\n}", 1)[0]
+    dlq = monitoring.split('resource "aws_cloudwatch_metric_alarm" "ai_analysis_dlq_visible" {', 1)[1].split("\n}", 1)[0]
+
+    assert "threshold           = 1" in fallback
+    assert 'metric_name         = "ApproximateNumberOfMessagesVisible"' in dlq
+    assert 'namespace           = "AWS/SQS"' in dlq
+    assert 'statistic           = "Maximum"' in dlq
+    assert 'period              = 60' in dlq
+    assert 'threshold           = 1' in dlq
+    assert 'dimensions          = { QueueName = aws_sqs_queue.ai_analysis_dlq.name }' in dlq
+    assert 'alarm_actions       = [aws_sns_topic.alerts.arn]' in dlq
+    assert 'dead_letter_config { target_arn = aws_sqs_queue.ai_analysis_dlq.arn }' in ai_logs
+    assert 'dead_letter_config { arn = aws_sqs_queue.ai_analysis_dlq.arn }' in ai_logs

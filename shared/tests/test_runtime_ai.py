@@ -815,3 +815,37 @@ def test_current_closure_cancels_unacknowledged_alert(monkeypatch):
         assert incident_replay.process(*args, "resolved", 2, 1, lambda: ("closed", None),
                                        lost_ack, cancel_pending=True) == "closed"
         assert published == [{"Message": "alert"}]
+
+def test_closed_security_finding_without_analysis_stays_out_of_dashboard(monkeypatch):
+    import boto3
+    from moto import mock_aws
+
+    module = _security_module(topic="test-topic")
+    monkeypatch.setenv("AWS_LAMBDA_FUNCTION_NAME", "security-test")
+    module._analyze = lambda _: (_ for _ in ()).throw(AssertionError("closed finding must not invoke AI"))
+    finding = {
+        "Id": "closed-first",
+        "ProductArn": "example-product",
+        "Region": "us-east-1",
+        "Severity": {"Label": "CRITICAL"},
+        "Workflow": {"Status": "RESOLVED"},
+        "UpdatedAt": "2026-11-11T00:00:00Z",
+    }
+    with mock_aws():
+        module.ddb = boto3.client("dynamodb", region_name="us-east-1")
+        module.ddb.create_table(
+            TableName=module.TABLE,
+            KeySchema=[{"AttributeName": "finding_id", "KeyType": "HASH"}],
+            AttributeDefinitions=[{"AttributeName": "finding_id", "AttributeType": "S"}],
+            BillingMode="PAY_PER_REQUEST",
+        )
+        event = {"time": "2026-11-11T00:00:00Z", "detail": {"findings": [finding]}}
+        result = json.loads(module.handler(event, None)["body"])[0]
+        assert result["status"] == "RESOLVED"
+        assert "Item" not in module.ddb.get_item(
+            TableName=module.TABLE, Key={"finding_id": {"S": result["finding_id"]}}
+        )
+        assert "Item" in module.ddb.get_item(
+            TableName=module.TABLE, Key={"finding_id": {"S": "replay#" + result["finding_id"]}}
+        )
+        assert not module.sns.calls

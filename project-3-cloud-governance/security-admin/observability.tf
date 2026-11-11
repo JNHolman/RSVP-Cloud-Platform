@@ -66,14 +66,14 @@ resource "aws_cloudwatch_log_group" "ai_incident" {
 resource "aws_cloudwatch_metric_alarm" "investigation_degraded" {
   for_each            = toset(["AnalysisFallback"])
   alarm_name          = "${var.project_name}-${each.key}"
-  alarm_description   = "Two or more ${each.key} events in 15 minutes. Inspect recent investigation records and the function logs."
+  alarm_description   = "One ${each.key} event in 15 minutes. Inspect recent investigation records and the function logs."
   comparison_operator = "GreaterThanOrEqualToThreshold"
   evaluation_periods  = 1
   metric_name         = each.key
   namespace           = "RSVP/AIOperations"
   period              = 900
   statistic           = "Sum"
-  threshold           = 2
+  threshold           = 1
   treat_missing_data  = "notBreaching"
   dimensions          = { FunctionName = aws_lambda_function.ai_incident.function_name }
   alarm_actions       = compact([var.security_alert_topic_arn])

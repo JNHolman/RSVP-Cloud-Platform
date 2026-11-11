@@ -82,3 +82,10 @@ def test_security_investigation_dlq_notifies_on_first_visible_message():
     assert 'statistic = "Maximum"' in alarm
     assert 'treat_missing_data = "notBreaching"' in alarm
     assert "alarm_actions = compact([var.security_alert_topic_arn])" in alarm
+
+def test_security_ai_fallback_alarms_after_first_failure():
+    alarm = resource("security-admin/observability.tf", "aws_cloudwatch_metric_alarm", "investigation_degraded")
+    assert "threshold = 1" in alarm
+    assert "period = 900" in alarm
+    assert 'metric_name = each.key' in alarm
+    assert "alarm_actions = compact([var.security_alert_topic_arn])" in alarm
