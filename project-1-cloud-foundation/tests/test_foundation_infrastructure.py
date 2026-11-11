@@ -64,7 +64,7 @@ def test_project1_ai_dynamodb_kms_permissions_are_runtime_compatible():
     assert '"kms:ViaService" = "dynamodb.${var.aws_region}.amazonaws.com"' in iam
     assert '"kms:EncryptionContext:aws:dynamodb:tableName" = aws_dynamodb_table.ai_log_summaries.name' in iam
     assert 'Sid = "DynamoWriteMetadata"' in iam
-    assert 'Action = ["dynamodb:PutItem"]' in iam
+    assert 'Action = ["dynamodb:PutItem", "dynamodb:UpdateItem"]' in iam
     assert 'Sid = "UseDynamoDbEvidenceKmsKey"' not in iam
     assert '"kms:CreateGrant"' not in iam
 

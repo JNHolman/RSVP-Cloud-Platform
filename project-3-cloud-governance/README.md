@@ -76,6 +76,8 @@ The handler preserved the model's cautious explanation, including the fact that 
 
 If AI analysis fails or returns an invalid answer, the handler uses the finding's original severity to set priority. The **live AWS exercise tested the successful model-response path**; separate tests cover that fallback.
 
+The current handler sends hashed finding and resource references, selected classification fields and severity to the model. Titles, descriptions and arbitrary resource names stay out of the request. Both incident handlers use their existing DynamoDB tables to checkpoint completed investigations. Replays reuse that result, while a change such as a severity increase triggers a new assessment. If SNS accepts a notification but its acknowledgement is lost, a retry can send it again. A failure before the analysis checkpoint can repeat a model call. These retry cases were exercised offline.
+
 [Security decision logic](security-admin/ai_incident_analyzer.py) · [Operational event handler configuration](security-admin/ai-operations.tf)
 
 ## What was tested, and what remains a design

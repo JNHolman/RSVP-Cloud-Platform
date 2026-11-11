@@ -12,8 +12,8 @@ def test_dynamodb_runtime_roles_do_not_receive_unnecessary_kms_or_extra_read_per
         assert '"kms:CreateGrant"' not in text
         assert 'StringLike = { "kms:ViaService" = "dynamodb.*.amazonaws.com" }' not in text
 
-    # Writers only put records; the cross-account dashboard readers only query them.
-    assert '{ Effect = "Allow", Action = ["dynamodb:PutItem"], Resource = aws_dynamodb_table.ai_incidents.arn }' in security
+    # Incident writers also checkpoint replay state. Dashboard readers only query.
+    assert '{ Effect = "Allow", Action = ["dynamodb:PutItem", "dynamodb:UpdateItem"], Resource = aws_dynamodb_table.ai_incidents.arn }' in security
     assert '{ Effect = "Allow", Action = ["dynamodb:PutItem"], Resource = aws_dynamodb_table.cost_reports.arn }' in finops
     assert 'Action = ["dynamodb:Query"]' in security
     assert 'Action = ["dynamodb:Query"]' in finops
@@ -135,11 +135,11 @@ def test_project3_backend_examples_require_account_local_kms_configuration():
         assert "REPLACE_WITH_TERRAFORM_STATE_KMS_KEY_ARN" in content, example
 
 
-def test_prod_deployment_documents_missing_github_environment_protections():
+def test_prod_deployment_documents_github_environment_protections():
     readme = Path("project-2-ecs-cicd/README.md").read_text(encoding="utf-8")
 
-    assert "GitHub `prod` environment had **no branch/tag restrictions or reviewer protection rules**" in readme
-    assert "production approvals enforced" in readme
+    assert "GitHub `prod` environment to the `main` branch" in readme
+    assert "second person’s approval is optional" in readme
     assert "OIDC trust policy" in readme
 
 

@@ -77,7 +77,7 @@ sequenceDiagram
     L->>Q: Send stored report reference
 ~~~
 
-I put limits around this process because an AI explanation is only as useful as the evidence supporting it. The handler caps a sample at 120 entries, truncates messages and redacts sensitive values before external analysis. It validates the expected output fields and confidence. If log collection fails, the report says so. If the model fails or returns an invalid answer, a low-confidence fallback preserves the alarm details instead of presenting an invented diagnosis.
+I put limits around this process because an AI explanation is only as useful as the evidence supporting it. The current handler caps a sample at 120 entries. The encrypted AWS report retains bounded log text with pattern-based masking. The external request contains only the alarm category and state, sample size, collection status, HTTP status counts and number of lines mentioning a refused connection. This narrower payload and the replay handling were tested offline after the live exercise. The handler validates the expected output fields and confidence. If log collection fails, the report says so. If the model fails or returns an invalid answer, a low-confidence fallback preserves the alarm details instead of presenting an invented diagnosis.
 
 In the recorded exercise the model response passed validation, the report was stored in KMS-encrypted S3 and indexed in DynamoDB, and SNS delivered its reference to an encrypted SQS subscriber. Sending the **report reference** rather than an entire incident payload keeps the notification small and leaves a durable record to review. **Human email delivery was not tested.** The engineer still owns the investigation, configuration change and incident closure.
 

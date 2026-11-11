@@ -146,8 +146,15 @@ resource "aws_cloudwatch_log_group" "ai_lambda" {
 }
 
 data "archive_file" "ai_lambda_zip" {
-  type        = "zip"
-  source_file = "${path.module}/ai_log_summarizer.py"
+  type = "zip"
+  source {
+    content  = file("${path.module}/ai_log_summarizer.py")
+    filename = "ai_log_summarizer.py"
+  }
+  source {
+    content  = file("${path.module}/../../shared/incident-runtime/incident_replay.py")
+    filename = "incident_replay.py"
+  }
   output_path = "${path.module}/ai_log_summarizer.zip"
 }
 
@@ -203,6 +210,7 @@ resource "aws_cloudwatch_event_rule" "ai_alarm_rule" {
     source        = ["aws.cloudwatch"]
     "detail-type" = ["CloudWatch Alarm State Change"]
     detail = {
+      state = { value = ["ALARM"] }
       alarmName = [
         aws_cloudwatch_metric_alarm.alb_5xx_high.alarm_name,
         aws_cloudwatch_metric_alarm.target_5xx_high.alarm_name,

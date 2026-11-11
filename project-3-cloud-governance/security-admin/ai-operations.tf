@@ -1,6 +1,13 @@
 data "archive_file" "ai_incident" {
-  type        = "zip"
-  source_file = "${path.module}/ai_incident_analyzer.py"
+  type = "zip"
+  source {
+    content  = file("${path.module}/ai_incident_analyzer.py")
+    filename = "ai_incident_analyzer.py"
+  }
+  source {
+    content  = file("${path.module}/../../shared/incident-runtime/incident_replay.py")
+    filename = "incident_replay.py"
+  }
   output_path = "${path.module}/ai_incident_analyzer.zip"
 }
 
@@ -79,7 +86,7 @@ resource "aws_iam_role_policy" "ai_incident" {
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = concat([
-      { Effect = "Allow", Action = ["dynamodb:PutItem"], Resource = aws_dynamodb_table.ai_incidents.arn },
+      { Effect = "Allow", Action = ["dynamodb:PutItem", "dynamodb:UpdateItem"], Resource = aws_dynamodb_table.ai_incidents.arn },
       { Effect = "Allow", Action = ["secretsmanager:GetSecretValue"], Resource = var.openai_secret_arn },
       { Effect = "Allow", Action = ["sqs:SendMessage"], Resource = aws_sqs_queue.ai_incident_dlq.arn },
       {
