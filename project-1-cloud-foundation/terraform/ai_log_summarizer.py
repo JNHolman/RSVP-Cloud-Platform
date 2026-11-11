@@ -46,7 +46,8 @@ def _metric(name, value=1):
     try:
         cloudwatch.put_metric_data(
             Namespace="RSVP/AIOperations",
-            MetricData=[{"MetricName": name, "Value": value, "Unit": "Count"}],
+            MetricData=[{"MetricName": name, "Value": value, "Unit": "Count",
+                         "Dimensions": [{"Name": "FunctionName", "Value": os.environ["AWS_LAMBDA_FUNCTION_NAME"]}]}],
         )
     except Exception:
         pass

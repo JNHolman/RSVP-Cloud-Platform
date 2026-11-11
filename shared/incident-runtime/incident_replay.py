@@ -5,7 +5,7 @@ import time
 import uuid
 
 
-def process(client, table, key, signature, observed, retention_days, investigate, publish):
+def process(client, table, key, signature, observed, retention_days, investigate, publish, *, cancel_pending=False, event_order=0):
     # Both functions have a 45-second invocation limit. A dead worker's lease
     # expires before the normal second async retry.
     now = int(time.time())
@@ -34,21 +34,27 @@ def process(client, table, key, signature, observed, retention_days, investigate
         # Standard SNS cannot atomically acknowledge this DynamoDB write.
         update("REMOVE pending_notification")
 
-    if "pending_notification" in old:
-        deliver(json.loads(old["pending_notification"]["S"]))
     previous_time = float(old.get("event_time", {"N": "0"})["N"])
-    if old.get("signature", {}).get("S") == signature or observed < previous_time:
+    previous_order = float(old.get("event_order", {"N": "0"})["N"])
+    latest = max((observed, event_order), (previous_time, previous_order))
+    stale = (observed, event_order) < (previous_time, previous_order)
+    if "pending_notification" in old:
+        if cancel_pending and not stale:
+            update("REMOVE pending_notification")
+        else:
+            deliver(json.loads(old["pending_notification"]["S"]))
+    if old.get("signature", {}).get("S") == signature or stale:
         result = json.loads(old["result_json"]["S"])
     else:
         result, notification = investigate()
-        expression = "SET signature = :sig, result_json = :result, event_time = :stamp"
-        values = dict(sig={"S": signature}, result={"S": json.dumps(result)}, stamp={"N": str(observed)})
+        expression = "SET signature = :sig, result_json = :result, event_time = :stamp, event_order = :seq"
+        values = dict(sig={"S": signature}, result={"S": json.dumps(result)}, stamp={"N": str(observed)}, seq={"N": str(event_order)})
         if notification:
             expression += ", pending_notification = :notification"
             values["notification"] = {"S": json.dumps(notification)}
         update(expression, **values)
         if notification:
             deliver(notification)
-    update("SET event_time = :stamp REMOVE lease_until, lease_owner",
-           stamp={"N": str(max(previous_time, observed))})
+    update("SET event_time = :stamp, event_order = :seq REMOVE lease_until, lease_owner",
+           stamp={"N": str(latest[0])}, seq={"N": str(latest[1])})
     return result

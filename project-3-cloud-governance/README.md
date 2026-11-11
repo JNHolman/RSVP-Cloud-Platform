@@ -78,6 +78,10 @@ If AI analysis fails or returns an invalid answer, the handler uses the finding'
 
 The current handler sends hashed finding and resource references, selected classification fields and severity to the model. Titles, descriptions and arbitrary resource names stay out of the request. Both incident handlers use their existing DynamoDB tables to checkpoint completed investigations. Replays reuse that result, while a change such as a severity increase triggers a new assessment. If SNS accepts a notification but its acknowledgement is lost, a retry can send it again. A failure before the analysis checkpoint can repeat a model call. These retry cases were exercised offline.
 
+In the current implementation, the model explains triage priority from limited metadata. Confirming a cause requires the original finding. Each high-priority notification carries a DynamoDB table and key. An authorized operator can use GetItem there to retrieve the Security Hub finding ID, product ARN and Region. This source record is excluded from the dashboard index and model request.
+
+Closure and suppression update the incident without calling the model or paging. Reopening permits a fresh assessment. The handler expects one finding per imported event and uses the envelope time if the finding timestamp is malformed. Repeated fallback (two occurrences in a 15-minute period) raises a CloudWatch alarm. Configure the security alert topic to receive its notification. These changes were tested offline. The analyzer’s KMS decrypt permission is scoped to DynamoDB and the incident table. Effective access still needs verification during an authorized AWS exercise.
+
 [Security decision logic](security-admin/ai_incident_analyzer.py) · [Operational event handler configuration](security-admin/ai-operations.tf)
 
 ## What was tested, and what remains a design
