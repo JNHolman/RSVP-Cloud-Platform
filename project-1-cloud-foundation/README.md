@@ -118,9 +118,7 @@ Some of the reliability choices make this lab more expensive than the simplest t
 
 The lab shared an AWS account with RSVP Society, so isolation wasn't optional. I used dedicated development resource names, separate Terraform state keys and a delegated DNS area under `cloud.rsvpsociety.com`. I reviewed change plans against Society's production database, IAM identities and DNS. An older development resource whose ownership wasn't clear was left alone rather than deleted to make the inventory look clean.
 
-After the exercises, I retired the temporary compute and database runtime while preserving selected encrypted snapshots, logs and the incident index. The KMS keys needed for retained recovery assets have Terraform destruction guards. That is deliberate: a snapshot that survives teardown but loses its decryption key isn't a useful backup.
-
-On November 11 I retired the remaining database recovery assets. AWS returned zero manual snapshots, retained automated backups and backup vaults in the lab region. The recovery timings above describe the completed exercise. The database copies used for it have been deleted.
+Terraform protects the KMS keys used for database recovery from accidental destruction. An encrypted snapshot depends on its key for the full retention period, including the day an operator needs to restore it.
 
 ### What this led to
 

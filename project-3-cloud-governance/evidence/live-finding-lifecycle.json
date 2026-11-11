@@ -81,9 +81,5 @@
     "reason": "Threshold Crossed: 1 datapoint [2.0 (11/11/26 02:48:00)] was greater than or equal to the threshold (2.0)."
   },
   "outcome": "passed",
-  "stack_final_status": "DELETE_COMPLETE",
-  "package_bucket_deleted": true,
-  "key_final_status": "PendingDeletion",
-  "key_deletion_date": "2026-11-17 22:04:19.275000-05:00",
   "finished": "2026-11-11T03:05:28.200694+00:00"
 }

@@ -117,7 +117,7 @@ Before tearing down the delivery bootstrap in a shared account, verify which Ter
 
 **Scale-out proves capacity was added, not that scaling is perfect.** During the 1,625-request test, a third task became running. I did not observe a completed scale-in or enough sustained traffic to claim a production capacity benchmark. The ECS task range was configured for two to six tasks; I temporarily lowered the CPU target for the demonstration.
 
-**Retiring infrastructure was part of the design.** Private Fargate tasks, ALBs, NAT and logs create real charges even when nobody is using the demo. I shut down the expendable runtime after testing. At final retirement I deleted the lab registries, task definitions and logs. The published image digests and recovery records preserve what was deployed and measured.
+The release record ties the serving Git revision to the image digest. The rollback exercise checked which version actually answered the health request after ECS restored the previous task definition.
 
 The outcome was a release process I could trace back to its source code, a private connection to the same RDS database used in Project 1, and two tested recovery paths. I took the questions about deployment permissions, security ownership and evidence into [Project 3 — Cloud Governance](../project-3-cloud-governance/README.md).
 

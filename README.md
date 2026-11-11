@@ -110,7 +110,7 @@ The techniques are familiar from incident bridges: follow the traffic, separate 
 
 ### Cost is an engineering constraint, not an afterthought
 
-I shut down the application runtime after the exercises and initially kept the encrypted recovery assets so the restores could be inspected. At final retirement on November 11, I removed the lab snapshots, retained automated backups, backup vault, registries, evidence buckets, and dedicated Terraform backend. I verified the original incident report against its published digest before removing its AWS copy. The lab keys entered their deletion windows, and the child DNS zone was removed after its parent delegation was withdrawn.
+I used timed recovery exercises to measure how quickly the service could recover. For encrypted database backups, retention also meant keeping the decryption key available through the restore and checking that the recovered data could be read.
 
 ## What this work proves—and what it doesn't
 

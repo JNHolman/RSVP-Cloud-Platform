@@ -82,7 +82,7 @@ In the current implementation, the model explains triage priority from limited m
 
 On November 10 (Eastern time), I invoked the merged Lambda directly with a labeled sample finding. Its scoped role wrote to the KMS-encrypted table. Both the first alert and the reopened alert reached encrypted SQS, and both pointers retrieved the sample’s source identifiers. Replay preserved the original analysis timestamp. Closure and suppression were recorded, with no additional notification observed during the 15-second check.
 
-Two deliberate fallback invocations then triggered the CloudWatch alarm. The subscriber received its ALARM notification about one minute after the second fallback. CloudFormation confirmed stack deletion, the package bucket was removed, and the temporary KMS key entered its deletion window. This exercise began at Lambda. Native Security Hub detection and EventBridge routing from Security Hub remain unverified. [Live lifecycle, alarm receipt and teardown record](evidence/live-finding-lifecycle.json)
+Two deliberate fallback invocations then triggered the CloudWatch alarm. The subscriber received its ALARM notification about one minute after the second fallback. This exercise began at Lambda. Native Security Hub detection and EventBridge routing from Security Hub remain unverified. [Finding lifecycle and alarm receipt](evidence/live-finding-lifecycle.json)
 
 [Security decision logic](security-admin/ai_incident_analyzer.py) · [Operational event handler configuration](security-admin/ai-operations.tf)
 
